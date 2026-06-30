@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>House Staff Salaries</title>
   <meta name="description" content="Salary data for U.S. House of Representatives staff." />
-  <link rel="stylesheet" href="styles.css?v=20260629s" />
+  <link rel="stylesheet" href="styles.css?v=20260630a" />
 </head>
 <body>
 
@@ -45,6 +45,7 @@
         <div class="hero-stat-sub">updated <span id="stat-updated">—</span></div>
       </div>
     </div>
+    <div id="q4-notice" style="display:none" class="q4-notice"></div>
   </div>
 
   <div class="body-grid">
@@ -77,7 +78,7 @@
       </div>
 
       <div class="tab-pane active" id="tab-dist">
-        <div class="pane-label">Annual salary equivalent — full-time staff — latest quarter</div>
+        <div class="pane-label" id="dist-pane-label">Annual salary equivalent — full-time staff — latest quarter</div>
         <div class="chart-wrap"><canvas id="chart-dist"></canvas></div>
       </div>
 
@@ -189,6 +190,6 @@
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-<script src="app.js?v=20260629s"></script>
+<script src="app.js?v=20260630a"></script>
 </body>
 </html>

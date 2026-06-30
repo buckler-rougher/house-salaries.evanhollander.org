@@ -49,11 +49,32 @@ function renderStats() {
   $("stat-quarter").textContent = q.label;
   $("stat-updated").textContent = summary.updated;
   $("footer-updated").textContent = summary.updated;
+
+  // Q4 bonus notice
+  const notice = $("q4-notice");
+  if (q.quarter === 4) {
+    const prev = [...summary.quarters].reverse().find(x => x.quarter !== 4);
+    const prevNote = prev ? ` For comparison, the median in ${prev.label} was $${Math.round(prev.overall.median).toLocaleString()}.` : "";
+    notice.textContent = `Q4 (Oct–Dec) includes year-end bonuses and lump-sum payments that can significantly inflate these figures.${prevNote}`;
+    notice.style.display = "";
+  } else {
+    notice.style.display = "none";
+  }
 }
 
 function renderDist() {
-  const q = summary.quarters[summary.quarters.length - 1];
-  if (!q) return;
+  const latest = summary.quarters[summary.quarters.length - 1];
+  if (!latest) return;
+  // Use most recent non-Q4 quarter when latest is Q4 (avoids bonus inflation in distribution)
+  const q = latest.quarter === 4
+    ? ([...summary.quarters].reverse().find(x => x.quarter !== 4) || latest)
+    : latest;
+  const distLabel = $("dist-pane-label");
+  if (distLabel) {
+    distLabel.textContent = q === latest
+      ? "Annual salary equivalent — full-time staff — latest quarter"
+      : `Annual salary equivalent — full-time staff — ${q.label} (Q4 excluded: includes bonuses)`;
+  }
   const dist = q.distribution;
   const labels = dist.map(b => b.max == null ? `$${b.min/1000}k+` : `$${b.min/1000}k`);
   const accent = "#c0392b";

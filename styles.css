@@ -240,6 +240,7 @@ nav {
 .trend-q.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .trend-q:not(.active):hover { border-color: var(--ink); color: var(--ink); }
 .trend-q-note { font-size: .75rem; color: #92400e; background: #fef3c7; padding: 8px 12px; border-radius: 6px; margin-bottom: 12px; line-height: 1.5; }
+.q4-notice { font-size: .78rem; color: #92400e; background: #fef3c7; padding: 8px 14px; border-radius: 6px; margin: 10px auto 0; max-width: 860px; line-height: 1.5; }
 
 .range-staff-list { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
 .range-staff-heading { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); margin-bottom: 8px; }
