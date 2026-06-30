@@ -55,7 +55,7 @@ function renderStats() {
   $("stat-mean").textContent    = o.mean   != null ? Math.round(o.mean).toLocaleString()   : "—";
   $("stat-count").textContent   = o.count  != null ? o.count.toLocaleString() : "—";
   $("stat-intern-note").textContent = `+ ${(q.intern_count||0).toLocaleString()} interns`;
-  $("stat-quarter").textContent = q.label;
+  $("stat-quarter").innerHTML = esc(q.label).replace(/–/g, '<span class="quarter-text-sep">–</span>');
   $("stat-updated").textContent = summary.updated;
 
   const lbl = $("stat-quarter-label");

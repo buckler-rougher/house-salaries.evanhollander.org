@@ -47,7 +47,7 @@ body {
 }
 
 /* ── Quarter nav ── */
-.quarter-nav { display: flex; align-items: center; gap: 6px; }
+.quarter-nav { position: relative; display: flex; align-items: center; gap: 6px; }
 .qnav-btn {
   background: none; border: none; padding: 0 2px; cursor: pointer;
   font-size: 1.4em; line-height: 1; color: var(--ink2);
@@ -55,6 +55,9 @@ body {
 }
 .qnav-btn:hover:not(:disabled) { color: var(--accent); }
 .qnav-btn:disabled { color: var(--line); cursor: default; }
+/* Pull prev arrow out of flow so the quarter text stays left-aligned with the label below */
+#qnav-prev { position: absolute; right: 100%; margin-right: 6px; }
+.quarter-text-sep { padding: 0 .15em; }
 
 
 /* ── Hero ── */
