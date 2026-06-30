@@ -489,7 +489,8 @@ async function showPerson(name, officeName) {
       if (!el) return;
       if (!ts) { el.innerHTML = `<div style="font-size:.78rem;color:var(--ink3);padding:6px 0">No salary data for this title.</div>`; return; }
       const you = latestEmp.annual_equiv;
-      const youRow = `<div class="person-modal-comp-row person-modal-comp-you"><span>${esc(name)}</span><span>${fmtK(you)}</span></div>`;
+      const pctile = you < ts.p25 ? "below 25th pct." : you < ts.median ? "25th–50th pct." : you < ts.p75 ? "50th–75th pct." : "above 75th pct.";
+      const youRow = `<div class="person-modal-comp-row person-modal-comp-you"><span>${esc(name)} <span style="font-weight:400;font-size:.72rem;opacity:.7">${pctile}</span></span><span>${fmtK(you)}</span></div>`;
       const r25 = `<div class="person-modal-comp-row"><span>25th pct.</span><span>${fmtK(ts.p25)}</span></div>`;
       const rMed = `<div class="person-modal-comp-row"><span>Median</span><span>${fmtK(ts.median)}</span></div>`;
       const r75 = `<div class="person-modal-comp-row"><span>75th pct.</span><span>${fmtK(ts.p75)}</span></div>`;
@@ -672,9 +673,20 @@ function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
             <text x="${(pad.l - 6).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
   }).join("");
 
-  // X labels
+  // X labels — thin so last two don't collide
   const rotateX = n > 6;
+  const step = Math.max(1, Math.ceil(n / 8));
+  // Build set of indices to show; skip penultimate if too close to last
+  const showIdx = new Set();
+  for (let i = 0; i < n; i += step) showIdx.add(i);
+  showIdx.add(n - 1);
+  // Remove second-to-last shown index if within one step of the last
+  const sorted = [...showIdx].sort((a, b) => a - b);
+  if (sorted.length >= 2 && n - 1 - sorted[sorted.length - 2] < step) {
+    showIdx.delete(sorted[sorted.length - 2]);
+  }
   const xLabels = labels.map((lb, i) => {
+    if (!showIdx.has(i)) return "";
     const x = sx(i);
     if (rotateX) {
       const ty = pad.t + ph + 6;
