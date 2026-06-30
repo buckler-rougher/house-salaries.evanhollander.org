@@ -89,7 +89,6 @@ body {
   font-variant-numeric: tabular-nums;
   line-height: 1.85rem;
   height: 1.85rem;
-  overflow: hidden;
   margin-bottom: 5px;
   white-space: nowrap;
 }
