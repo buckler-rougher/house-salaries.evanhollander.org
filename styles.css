@@ -84,10 +84,9 @@ body {
   letter-spacing: -.03em;
   color: var(--ink);
   font-variant-numeric: tabular-nums;
-  line-height: 1.1;
+  line-height: 1.85rem;
   height: 1.85rem;
-  display: flex;
-  align-items: center;
+  overflow: hidden;
   margin-bottom: 5px;
   white-space: nowrap;
 }
