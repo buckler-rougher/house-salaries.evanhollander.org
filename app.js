@@ -283,14 +283,12 @@ async function showPerson(name, officeName) {
       : "";
 
     const compHtml = latestEmp ? `<div class="person-comp" id="person-comp-block">
-      <div class="person-comp-header">
-        <span class="person-comp-label">Compare to title</span>
-        <div style="position:relative">
-          <input id="person-comp-search" class="t-input" placeholder="${esc(person.title)}" autocomplete="off"
-            style="font-size:.72rem;padding:4px 8px;width:190px" />
-          <div id="person-comp-results" class="pos-results"
-            style="position:absolute;z-index:10;background:var(--bg);border:1.5px solid var(--line);border-radius:8px;width:230px;display:none;max-height:200px;overflow-y:auto"></div>
-        </div>
+      <div class="person-comp-label">Compare to: <span id="person-comp-title-display" class="person-comp-title-link">${esc(latestEmp.title)}</span></div>
+      <div style="position:relative;display:none" id="person-comp-search-wrap">
+        <input id="person-comp-search" class="t-input" placeholder="Search a title…" autocomplete="off"
+          style="font-size:.78rem;padding:5px 8px;width:100%;box-sizing:border-box;margin:4px 0" />
+        <div id="person-comp-results" class="pos-results"
+          style="position:absolute;z-index:10;background:var(--bg);border:1.5px solid var(--line);border-radius:8px;width:100%;display:none;max-height:200px;overflow-y:auto"></div>
       </div>
       <div id="person-comp-stats"></div>
     </div>` : "";
@@ -367,7 +365,13 @@ async function showPerson(name, officeName) {
 
     const searchEl = $("person-comp-search");
     const resultsEl = $("person-comp-results");
-    if (searchEl && resultsEl) {
+    const searchWrap = $("person-comp-search-wrap");
+    const titleDisplay = $("person-comp-title-display");
+    if (searchEl && resultsEl && searchWrap && titleDisplay) {
+      titleDisplay.addEventListener("click", () => {
+        searchWrap.style.display = searchWrap.style.display === "none" ? "block" : "none";
+        if (searchWrap.style.display === "block") { searchEl.value = ""; searchEl.focus(); }
+      });
       searchEl.addEventListener("input", () => {
         const q = searchEl.value.toLowerCase().trim();
         if (!q) { resultsEl.style.display = "none"; return; }
@@ -379,15 +383,19 @@ async function showPerson(name, officeName) {
         resultsEl.style.display = "block";
         resultsEl.querySelectorAll(".pos-result-item").forEach(row => {
           row.addEventListener("click", () => {
-            searchEl.value = row.dataset.title;
+            titleDisplay.textContent = row.dataset.title;
+            searchWrap.style.display = "none";
             resultsEl.style.display = "none";
             renderCompStats(row.dataset.title);
           });
         });
       });
       document.addEventListener("click", e => {
-        if (!e.target.closest("#person-comp-block")) resultsEl.style.display = "none";
-      }, { once: true });
+        if (!e.target.closest("#person-comp-block")) {
+          searchWrap.style.display = "none";
+          resultsEl.style.display = "none";
+        }
+      });
     }
   }
 }
