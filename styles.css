@@ -116,6 +116,27 @@ body {
   color: var(--ink);
   margin-bottom: 12px;
 }
+.pos-input-wrap { position: relative; }
+.pos-placeholder {
+  position: absolute; inset: 0;
+  padding: 12px 16px;
+  font-size: .95rem; color: var(--ink3);
+  pointer-events: none; user-select: none;
+  white-space: nowrap; overflow: hidden;
+  display: flex; align-items: center; gap: 0;
+}
+.pos-placeholder-hidden { display: none; }
+#pos-placeholder-word {
+  display: inline-block;
+  animation-fill-mode: both;
+  animation-duration: 350ms;
+  animation-timing-function: cubic-bezier(.4,0,.2,1);
+}
+@keyframes phOut { from { opacity:1; transform:translateY(0); } to { opacity:0; transform:translateY(8px); } }
+@keyframes phIn  { from { opacity:0; transform:translateY(-8px); } to { opacity:1; transform:translateY(0); } }
+.ph-out { animation-name: phOut; }
+.ph-in  { animation-name: phIn; }
+
 .pos-input {
   width: 100%;
   padding: 12px 16px;

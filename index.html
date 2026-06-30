@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>House Staff Salaries</title>
   <meta name="description" content="Salary data for U.S. House of Representatives staff." />
-  <link rel="stylesheet" href="styles.css?v=20260630s" />
+  <link rel="stylesheet" href="styles.css?v=20260630t" />
 </head>
 <body>
 
@@ -51,7 +51,10 @@
     <div class="lookup">
       <div>
         <div class="lookup-heading">Look up a position</div>
-        <input type="search" id="pos-search" class="pos-input" placeholder="e.g. Legislative Assistant…" autocomplete="off" />
+        <div class="pos-input-wrap">
+          <input type="search" id="pos-search" class="pos-input" placeholder="" autocomplete="off" />
+          <span class="pos-placeholder" id="pos-placeholder" aria-hidden="true">e.g. <span id="pos-placeholder-word">Legislative Assistant</span>…</span>
+        </div>
         <div id="pos-results" class="pos-results"></div>
       </div>
 
@@ -209,6 +212,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260630s"></script>
+<script src="app.js?v=20260630t"></script>
 </body>
 </html>

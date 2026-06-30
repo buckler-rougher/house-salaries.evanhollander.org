@@ -1073,6 +1073,48 @@ function render() {
   filtered = employees.filter(e => !e.intern); renderTable();
   $("qnav-prev").addEventListener("click", () => navigateQuarter(-1));
   $("qnav-next").addEventListener("click", () => navigateQuarter(1));
+  startPlaceholderCycle();
+}
+
+function startPlaceholderCycle() {
+  const input = $("pos-search");
+  const overlay = $("pos-placeholder");
+  const word = $("pos-placeholder-word");
+  if (!input || !overlay || !word) return;
+
+  // Pull titles from data; shuffle so it's not alphabetical
+  const pool = (summary.quarters[summary.quarters.length - 1]?.top_titles || [])
+    .map(t => t.title)
+    .sort(() => Math.random() - .5);
+  if (pool.length < 2) return;
+
+  let idx = 0;
+  let paused = false;
+  let timer;
+
+  function showHide() {
+    overlay.classList.toggle("pos-placeholder-hidden", input.value.length > 0);
+  }
+  input.addEventListener("focus", () => { paused = true; showHide(); });
+  input.addEventListener("blur",  () => { paused = false; showHide(); });
+  input.addEventListener("input", showHide);
+
+  function cycle() {
+    if (paused || input.value.length > 0) { timer = setTimeout(cycle, 3000); return; }
+    idx = (idx + 1) % pool.length;
+    // slide old out
+    word.classList.remove("ph-in");
+    word.classList.add("ph-out");
+    setTimeout(() => {
+      word.textContent = pool[idx];
+      word.classList.remove("ph-out");
+      word.classList.add("ph-in");
+    }, 350);
+    timer = setTimeout(cycle, 3000);
+  }
+
+  word.textContent = pool[idx];
+  timer = setTimeout(cycle, 3000);
 }
 
 document.addEventListener("DOMContentLoaded", () => {
