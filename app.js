@@ -496,12 +496,18 @@ async function showPerson(name, officeName) {
       if (!el) return;
       if (!ts) { el.innerHTML = `<div style="font-size:.78rem;color:var(--ink3);padding:6px 0">No salary data for this title.</div>`; return; }
       const you = latestEmp.annual_equiv;
-      const pctile = you < ts.p25 ? "below 25th pct." : you < ts.median ? "25th–50th pct." : you < ts.p75 ? "50th–75th pct." : "above 75th pct.";
-      el.innerHTML = `
-        <div class="person-modal-comp-row"><span>25th pct.</span><span>${fmtK(ts.p25)}</span></div>
-        <div class="person-modal-comp-row"><span>Median</span><span>${fmtK(ts.median)}</span></div>
-        <div class="person-modal-comp-row person-modal-comp-you"><span>${esc(name)}</span><span>${fmtK(you)} <em style="font-weight:400;font-size:.72rem;color:var(--ink3)">${pctile}</em></span></div>
-        <div class="person-modal-comp-row"><span>75th pct.</span><span>${fmtK(ts.p75)}</span></div>`;
+      const youRow = `<div class="person-modal-comp-row person-modal-comp-you"><span>${esc(name)}</span><span>${fmtK(you)}</span></div>`;
+      const r25 = `<div class="person-modal-comp-row"><span>25th pct.</span><span>${fmtK(ts.p25)}</span></div>`;
+      const rMed = `<div class="person-modal-comp-row"><span>Median</span><span>${fmtK(ts.median)}</span></div>`;
+      const r75 = `<div class="person-modal-comp-row"><span>75th pct.</span><span>${fmtK(ts.p75)}</span></div>`;
+      const rows = you < ts.p25
+        ? [youRow, r25, rMed, r75]
+        : you < ts.median
+          ? [r25, youRow, rMed, r75]
+          : you < ts.p75
+            ? [r25, rMed, youRow, r75]
+            : [r25, rMed, r75, youRow];
+      el.innerHTML = rows.join("");
     }
     renderCompStats(compTitle);
 
