@@ -105,6 +105,7 @@ body {
   grid-template-columns: 380px 1fr;
   min-height: calc(100vh - 300px);
 }
+.body-grid > * { min-width: 0; }
 
 /* ── Left: lookup ── */
 .lookup {
@@ -168,7 +169,7 @@ body {
 }
 .pos-row:hover { background: var(--bg2); }
 .pos-row.active { background: var(--accent2); }
-.pos-row-name { font-size: .88rem; font-weight: 600; color: var(--ink); flex: 1; }
+.pos-row-name { font-size: .88rem; font-weight: 600; color: var(--ink); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pos-row-count { font-size: .75rem; color: var(--ink3); white-space: nowrap; }
 .pos-row-median { font-size: .88rem; font-weight: 800; color: var(--accent); white-space: nowrap; font-variant-numeric: tabular-nums; }
 
@@ -309,7 +310,11 @@ body {
   display: flex;
   border-bottom: 1px solid var(--line);
   padding: 0 36px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.tab-nav::-webkit-scrollbar { display: none; }
 .tab-btn {
   padding: 16px 0;
   margin-right: 32px;
@@ -323,6 +328,8 @@ body {
   background: none;
   cursor: pointer;
   transition: color .15s, border-color .15s;
+  flex-shrink: 0;
+  white-space: nowrap;
 }
 .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
 .tab-btn:hover:not(.active) { color: var(--ink); }
@@ -413,7 +420,8 @@ body {
 .t-input::placeholder { color: var(--ink3); }
 .t-input:focus, .t-select:focus { border-color: var(--accent); }
 
-table { width: 100%; border-collapse: collapse; font-size: .82rem; }
+.table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+table { width: 100%; border-collapse: collapse; font-size: .82rem; min-width: 560px; }
 thead th {
   padding: 8px 12px;
   text-align: left;
@@ -486,7 +494,7 @@ tr:hover td { background: var(--bg2); }
 }
 .office-row:hover { background: var(--bg2); padding-left: 6px; padding-right: 6px; margin: 0 -6px; }
 .office-row:last-child { border-bottom: none; }
-.office-name { font-size: .88rem; font-weight: 700; color: var(--ink); }
+.office-name { font-size: .88rem; font-weight: 700; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 /* badge column: fixed width, right-align so all badges share a right edge */
 .office-row .badge { justify-self: end; }
 /* count: number right-aligns, " staff" label anchors it */
@@ -625,5 +633,50 @@ tr:hover td { background: var(--bg2); }
   .lookup { border-right: none; border-bottom: 1px solid var(--line); padding: 28px 20px; }
   .tab-pane { padding: 24px 20px; }
   .tab-nav { padding: 0 20px; }
-  footer { padding: 16px 20px; }
+  .site-footer { padding: 16px 20px; }
+  .q4-notice { padding: 10px 20px; }
+}
+
+@media (max-width: 640px) {
+  .hero-title { margin-bottom: 8px; }
+  .hero-stat { padding: 14px 12px 14px 0; }
+  .hero-stat-num { font-size: 1.3rem; }
+  .lookup { padding: 22px 16px; gap: 22px; }
+  .tab-pane { padding: 20px 16px; }
+  .tab-nav { padding: 0 16px; }
+  .site-footer { padding: 16px; }
+  .q4-notice { padding: 10px 16px; font-size: .74rem; }
+  .person-modal { padding: 24px 18px 22px; border-radius: 10px; }
+  .person-modal-salary { font-size: 1.6rem; }
+  .person-modal-name { font-size: 1.2rem; }
+  .range-card { padding: 18px 16px; }
+  .range-trio { grid-template-columns: 1fr; }
+  .range-trio-cell { display: flex; justify-content: space-between; align-items: center; padding: 10px 14px; }
+  .range-trio-key { margin-top: 0; }
+  .office-toolbar, .table-bar { flex-direction: column; align-items: stretch; }
+  .office-toolbar .t-input, .office-toolbar .t-select,
+  .table-bar .t-input, .table-bar .t-select { max-width: none !important; width: 100%; }
+
+  /* Office rows: name takes the full first line, badge/count/range/chevron wrap onto a second line */
+  .office-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px 10px;
+  }
+  .office-name { flex: 1 1 100%; white-space: normal; overflow: visible; text-overflow: clip; }
+  .office-row .badge { justify-self: unset; order: 1; }
+  .office-count { order: 2; }
+  .office-range { order: 3; }
+  .office-chevron { order: 4; margin-left: auto; }
+
+  .range-staff-row, .office-staff-row { grid-template-columns: 1fr; row-gap: 2px; }
+  .range-staff-amt, .office-staff-amt { text-align: left; }
+  .range-staff-office, .office-staff-title { white-space: normal; }
+}
+
+@media (max-width: 420px) {
+  .hero-stats { grid-template-columns: 1fr; }
+  .hero-stat { border-bottom: 1px solid var(--line); padding: 12px 0; }
+  .hero-stat:last-child { border-bottom: none; }
 }

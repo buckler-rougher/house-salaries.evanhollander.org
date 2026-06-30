@@ -864,10 +864,16 @@ function svgSparkline(data, labels) {
             <text x="${pad.l - 7}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
   }).join("");
 
-  // X labels — show ~6 evenly spaced
+  // X labels — show ~6 evenly spaced; rotate once there are enough that they'd crowd
   const step = Math.max(1, Math.ceil(labels.length / 6));
+  const rotateX = labels.length > 4;
   const xLabels = labels.map((lb, i) => {
     if (i % step !== 0 && i !== labels.length - 1) return "";
+    if (rotateX) {
+      const ty = pad.t + ph + 6;
+      return `<text text-anchor="end" font-size="10" fill="#888"
+        transform="translate(${sx(i).toFixed(1)},${ty.toFixed(1)}) rotate(-45)">${lb}</text>`;
+    }
     return `<text x="${sx(i).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="#888">${lb}</text>`;
   }).join("");
 
