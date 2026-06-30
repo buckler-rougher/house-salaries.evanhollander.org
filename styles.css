@@ -479,14 +479,39 @@ tr:hover td { background: var(--bg2); }
 .person-link { cursor: pointer; color: inherit; text-decoration: none; }
 .person-link:hover { text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 2px; }
 
-/* ── Person comparison ── */
-.person-comp { margin-top: 14px; border-top: 1px solid var(--line); padding-top: 12px; }
-.person-comp-label { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); margin-bottom: 8px; }
-.person-comp-title-link { font-weight: 400; text-transform: none; letter-spacing: 0; color: var(--ink2); cursor: pointer; border-bottom: 1px dashed var(--ink3); }
+/* ── Person modal ── */
+.person-modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.35);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 1000; padding: 24px;
+  animation: fadeIn 150ms ease-out;
+}
+.person-modal {
+  background: var(--bg); border-radius: 14px; box-shadow: 0 8px 40px rgba(0,0,0,.18);
+  width: 100%; max-width: 640px; max-height: 90vh; overflow-y: auto;
+  padding: 32px 36px 28px; position: relative;
+  animation: modalSlide 200ms ease-out;
+}
+@keyframes modalSlide { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+.person-modal-close {
+  position: absolute; top: 16px; right: 18px;
+  background: none; border: none; cursor: pointer;
+  font-size: 1.3rem; line-height: 1; color: var(--ink3); padding: 4px 6px;
+}
+.person-modal-close:hover { color: var(--ink); }
+.person-modal-name { font-size: 1.4rem; font-weight: 800; color: var(--ink); letter-spacing: -.02em; }
+.person-modal-meta { font-size: .8rem; color: var(--ink3); margin-top: 3px; }
+.person-modal-salary { font-size: 2rem; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -.03em; margin: 16px 0 2px; }
+.person-modal-salary-sub { font-size: .75rem; color: var(--ink3); margin-bottom: 16px; }
+.person-modal-change { font-size: .82rem; margin-bottom: 16px; }
+.person-modal-section { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); margin: 20px 0 10px; }
+.person-modal-chart { height: 220px; margin-bottom: 4px; }
+.person-modal-comp-row { display: flex; justify-content: space-between; align-items: center; font-size: .85rem; padding: 6px 0; border-bottom: 1px solid var(--line); color: var(--ink2); }
+.person-modal-comp-row:last-child { border-bottom: none; }
+.person-modal-comp-you { font-weight: 800; color: var(--ink); background: var(--accent2); margin: 0 -8px; padding: 6px 8px; border-radius: 4px; }
+.person-modal-comp-label { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); margin-bottom: 8px; }
+.person-comp-title-link { color: var(--ink2); cursor: pointer; border-bottom: 1px dashed var(--ink3); }
 .person-comp-title-link:hover { color: var(--ink); border-color: var(--ink); }
-.person-comp-row { display: flex; justify-content: space-between; font-size: .82rem; padding: 4px 0; color: var(--ink2); border-bottom: 1px solid var(--line); }
-.person-comp-row:last-child { border-bottom: none; }
-.person-comp-you { font-weight: 800; color: var(--ink); background: var(--accent2); margin: 0 -6px; padding: 4px 6px; border-radius: 4px; }
 
 /* ── Office total payroll ── */
 .office-total-payroll { font-size: .75rem; color: var(--ink3); margin: 10px 0 4px; }

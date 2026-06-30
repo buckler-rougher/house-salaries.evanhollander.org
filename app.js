@@ -378,159 +378,143 @@ function selectTitle(t, el) {
   }
 }
 
-// ── Person profile ──
+// ── Person modal ──
+function closePersonModal() {
+  const overlay = $("person-modal-overlay");
+  if (overlay) overlay.style.display = "none";
+  currentSelection = null;
+  setHash({});
+}
+
 async function showPerson(name, officeName) {
   currentSelection = { type: "person", personName: name, personOffice: officeName };
   setHash({ person: name + "|" + officeName });
-  $("lookup-hint").style.display = "none";
-  $("range-card-wrap").style.display = "";
-  $("range-card").innerHTML = `<div style="padding:12px 0;color:var(--ink3);font-size:.85rem">Loading history…</div>`;
+
+  const overlay = $("person-modal-overlay");
+  const body = $("person-modal-body");
+  overlay.style.display = "flex";
+  body.innerHTML = `<div style="padding:24px 0;color:var(--ink3);font-size:.85rem">Loading…</div>`;
 
   await loadPeople();
 
   const person = peopleData?.find(p => p.name === name && p.office === officeName);
   const latestEmp = employees.find(e => e.name === name && cleanOrg(e.office) === officeName);
+  const over = latestEmp && latestEmp.annual_equiv > SALARY_CAP;
 
-  const histHtml = person ? (() => {
-    // Build quarter label map
+  // Pay history chart
+  let chartHtml = "", qFilterHtml = "";
+  if (person) {
     const labelMap = {};
     summary.quarters.forEach(q => labelMap[q.id] = q.label);
-    const hist = person.history;
-    const data = hist.map(h => h.quarterly_pay * 4);
-    const labels = hist.map(h => labelMap[h.quarter] || h.quarter);
-
-    // Change vs first quarter
-    const first = data[0], last = data[data.length - 1];
+    const hist = [...person.history].sort((a, b) => a.quarter.localeCompare(b.quarter));
+    const first = hist[0]?.quarterly_pay * 4, last = hist[hist.length - 1]?.quarterly_pay * 4;
     const change = last - first;
-    const changePct = first ? ((change / first) * 100).toFixed(0) : null;
-    const changeStr = changePct != null
-      ? `<span style="color:${change >= 0 ? '#059669' : '#dc2626'};font-weight:700">${change >= 0 ? "+" : ""}${fmt(change)} (${change >= 0 ? "+" : ""}${changePct}%) since ${labels[0]}</span>`
+    const changePct = first ? Math.round((change / first) * 100) : null;
+    const changeHtml = changePct != null
+      ? `<div class="person-modal-change"><span style="color:${change >= 0 ? '#059669' : '#dc2626'};font-weight:700">${change >= 0 ? "+" : ""}${fmt(change)} (${change >= 0 ? "+" : ""}${changePct}%)</span> since ${hist[0].label || labelMap[hist[0].quarter] || hist[0].quarter}</div>`
       : "";
-
-    const compHtml = latestEmp ? `<div class="person-comp" id="person-comp-block">
-      <div class="person-comp-label">Compare to: <span id="person-comp-title-display" class="person-comp-title-link">${esc(latestEmp.title)}</span></div>
-      <div style="position:relative;display:none" id="person-comp-search-wrap">
-        <input id="person-comp-search" class="t-input" placeholder="Search a title…" autocomplete="off"
-          style="font-size:.78rem;padding:5px 8px;width:100%;box-sizing:border-box;margin:4px 0" />
-        <div id="person-comp-results" class="pos-results"
-          style="position:absolute;z-index:10;background:var(--bg);border:1.5px solid var(--line);border-radius:8px;width:100%;display:none;max-height:200px;overflow-y:auto"></div>
+    qFilterHtml = `<div class="mini-ctrl-row" style="margin-bottom:8px">
+      <div class="mini-pills">
+        <button class="mini-q active" data-q="0">All</button>
+        <button class="mini-q" data-q="1">Q1</button>
+        <button class="mini-q" data-q="2">Q2</button>
+        <button class="mini-q" data-q="3">Q3</button>
+        <button class="mini-q" data-q="4">Q4</button>
       </div>
-      <div id="person-comp-stats"></div>
-    </div>` : "";
-
-    return `<div class="mini-trend-wrap" id="person-trend-wrap">
-      <div class="mini-trend-heading">Pay history · annual equivalent</div>
-      ${changeStr ? `<div style="margin-bottom:8px;font-size:.8rem">${changeStr}</div>` : ""}
-      <div class="mini-ctrl-row">
-        <div class="mini-pills">
-          <button class="mini-q active" data-q="0">All</button>
-          <button class="mini-q" data-q="1">Q1</button>
-          <button class="mini-q" data-q="2">Q2</button>
-          <button class="mini-q" data-q="3">Q3</button>
-          <button class="mini-q" data-q="4">Q4</button>
-        </div>
-      </div>
-      <div class="mini-chart-wrap" id="person-chart"></div>
-      ${compHtml}
     </div>`;
-  })() : `<div style="padding:8px 0;font-size:.82rem;color:var(--ink3)">No multi-quarter history found. This person may have joined recently or changed offices.</div>`;
+    chartHtml = `${changeHtml}<div class="person-modal-section">Pay history · annual equivalent</div>${qFilterHtml}<div class="person-modal-chart" id="person-modal-chart"></div>`;
+  } else {
+    chartHtml = `<div style="font-size:.82rem;color:var(--ink3);margin:16px 0">No multi-quarter history — this person may have joined recently or changed offices.</div>`;
+  }
 
-  const over = latestEmp && latestEmp.annual_equiv > SALARY_CAP;
-  $("range-card").innerHTML = `
-    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px;margin-bottom:4px">
-      <div>
-        <div class="range-card-title">${esc(name)}</div>
-        <div class="range-card-sub">${esc(officeName)}${latestEmp ? ` · ${esc(latestEmp.title)}` : ""}</div>
-      </div>
-      <button onclick="clearPerson()" style="background:none;border:none;cursor:pointer;color:var(--ink3);font-size:1.1rem;line-height:1;padding:2px">×</button>
+  // Comparison section
+  const allTitles = summary.quarters[summary.quarters.length - 1]?.top_titles || [];
+  const compTitle = person?.title || latestEmp?.title || "";
+  const compHtml = latestEmp ? `
+    <div class="person-modal-section">
+      Compare to: <span id="pm-comp-title" class="person-comp-title-link">${esc(compTitle)}</span>
     </div>
-    ${latestEmp ? `<div style="font-size:1.4rem;font-weight:800;color:var(--ink);margin:10px 0 2px;font-variant-numeric:tabular-nums">${over?`<span class="cap-warn">⚠</span> `:""}${fmt(latestEmp.annual_equiv)}<span style="font-size:.75rem;font-weight:400;color:var(--ink3);margin-left:6px">est. annual</span></div>` : ""}
-    ${histHtml}`;
+    <div style="position:relative;display:none" id="pm-comp-wrap">
+      <input id="pm-comp-search" class="t-input" placeholder="Search a title…" autocomplete="off"
+        style="font-size:.78rem;padding:5px 8px;width:100%;box-sizing:border-box;margin:0 0 6px" />
+      <div id="pm-comp-results" class="pos-results"
+        style="position:absolute;z-index:10;background:var(--bg);border:1.5px solid var(--line);border-radius:8px;width:100%;display:none;max-height:180px;overflow-y:auto;top:36px"></div>
+    </div>
+    <div id="pm-comp-stats"></div>` : "";
 
+  body.innerHTML = `
+    <div class="person-modal-name">${esc(name)}</div>
+    <div class="person-modal-meta">${esc(officeName)}${latestEmp ? ` · ${esc(latestEmp.title)}` : ""}</div>
+    ${latestEmp ? `<div class="person-modal-salary">${over ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(latestEmp.annual_equiv)}</div>
+    <div class="person-modal-salary-sub">est. annual · latest quarter</div>` : ""}
+    ${chartHtml}
+    ${compHtml}`;
+
+  // Wire chart
   if (person) {
     const labelMap = {};
     summary.quarters.forEach(q => labelMap[q.id] = q.label);
     let qf = 0;
     function drawPersonChart() {
       const filtQs = summary.quarters.filter(q => !qf || q.quarter === qf);
-      const filtData = filtQs.map(q => {
-        const h = person.history.find(h => h.quarter === q.id);
-        return h ? h.quarterly_pay * 4 : null;
-      });
-      const filtLabels = filtQs.map(q => q.label);
-      const el = $("person-chart");
-      if (el) el.innerHTML = svgSparkline(filtData, filtLabels);
+      const data = filtQs.map(q => { const h = person.history.find(h => h.quarter === q.id); return h ? h.quarterly_pay * 4 : null; });
+      const labels = filtQs.map(q => q.label);
+      const el = $("person-modal-chart");
+      if (el) el.innerHTML = svgSparkline(data, labels);
     }
     drawPersonChart();
-    document.querySelectorAll("#person-trend-wrap .mini-q").forEach(b => {
+    document.querySelectorAll("#person-modal-body .mini-q").forEach(b => {
       b.addEventListener("click", () => {
         qf = +b.dataset.q;
-        document.querySelectorAll("#person-trend-wrap .mini-q").forEach(x => x.classList.toggle("active", x === b));
+        document.querySelectorAll("#person-modal-body .mini-q").forEach(x => x.classList.toggle("active", x === b));
         drawPersonChart();
       });
     });
   }
 
+  // Wire comparison
   if (latestEmp) {
-    const allTitles = summary.quarters[summary.quarters.length - 1]?.top_titles || [];
     function renderCompStats(titleStr) {
       const ts = allTitles.find(t => t.title === titleStr);
-      const el = $("person-comp-stats");
+      const el = $("pm-comp-stats");
       if (!el) return;
       if (!ts) { el.innerHTML = `<div style="font-size:.78rem;color:var(--ink3);padding:6px 0">No salary data for this title.</div>`; return; }
       const you = latestEmp.annual_equiv;
-      const pctile = you < ts.p25 ? "below 25th pct." : you < ts.median ? "25–50th pct." : you < ts.p75 ? "50–75th pct." : "above 75th pct.";
+      const pctile = you < ts.p25 ? "below 25th pct." : you < ts.median ? "25th–50th pct." : you < ts.p75 ? "50th–75th pct." : "above 75th pct.";
       el.innerHTML = `
-        <div class="person-comp-row"><span>25th pct.</span><span>${fmtK(ts.p25)}</span></div>
-        <div class="person-comp-row"><span>Median</span><span>${fmtK(ts.median)}</span></div>
-        <div class="person-comp-row person-comp-you"><span>This person</span><span>${fmtK(you)} <em style="font-weight:400;font-size:.7rem;color:var(--ink3)">${pctile}</em></span></div>
-        <div class="person-comp-row"><span>75th pct.</span><span>${fmtK(ts.p75)}</span></div>`;
+        <div class="person-modal-comp-row"><span>25th pct.</span><span>${fmtK(ts.p25)}</span></div>
+        <div class="person-modal-comp-row"><span>Median</span><span>${fmtK(ts.median)}</span></div>
+        <div class="person-modal-comp-row person-modal-comp-you"><span>${esc(name)}</span><span>${fmtK(you)} <em style="font-weight:400;font-size:.72rem;color:var(--ink3)">${pctile}</em></span></div>
+        <div class="person-modal-comp-row"><span>75th pct.</span><span>${fmtK(ts.p75)}</span></div>`;
     }
-    renderCompStats(person?.title || latestEmp.title);
+    renderCompStats(compTitle);
 
-    const searchEl = $("person-comp-search");
-    const resultsEl = $("person-comp-results");
-    const searchWrap = $("person-comp-search-wrap");
-    const titleDisplay = $("person-comp-title-display");
-    if (searchEl && resultsEl && searchWrap && titleDisplay) {
-      titleDisplay.addEventListener("click", () => {
-        searchWrap.style.display = searchWrap.style.display === "none" ? "block" : "none";
-        if (searchWrap.style.display === "block") { searchEl.value = ""; searchEl.focus(); }
+    const titleEl = $("pm-comp-title"), wrap = $("pm-comp-wrap"), searchEl = $("pm-comp-search"), resultsEl = $("pm-comp-results");
+    if (titleEl) {
+      titleEl.addEventListener("click", () => {
+        wrap.style.display = wrap.style.display === "none" ? "block" : "none";
+        if (wrap.style.display === "block") { searchEl.value = ""; searchEl.focus(); }
       });
       searchEl.addEventListener("input", () => {
         const q = searchEl.value.toLowerCase().trim();
         if (!q) { resultsEl.style.display = "none"; return; }
         const hits = allTitles.filter(t => t.title.toLowerCase().includes(q)).slice(0, 10);
-        if (!hits.length) { resultsEl.style.display = "none"; return; }
-        resultsEl.innerHTML = hits.map(t =>
-          `<div class="pos-result-item" data-title="${esc(t.title)}">${esc(t.title)}<span style="float:right;color:var(--ink3);font-size:.75rem">${fmtK(t.median)}</span></div>`
-        ).join("");
-        resultsEl.style.display = "block";
+        resultsEl.innerHTML = hits.map(t => `<div class="pos-result-item" data-title="${esc(t.title)}">${esc(t.title)}<span style="float:right;color:var(--ink3);font-size:.75rem">${fmtK(t.median)}</span></div>`).join("");
+        resultsEl.style.display = hits.length ? "block" : "none";
         resultsEl.querySelectorAll(".pos-result-item").forEach(row => {
           row.addEventListener("click", () => {
-            titleDisplay.textContent = row.dataset.title;
-            searchWrap.style.display = "none";
-            resultsEl.style.display = "none";
+            titleEl.textContent = row.dataset.title;
+            wrap.style.display = "none"; resultsEl.style.display = "none";
             renderCompStats(row.dataset.title);
           });
         });
-      });
-      document.addEventListener("click", e => {
-        if (!e.target.closest("#person-comp-block")) {
-          searchWrap.style.display = "none";
-          resultsEl.style.display = "none";
-        }
       });
     }
   }
 }
 
 function clearPerson() {
-  currentSelection = null;
-  setHash({});
-  $("range-card-wrap").style.display = "none";
-  $("lookup-hint").style.display = "";
-  document.querySelectorAll(".pos-row").forEach(r => r.classList.remove("active"));
+  closePersonModal();
 }
 
 // ── URL hash state ──
@@ -1056,6 +1040,15 @@ function render() {
 
 document.addEventListener("DOMContentLoaded", () => {
   const fy = $("footer-year"); if (fy) fy.textContent = new Date().getFullYear();
+
+  // Person modal close
+  $("person-modal-close")?.addEventListener("click", closePersonModal);
+  $("person-modal-overlay")?.addEventListener("click", e => {
+    if (e.target === $("person-modal-overlay")) closePersonModal();
+  });
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && $("person-modal-overlay")?.style.display !== "none") closePersonModal();
+  });
   document.querySelectorAll(".tab-btn").forEach(b => b.addEventListener("click", () => {
     const tab = b.dataset.tab;
     document.querySelectorAll(".tab-btn").forEach(x => x.classList.toggle("active", x===b));
