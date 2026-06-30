@@ -118,20 +118,9 @@ function navigateQuarter(dir) {
 function renderDist() {
   const viewed = viewedQuarter();
   if (!viewed) return;
-  // If the viewed quarter is Q4, show the previous non-Q4 quarter to avoid bonus inflation
-  const qs = summary.quarters;
-  const viewedIdx = qs.indexOf(viewed);
-  const q = viewed.quarter === 4
-    ? ([...qs].slice(0, viewedIdx).reverse().find(x => x.quarter !== 4) || viewed)
-    : viewed;
+  const q = viewed;
   const distLabel = $("dist-pane-label");
-  if (distLabel) {
-    distLabel.textContent = q.quarter === 4
-      ? `Annual salary equivalent — full-time staff — ${q.label}`
-      : q === viewed
-        ? `Annual salary equivalent — full-time staff — ${q.label}`
-        : `Annual salary equivalent — full-time staff — ${q.label} (Q4 excluded: includes bonuses)`;
-  }
+  if (distLabel) distLabel.textContent = `Annual salary equivalent — full-time staff — ${q.label}`;
   const dist = q.distribution;
   const barColors = dist.map(b => {
     if (b.min < 50000)  return "#e8e5df";
