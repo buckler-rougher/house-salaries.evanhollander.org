@@ -401,11 +401,33 @@ async function showPerson(name, officeName) {
   const latestEmp = employees.find(e => e.name === name && cleanOrg(e.office) === officeName);
   const over = latestEmp && latestEmp.annual_equiv > SALARY_CAP;
 
+  // Year-over-year same-quarter stat
+  let yoyHtml = "";
+  if (person && person.history.length >= 2) {
+    const hist = [...person.history].sort((a, b) => a.quarter.localeCompare(b.quarter));
+    // Find most recent quarter and look for same quarter one year prior
+    const latest = hist[hist.length - 1];
+    const [latestYear, latestQ] = latest.quarter.split("Q");
+    const priorId = `${+latestYear - 1}Q${latestQ}`;
+    const prior = hist.find(h => h.quarter === priorId);
+    if (prior) {
+      const latestAnn = latest.quarterly_pay * 4, priorAnn = prior.quarterly_pay * 4;
+      const diff = latestAnn - priorAnn;
+      const pct = Math.round((diff / priorAnn) * 100);
+      const labelMap = {};
+      summary.quarters.forEach(q => labelMap[q.id] = q.label);
+      const sign = diff >= 0 ? "+" : "−";
+      const color = diff >= 0 ? "#059669" : "#dc2626";
+      yoyHtml = `<div class="person-modal-yoy">
+        <span style="color:${color};font-weight:700">${sign}${fmtK(Math.abs(diff))} (${sign}${Math.abs(pct)}%)</span>
+        <span class="person-modal-yoy-label">vs. ${labelMap[priorId] || priorId} · same quarter last year</span>
+      </div>`;
+    }
+  }
+
   // Pay history chart
   let chartHtml = "", qFilterHtml = "";
   if (person) {
-    const labelMap = {};
-    summary.quarters.forEach(q => labelMap[q.id] = q.label);
     qFilterHtml = `<div class="mini-ctrl-row" style="margin-bottom:8px">
       <div class="mini-pills">
         <button class="mini-q active" data-q="0">All</button>
@@ -440,6 +462,7 @@ async function showPerson(name, officeName) {
     <div class="person-modal-meta">${esc(officeName)}${latestEmp ? ` · ${esc(latestEmp.title)}` : ""}</div>
     ${latestEmp ? `<div class="person-modal-salary">${over ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(latestEmp.annual_equiv)}</div>
     <div class="person-modal-salary-sub">est. annual · latest quarter</div>` : ""}
+    ${yoyHtml}
     ${chartHtml}
     ${compHtml}`;
 
