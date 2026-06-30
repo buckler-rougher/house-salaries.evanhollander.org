@@ -55,8 +55,11 @@ body {
 }
 .qnav-btn:hover:not(:disabled) { color: var(--accent); }
 .qnav-btn:disabled { color: var(--line); cursor: default; }
-/* Pull prev arrow out of flow so the quarter text stays left-aligned with the label below */
+/* Pin prev out of flow to the left; give the quarter text a fixed width so
+   next sits at a stable position regardless of which month names are showing
+   (otherwise it could shift out from under a click mid-interaction). */
 #qnav-prev { position: absolute; right: 100%; margin-right: 6px; }
+#stat-quarter { display: inline-block; width: 9.5ch; }
 .quarter-text-sep { padding: 0 .15em; }
 
 
