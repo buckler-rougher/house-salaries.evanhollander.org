@@ -21,6 +21,38 @@ body {
   line-height: 1.5;
 }
 
+/* ── Loading screen ── */
+.loading-screen {
+  position: fixed; inset: 0;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  background: var(--bg); gap: 24px;
+}
+.loading-wordmark {
+  font-size: .75rem; font-weight: 700; letter-spacing: .12em; text-transform: uppercase;
+  color: var(--ink3);
+}
+.loading-bar {
+  width: 120px; height: 2px; background: var(--line); border-radius: 2px; overflow: hidden;
+}
+.loading-fill {
+  height: 100%; width: 40%; background: var(--accent); border-radius: 2px;
+  animation: loadSlide 1s ease-in-out infinite;
+}
+@keyframes loadSlide {
+  0%   { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+/* ── Quarter nav ── */
+.quarter-nav { display: flex; align-items: center; gap: 6px; }
+.qnav-btn {
+  background: none; border: none; padding: 0 2px; cursor: pointer;
+  font-size: 1.4em; line-height: 1; color: var(--ink2);
+  transition: color .12s;
+}
+.qnav-btn:hover:not(:disabled) { color: var(--accent); }
+.qnav-btn:disabled { color: var(--line); cursor: default; }
+
 /* ── Nav ── */
 nav {
   display: flex;

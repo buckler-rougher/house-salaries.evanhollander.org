@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>House Staff Salaries</title>
   <meta name="description" content="Salary data for U.S. House of Representatives staff." />
-  <link rel="stylesheet" href="styles.css?v=20260630b" />
+  <link rel="stylesheet" href="styles.css?v=20260630c" />
 </head>
 <body>
 
@@ -17,7 +17,7 @@
   </div>
 </nav>
 
-<div id="loading" style="padding:64px 40px;color:#888;font-size:.9rem">Loading…</div>
+<div id="loading" class="loading-screen"><div class="loading-wordmark">House Staff Salaries</div><div class="loading-bar"><div class="loading-fill"></div></div></div>
 
 <div id="app" style="display:none">
 
@@ -40,8 +40,12 @@
         <div class="hero-stat-sub" id="stat-intern-note">—</div>
       </div>
       <div class="hero-stat">
-        <div class="hero-stat-num" id="stat-quarter">—</div>
-        <div class="hero-stat-label">Latest quarter</div>
+        <div class="hero-stat-num quarter-nav">
+          <button class="qnav-btn" id="qnav-prev" aria-label="Previous quarter">&#8249;</button>
+          <span id="stat-quarter">—</span>
+          <button class="qnav-btn" id="qnav-next" aria-label="Next quarter">&#8250;</button>
+        </div>
+        <div class="hero-stat-label" id="stat-quarter-label">Latest quarter</div>
         <div class="hero-stat-sub">updated <span id="stat-updated">—</span></div>
       </div>
     </div>
@@ -189,6 +193,6 @@
 
 </div>
 
-<script src="app.js?v=20260630b"></script>
+<script src="app.js?v=20260630c"></script>
 </body>
 </html>

@@ -9,6 +9,7 @@ let summary = null, employees = [];
 let trendMetric = "median", trendMode = "overall", trendPosTitle = null, trendQFilter = 0;
 let sortKey = "annual_equiv", sortDir = -1, page = 1, filtered = [];
 let peopleData = null, peopleLoading = false;
+let viewQIdx = -1; // index into summary.quarters; -1 = latest
 const PAGE = 25;
 
 const SALARY_CAP = 228000;
@@ -38,9 +39,16 @@ async function loadPeople() {
   peopleLoading = false;
 }
 
+function viewedQuarter() {
+  const qs = summary.quarters;
+  return viewQIdx < 0 ? qs[qs.length - 1] : qs[viewQIdx];
+}
+
 function renderStats() {
-  const q = summary.quarters[summary.quarters.length - 1];
+  const qs = summary.quarters;
+  const q = viewedQuarter();
   if (!q) return;
+  const isLatest = q === qs[qs.length - 1];
   const o = q.overall;
   $("stat-median").textContent  = o.median != null ? Math.round(o.median).toLocaleString() : "—";
   $("stat-mean").textContent    = o.mean   != null ? Math.round(o.mean).toLocaleString()   : "—";
@@ -50,11 +58,19 @@ function renderStats() {
   $("stat-updated").textContent = summary.updated;
   $("footer-updated").textContent = summary.updated;
 
+  const lbl = $("stat-quarter-label");
+  if (lbl) lbl.textContent = isLatest ? "Latest quarter" : "Quarter";
+
+  const idx = qs.indexOf(q);
+  const prev = $("qnav-prev"), next = $("qnav-next");
+  if (prev) prev.disabled = idx <= 0;
+  if (next) { next.disabled = isLatest; next.classList.toggle("qnav-disabled", isLatest); }
+
   // Q4 bonus notice
   const notice = $("q4-notice");
   if (q.quarter === 4) {
-    const prev = [...summary.quarters].reverse().find(x => x.quarter !== 4);
-    const prevNote = prev ? ` For comparison, the median in ${prev.label} was $${Math.round(prev.overall.median).toLocaleString()}.` : "";
+    const prev2 = [...qs].reverse().find(x => x.quarter !== 4 && qs.indexOf(x) < idx);
+    const prevNote = prev2 ? ` For comparison, the median in ${prev2.label} was $${Math.round(prev2.overall.median).toLocaleString()}.` : "";
     notice.textContent = `Q4 (Oct–Dec) includes year-end bonuses and lump-sum payments that can significantly inflate these figures.${prevNote}`;
     notice.style.display = "";
   } else {
@@ -62,17 +78,32 @@ function renderStats() {
   }
 }
 
+function navigateQuarter(dir) {
+  const qs = summary.quarters;
+  const cur = viewQIdx < 0 ? qs.length - 1 : viewQIdx;
+  const next = cur + dir;
+  if (next < 0 || next >= qs.length) return;
+  viewQIdx = next === qs.length - 1 ? -1 : next;
+  renderStats();
+  renderDist();
+}
+
 function renderDist() {
-  const latest = summary.quarters[summary.quarters.length - 1];
-  if (!latest) return;
-  const q = latest.quarter === 4
-    ? ([...summary.quarters].reverse().find(x => x.quarter !== 4) || latest)
-    : latest;
+  const viewed = viewedQuarter();
+  if (!viewed) return;
+  // If the viewed quarter is Q4, show the previous non-Q4 quarter to avoid bonus inflation
+  const qs = summary.quarters;
+  const viewedIdx = qs.indexOf(viewed);
+  const q = viewed.quarter === 4
+    ? ([...qs].slice(0, viewedIdx).reverse().find(x => x.quarter !== 4) || viewed)
+    : viewed;
   const distLabel = $("dist-pane-label");
   if (distLabel) {
-    distLabel.textContent = q === latest
-      ? "Annual salary equivalent — full-time staff — latest quarter"
-      : `Annual salary equivalent — full-time staff — ${q.label} (Q4 excluded: includes bonuses)`;
+    distLabel.textContent = q.quarter === 4
+      ? `Annual salary equivalent — full-time staff — ${q.label}`
+      : q === viewed
+        ? `Annual salary equivalent — full-time staff — ${q.label}`
+        : `Annual salary equivalent — full-time staff — ${q.label} (Q4 excluded: includes bonuses)`;
   }
   const dist = q.distribution;
   const barColors = dist.map(b => {
@@ -947,6 +978,8 @@ function render() {
   $("loading").remove(); $("app").style.display = "";
   renderStats(); renderDist(); buildTitles(); renderPosResults(""); buildOfficeData();
   filtered = employees.filter(e => !e.intern); renderTable();
+  $("qnav-prev").addEventListener("click", () => navigateQuarter(-1));
+  $("qnav-next").addEventListener("click", () => navigateQuarter(1));
 }
 
 document.addEventListener("DOMContentLoaded", () => {
