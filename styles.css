@@ -546,6 +546,32 @@ tr:hover td { background: var(--bg2); }
 .person-comp-title-link { color: var(--ink2); cursor: pointer; border-bottom: 1px dashed var(--ink3); }
 .person-comp-title-link:hover { color: var(--ink); border-color: var(--ink); }
 
+.pm-comp-wrap { position: relative; margin: -4px 0 14px; }
+.pm-comp-input {
+  width: 100%; box-sizing: border-box;
+  font-size: .85rem; padding: 9px 12px;
+  border: 1.5px solid var(--line); border-radius: 8px;
+  background: var(--bg); color: var(--ink);
+  outline: none; transition: border-color .15s;
+}
+.pm-comp-input::placeholder { color: var(--ink3); }
+.pm-comp-input:focus { border-color: var(--accent); }
+.pm-comp-results {
+  position: absolute; top: calc(100% + 4px); left: 0; right: 0; z-index: 20;
+  background: var(--bg); border: 1.5px solid var(--line); border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,.08);
+  max-height: 220px; overflow-y: auto; display: none;
+}
+.pm-comp-result {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 9px 12px; font-size: .82rem; color: var(--ink2);
+  cursor: pointer; border-bottom: 1px solid var(--line);
+}
+.pm-comp-result:last-child { border-bottom: none; }
+.pm-comp-result:hover { background: var(--bg2); color: var(--ink); }
+.pm-comp-result-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pm-comp-result-med { flex-shrink: 0; font-size: .75rem; color: var(--ink3); font-variant-numeric: tabular-nums; }
+
 /* ── Office total payroll ── */
 .office-total-payroll { font-size: .75rem; color: var(--ink3); margin: 10px 0 4px; }
 .office-total-payroll strong { color: var(--ink); }

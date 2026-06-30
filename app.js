@@ -442,11 +442,9 @@ async function showPerson(name, officeName) {
     <div class="person-modal-section">
       Compare to: <span id="pm-comp-title" class="person-comp-title-link">${esc(compTitle)}</span>
     </div>
-    <div style="position:relative;display:none" id="pm-comp-wrap">
-      <input id="pm-comp-search" class="t-input" placeholder="Search a title…" autocomplete="off"
-        style="font-size:.78rem;padding:5px 8px;width:100%;box-sizing:border-box;margin:0 0 6px" />
-      <div id="pm-comp-results" class="pos-results"
-        style="position:absolute;z-index:10;background:var(--bg);border:1.5px solid var(--line);border-radius:8px;width:100%;display:none;max-height:180px;overflow-y:auto;top:36px"></div>
+    <div class="pm-comp-wrap" id="pm-comp-wrap" style="display:none">
+      <input id="pm-comp-search" class="pm-comp-input" placeholder="Search a title…" autocomplete="off" />
+      <div id="pm-comp-results" class="pm-comp-results"></div>
     </div>
     <div id="pm-comp-stats"></div>` : "";
 
@@ -515,9 +513,9 @@ async function showPerson(name, officeName) {
         const q = searchEl.value.toLowerCase().trim();
         if (!q) { resultsEl.style.display = "none"; return; }
         const hits = allTitles.filter(t => t.title.toLowerCase().includes(q)).slice(0, 10);
-        resultsEl.innerHTML = hits.map(t => `<div class="pos-result-item" data-title="${esc(t.title)}">${esc(t.title)}<span style="float:right;color:var(--ink3);font-size:.75rem">${fmtK(t.median)}</span></div>`).join("");
+        resultsEl.innerHTML = hits.map(t => `<div class="pm-comp-result" data-title="${esc(t.title)}"><span class="pm-comp-result-title">${esc(t.title)}</span><span class="pm-comp-result-med">${fmtK(t.median)}</span></div>`).join("");
         resultsEl.style.display = hits.length ? "block" : "none";
-        resultsEl.querySelectorAll(".pos-result-item").forEach(row => {
+        resultsEl.querySelectorAll(".pm-comp-result").forEach(row => {
           row.addEventListener("click", () => {
             titleEl.textContent = row.dataset.title;
             wrap.style.display = "none"; resultsEl.style.display = "none";
