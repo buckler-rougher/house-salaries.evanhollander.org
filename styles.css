@@ -53,24 +53,6 @@ body {
 .qnav-btn:hover:not(:disabled) { color: var(--accent); }
 .qnav-btn:disabled { color: var(--line); cursor: default; }
 
-/* ── Nav ── */
-nav {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 18px 40px;
-  border-bottom: 1px solid var(--line);
-}
-.nav-name {
-  font-size: .8rem;
-  font-weight: 700;
-  letter-spacing: .06em;
-  text-transform: uppercase;
-  color: var(--ink);
-}
-.nav-links { display: flex; gap: 24px; }
-.nav-links a { font-size: .8rem; color: var(--ink3); text-decoration: none; }
-.nav-links a:hover { color: var(--ink); }
 
 /* ── Hero ── */
 .hero {
@@ -527,17 +509,20 @@ tr:hover td { background: var(--bg2); }
 }
 
 /* ── Footer ── */
-footer {
-  border-top: 1px solid var(--line);
-  padding: 20px 40px;
-  display: flex;
-  justify-content: space-between;
-  font-size: .72rem;
-  color: var(--ink3);
-  flex-wrap: wrap;
-  gap: 6px;
+.site-footer { border-top: 1px solid var(--line); padding: 20px 40px; }
+.site-footer-primary {
+  display: flex; align-items: center; flex-wrap: wrap; gap: 6px 0;
+  font-size: .72rem; color: var(--ink3);
 }
-footer a { color: var(--ink2); text-decoration: underline; text-underline-offset: 2px; }
+.site-footer-brand { font-weight: 700; color: var(--ink2); }
+.site-footer-sep { margin: 0 8px; }
+.site-footer-copy { color: var(--ink3); }
+.site-footer-link { color: var(--ink3); text-decoration: none; }
+.site-footer-link:hover { color: var(--ink); }
+.site-footer-secondary {
+  margin-top: 8px; font-size: .68rem; color: var(--ink3); line-height: 1.5;
+}
+.site-footer-secondary a { color: var(--ink3); text-decoration: underline; text-underline-offset: 2px; }
 
 /* ── Error ── */
 .error-msg { padding: 40px; color: var(--accent); font-size: .9rem; }

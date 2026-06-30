@@ -1040,6 +1040,7 @@ function render() {
 }
 
 document.addEventListener("DOMContentLoaded", () => {
+  const fy = $("footer-year"); if (fy) fy.textContent = new Date().getFullYear();
   document.querySelectorAll(".tab-btn").forEach(b => b.addEventListener("click", () => {
     const tab = b.dataset.tab;
     document.querySelectorAll(".tab-btn").forEach(x => x.classList.toggle("active", x===b));
