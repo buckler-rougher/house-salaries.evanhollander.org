@@ -1106,14 +1106,14 @@ function startPlaceholderCycle() {
     word.classList.remove("ph-in");
     word.classList.add("ph-out");
     setTimeout(() => {
-      word.textContent = pool[idx];
+      word.textContent = pool[idx] + "…";
       word.classList.remove("ph-out");
       word.classList.add("ph-in");
     }, 350);
     timer = setTimeout(cycle, 3000);
   }
 
-  word.textContent = pool[idx];
+  word.textContent = pool[idx] + "…";
   timer = setTimeout(cycle, 3000);
 }
 
