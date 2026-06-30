@@ -331,65 +331,73 @@ def main():
         json.dump({"people": people_list}, f, separators=(",", ":"))
     print(f"Wrote data/people.json ({os.path.getsize('data/people.json'):,} bytes, {len(people_list):,} people)", flush=True)
 
-def add_quarter(url):
-    """
-    Add a new quarter to the top of the QUARTERS list in this file.
-    Infers quarter id and label from the URL (e.g. JAN-MAR-2026 → 2026Q1).
-    """
-    import ast, textwrap
+MONTH_TO_Q = {
+    "JAN": 1, "JANUARY": 1, "FEB": 1, "FEBRUARY": 1, "MAR": 1, "MARCH": 1,
+    "APR": 2, "APRIL": 2, "MAY": 2, "JUN": 2, "JUNE": 2,
+    "JUL": 3, "JULY": 3, "AUG": 3, "AUGUST": 3, "SEP": 3, "SEPT": 3, "SEPTEMBER": 3,
+    "OCT": 4, "OCTOBER": 4, "NOV": 4, "NOVEMBER": 4, "DEC": 4, "DECEMBER": 4,
+}
+Q_LABELS = {1: "Jan–Mar", 2: "Apr–Jun", 3: "Jul–Sep", 4: "Oct–Dec"}
 
-    MONTH_TO_Q = {
-        "JAN": 1, "JANUARY": 1, "FEB": 1, "FEBRUARY": 1, "MAR": 1, "MARCH": 1,
-        "APR": 2, "APRIL": 2, "MAY": 2, "JUN": 2, "JUNE": 2,
-        "JUL": 3, "JULY": 3, "AUG": 3, "AUGUST": 3, "SEP": 3, "SEPT": 3, "SEPTEMBER": 3,
-        "OCT": 4, "OCTOBER": 4, "NOV": 4, "NOVEMBER": 4, "DEC": 4, "DECEMBER": 4,
-    }
-    Q_LABELS = {1: "Jan–Mar", 2: "Apr–Jun", 3: "Jul–Sep", 4: "Oct–Dec"}
+SOD_PAGE = "https://www.house.gov/the-house-explained/open-government/statement-of-disbursements"
 
-    # Pull year and first month from url
-    tokens = re.findall(r'[A-Z]+|\d{4}', url.upper())
+def url_to_quarter(path):
+    """Return (qid, label, year, q) from a SOD CSV path, or None if unparseable."""
+    tokens = re.findall(r'[A-Z]+|\d{4}', path.upper())
     year = next((int(t) for t in tokens if len(t) == 4 and t.isdigit()), None)
     q = next((MONTH_TO_Q[t] for t in tokens if t in MONTH_TO_Q), None)
     if not year or not q:
-        print("ERROR: could not infer quarter from URL. Check URL format.", file=sys.stderr)
-        sys.exit(1)
+        return None
+    return f"{year}Q{q}", f"{Q_LABELS[q]} {year}", year, q
 
-    qid = f"{year}Q{q}"
-    label = f"{Q_LABELS[q]} {year}"
+def discover_new_quarters():
+    """Scrape SOD page, return list of new quarter dicts not already in QUARTERS."""
+    known_ids = {x["id"] for x in QUARTERS}
+    print(f"Checking {SOD_PAGE} for new quarters…", flush=True)
+    with urllib.request.urlopen(SOD_PAGE) as r:
+        html = r.read().decode("utf-8", errors="replace")
 
-    # Check not already present
-    if any(x["id"] == qid for x in QUARTERS):
-        print(f"{qid} already in QUARTERS list.")
+    # Find all DETAIL CSV hrefs (skip SUMMARY)
+    paths = re.findall(r'href="(/sites/default/files/[^"]*SOD[^"]*DETAIL[^"]*\.csv)"', html, re.I)
+    new = []
+    seen = set()
+    for path in paths:
+        parsed = url_to_quarter(path)
+        if not parsed:
+            continue
+        qid, label, year, q = parsed
+        if qid in known_ids or qid in seen:
+            continue
+        seen.add(qid)
+        new.append({"id": qid, "label": label, "year": year, "q": q,
+                    "url": f"{BASE}{path}"})
+    return new
+
+def add_quarters(new_quarters):
+    """Prepend new quarter entries to the QUARTERS list in this source file."""
+    if not new_quarters:
+        print("No new quarters found.")
         return
-
-    # Validate URL fetches OK
-    print(f"Validating {url} …", flush=True)
-    try:
-        with urllib.request.urlopen(url) as r:
-            r.read(512)
-    except Exception as e:
-        print(f"ERROR: could not fetch URL: {e}", file=sys.stderr)
-        sys.exit(1)
-
-    entry = f'    {{"id": "{qid}", "label": "{label}", "year": {year}, "q": {q}, "url": f"{{BASE}}{url.replace(BASE, "")}"}},\n'
-
-    # Rewrite this file, inserting after "QUARTERS = ["
     path = os.path.abspath(__file__)
     src = open(path).read()
     marker = "QUARTERS = [\n"
     idx = src.index(marker) + len(marker)
-    new_src = src[:idx] + entry + src[idx:]
-    open(path, "w").write(new_src)
-    print(f"Added {qid} ({label}) to QUARTERS in {path}")
+    entries = ""
+    for nq in sorted(new_quarters, key=lambda x: (x["year"], x["q"]), reverse=True):
+        rel = nq["url"].replace(BASE, "")
+        entries += f'    {{"id": "{nq["id"]}", "label": "{nq["label"]}", "year": {nq["year"]}, "q": {nq["q"]}, "url": f"{{BASE}}{rel}"}},\n'
+        print(f"Adding {nq['id']} ({nq['label']})", flush=True)
+    open(path, "w").write(src[:idx] + entries + src[idx:])
 
 
 if __name__ == "__main__":
-    import argparse
-    parser = argparse.ArgumentParser()
-    parser.add_argument("--add-quarter", metavar="URL",
-                        help="Add a new quarter CSV URL to the top of QUARTERS, then exit")
-    args = parser.parse_args()
-    if args.add_quarter:
-        add_quarter(args.add_quarter)
-    else:
-        main()
+    new = discover_new_quarters()
+    if new:
+        add_quarters(new)
+        # Reload QUARTERS from the updated file so process_all sees new entries
+        import importlib, types
+        updated_src = open(os.path.abspath(__file__)).read()
+        ns = {}
+        exec(compile(updated_src, __file__, "exec"), ns)
+        QUARTERS[:] = ns["QUARTERS"]
+    main()
