@@ -444,7 +444,7 @@ async function showPerson(name, officeName) {
 
   // Comparison section
   const allTitles = summary.quarters[summary.quarters.length - 1]?.top_titles || [];
-  const compTitle = person?.title || latestEmp?.title || "";
+  const compTitle = latestEmp?.title || person?.title || "";
   const compHtml = latestEmp ? `
     <div class="person-modal-section">
       Compare to: <span id="pm-comp-title" class="person-comp-title-link">${esc(compTitle)}</span>
