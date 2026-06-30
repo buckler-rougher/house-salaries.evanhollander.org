@@ -57,7 +57,6 @@ function renderStats() {
   $("stat-intern-note").textContent = `+ ${(q.intern_count||0).toLocaleString()} interns`;
   $("stat-quarter").textContent = q.label;
   $("stat-updated").textContent = summary.updated;
-  $("footer-updated").textContent = summary.updated;
 
   const lbl = $("stat-quarter-label");
   if (lbl) lbl.textContent = isLatest ? "Latest quarter" : "Quarter";
