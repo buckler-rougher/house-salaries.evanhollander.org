@@ -85,6 +85,9 @@ body {
   color: var(--ink);
   font-variant-numeric: tabular-nums;
   line-height: 1.1;
+  height: 1.85rem;
+  display: flex;
+  align-items: center;
   margin-bottom: 5px;
   white-space: nowrap;
 }
