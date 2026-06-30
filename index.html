@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>House Staff Salaries</title>
+  <meta name="description" content="Salary trends and data for U.S. House of Representatives staff, sourced from quarterly Statements of Disbursements." />
+  <link rel="stylesheet" href="styles.css?v=20260629a" />
+</head>
+<body>
+
+<header>
+  <div class="header-eyebrow">U.S. House of Representatives</div>
+  <h1>Staff Salary Data</h1>
+  <p>Salary trends for House employees — sourced from the official quarterly Statement of Disbursements.</p>
+</header>
+
+<div class="stats-bar">
+  <div class="stat-item">
+    <span class="stat-value" id="stat-employees">—</span>
+    <span class="stat-label">Employees</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-value" id="stat-median">—</span>
+    <span class="stat-label">Median Annual</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-value" id="stat-mean">—</span>
+    <span class="stat-label">Average Annual</span>
+  </div>
+  <div class="stat-item">
+    <span class="stat-value" id="stat-quarter">—</span>
+    <span class="stat-label">Latest Quarter</span>
+  </div>
+</div>
+
+<div id="loading" class="loading" style="margin-top:40px">Loading salary data…</div>
+
+<main id="app" style="display:none">
+
+  <div class="grid-2">
+    <!-- Distribution -->
+    <div class="card">
+      <div class="card-title">Salary Distribution</div>
+      <div class="card-subtitle">Annual salary equivalent (quarterly pay × 4) — latest quarter</div>
+      <div class="chart-wrap">
+        <canvas id="chart-dist"></canvas>
+      </div>
+    </div>
+
+    <!-- Range by office type -->
+    <div class="card">
+      <div class="card-title">Pay by Office Type</div>
+      <div class="card-subtitle">Annual equivalent — median and interquartile range</div>
+      <div id="range-bars" class="range-bars"></div>
+    </div>
+  </div>
+
+  <!-- Trend -->
+  <div class="card">
+    <div class="card-title">Salary Trends Over Time</div>
+    <div class="card-subtitle">Annual salary equivalents across all quarters on record</div>
+    <div class="trend-controls">
+      <button class="trend-btn active" data-metric="median">Median</button>
+      <button class="trend-btn" data-metric="mean">Average</button>
+      <button class="trend-btn" data-metric="p75">75th Percentile</button>
+      <button class="trend-btn" data-metric="p25">25th Percentile</button>
+    </div>
+    <div class="chart-wrap tall">
+      <canvas id="chart-trend"></canvas>
+    </div>
+  </div>
+
+  <!-- Salary by position title -->
+  <div class="card">
+    <div class="card-title">Salary by Position</div>
+    <div class="card-subtitle">Annual equivalent — median pay for the most common roles, latest quarter</div>
+    <div class="search-wrap" style="margin-bottom:12px">
+      <input type="search" id="title-search" class="search-input" placeholder="Filter positions…" />
+      <select id="title-sort" class="filter-select">
+        <option value="median">Sort by median pay</option>
+        <option value="count">Sort by headcount</option>
+        <option value="name">Sort by title</option>
+      </select>
+    </div>
+    <div id="title-bars"></div>
+  </div>
+
+  <!-- Employee search -->
+  <div class="card">
+    <div class="card-title">Employee Search</div>
+    <div class="card-subtitle">Latest quarter — salaries are quarterly payments × 4 annualized equivalent</div>
+    <div class="search-wrap">
+      <input type="search" id="search-input" class="search-input" placeholder="Search by name or office…" />
+      <select id="filter-type" class="filter-select">
+        <option value="">All office types</option>
+        <option value="member">Member Offices</option>
+        <option value="committee">Committees</option>
+        <option value="leadership">Leadership</option>
+        <option value="administrative">Administrative</option>
+      </select>
+      <select id="filter-quarter" class="filter-select">
+        <option value="">Latest quarter</option>
+      </select>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th data-sort="name">Name <span class="sort-icon">↕</span></th>
+            <th>Office</th>
+            <th>Type</th>
+            <th data-sort="quarterly_pay">Quarterly Pay <span class="sort-icon">↕</span></th>
+            <th data-sort="annual_equiv" class="sorted">Annual Equiv. <span class="sort-icon">↓</span></th>
+          </tr>
+        </thead>
+        <tbody id="emp-tbody"></tbody>
+      </table>
+    </div>
+    <div class="table-footer">
+      <span id="table-info"></span>
+      <div id="pagination" class="pagination"></div>
+    </div>
+  </div>
+
+</main>
+
+<footer>
+  Data from the <a href="https://www.house.gov/the-house-explained/open-government/statement-of-disbursements" target="_blank" rel="noopener">Statement of Disbursements of the House</a>.
+  Annual figures are quarterly payments × 4 and are estimates — not all staff work full quarters.
+  Updated <span id="stat-updated"></span>.
+  &nbsp;·&nbsp;
+  <a href="https://house-floor.evanhollander.org" target="_blank" rel="noopener">House Floor Monitor</a>
+</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script src="app.js?v=20260629a"></script>
+</body>
+</html>

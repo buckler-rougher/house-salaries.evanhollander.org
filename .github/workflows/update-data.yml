@@ -1,0 +1,35 @@
+name: Update SOD Data
+
+on:
+  schedule:
+    # Run ~60 days after each quarter ends: June 1, Sept 1, Dec 1, Mar 1
+    - cron: "0 8 1 3,6,9,12 *"
+  workflow_dispatch:
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Fetch and process SOD data
+        run: python scripts/fetch_sod.py
+
+      - name: Commit updated data
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data/
+          if git diff --staged --quiet; then
+            echo "No data changes."
+          else
+            git commit -m "Update SOD salary data $(date +%Y-%m-%d)"
+            git push
+          fi
