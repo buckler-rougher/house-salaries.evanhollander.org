@@ -148,14 +148,15 @@ function renderDist() {
       class="dist-bar"/>`;
   }).join("");
 
-  // X axis labels — every other if tight
+  // X axis labels — every other if tight; rotated -45° anchored at bottom of each bar
   const tight = dist.length > 10;
   const xLabels = dist.map((b, i) => {
     if (tight && i % 2 !== 0) return "";
     const lbl = b.max == null ? `$${b.min/1000}k+` : `$${b.min/1000}k`;
     const cx = pad.l + (i + 0.5) * barW;
-    return `<text x="${cx.toFixed(1)}" y="${H - 4}" text-anchor="end" font-size="10" fill="#888"
-      transform="rotate(-45,${cx.toFixed(1)},${H - 4})">${lbl}</text>`;
+    const ty = pad.t + ph + 6; // just below the plot area
+    return `<text text-anchor="end" font-size="10" fill="#888"
+      transform="translate(${cx.toFixed(1)},${ty.toFixed(1)}) rotate(-45)">${lbl}</text>`;
   }).join("");
 
   const svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">
