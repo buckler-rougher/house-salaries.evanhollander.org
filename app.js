@@ -369,6 +369,9 @@ function selectTitle(t, el) {
       });
     });
   }
+  if (window.innerWidth <= 900) {
+    $("range-card-wrap").scrollIntoView({ behavior: "smooth", block: "start" });
+  }
 }
 
 // ── Person modal ──
