@@ -1151,7 +1151,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".trend-q").forEach(b => b.addEventListener("click", () => {
     trendQFilter = +b.dataset.q;
     document.querySelectorAll(".trend-q").forEach(x => x.classList.toggle("active", x===b));
-    $("trend-q-note").style.display = trendQFilter === 4 ? "" : "none";
+    $("trend-q-note").style.display = trendQFilter === 0 ? "" : "none";
     renderTrend();
   }));
 
