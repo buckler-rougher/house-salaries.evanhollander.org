@@ -5,7 +5,7 @@ const fmt   = n => n == null ? "—" : "$" + Math.round(n).toLocaleString();
 const fmtK  = n => n == null ? "—" : "$" + Math.round(n / 1000) + "k";
 const fmtSh = n => { if (n == null) return "—"; return n >= 1000 ? "$" + Math.round(n/1000) + "k" : "$" + Math.round(n); };
 
-let summary = null, employees = [], charts = {};
+let summary = null, employees = [];
 let trendMetric = "median", trendMode = "overall", trendPosTitle = null, trendQFilter = 0;
 let sortKey = "annual_equiv", sortDir = -1, page = 1, filtered = [];
 let peopleData = null, peopleLoading = false;
@@ -65,7 +65,6 @@ function renderStats() {
 function renderDist() {
   const latest = summary.quarters[summary.quarters.length - 1];
   if (!latest) return;
-  // Use most recent non-Q4 quarter when latest is Q4 (avoids bonus inflation in distribution)
   const q = latest.quarter === 4
     ? ([...summary.quarters].reverse().find(x => x.quarter !== 4) || latest)
     : latest;
@@ -76,35 +75,76 @@ function renderDist() {
       : `Annual salary equivalent — full-time staff — ${q.label} (Q4 excluded: includes bonuses)`;
   }
   const dist = q.distribution;
-  const labels = dist.map(b => b.max == null ? `$${b.min/1000}k+` : `$${b.min/1000}k`);
-  const accent = "#c0392b";
-  const colors = dist.map(b => {
+  const barColors = dist.map(b => {
     if (b.min < 50000)  return "#e8e5df";
     if (b.min < 80000)  return "#f4a69a";
-    if (b.min < 130000) return accent;
+    if (b.min < 130000) return "#c0392b";
     return "#8b1a12";
   });
-  if (charts.dist) charts.dist.destroy();
-  charts.dist = new Chart($("chart-dist"), {
-    type: "bar",
-    data: { labels, datasets: [{ data: dist.map(b => b.count), backgroundColor: colors, borderRadius: 3, borderSkipped: false }] },
-    options: {
-      responsive: true, maintainAspectRatio: false,
-      plugins: {
-        legend: { display: false },
-        tooltip: {
-          backgroundColor: "#111", padding: 10, cornerRadius: 6,
-          callbacks: {
-            title: items => { const b = dist[items[0].dataIndex]; return b.max == null ? `$${b.min/1000}k+` : `$${b.min/1000}k – $${b.max/1000}k`; },
-            label: item => ` ${item.raw.toLocaleString()} employees`,
-          },
-        },
-      },
-      scales: {
-        x: { grid: { display: false }, ticks: { font: { size: 10 }, maxRotation: 45, color: "#888" } },
-        y: { grid: { color: "#eeece8" }, ticks: { font: { size: 11 }, color: "#888" } },
-      },
-    },
+
+  const W = 680, H = 280;
+  const pad = { t: 16, r: 16, b: 48, l: 52 };
+  const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+
+  const counts = dist.map(b => b.count);
+  const maxCount = Math.max(...counts) || 1;
+
+  // Y axis: 5 ticks
+  const yStep = Math.ceil(maxCount / 5 / 10) * 10 || 1;
+  const yMax = yStep * 5;
+  const sy = v => pad.t + ph - (v / yMax) * ph;
+
+  const yTicks = Array.from({ length: 6 }, (_, i) => {
+    const v = i * yStep, y = sy(v);
+    return `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#eeece8" stroke-width="1"/>
+            <text x="${(pad.l - 6).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#888">${v.toLocaleString()}</text>`;
+  }).join("");
+
+  const barW = pw / dist.length;
+  const barGap = Math.max(1, barW * 0.12);
+
+  const bars = dist.map((b, i) => {
+    const bh = (b.count / yMax) * ph;
+    const x = pad.l + i * barW + barGap / 2;
+    const w = barW - barGap;
+    const y = pad.t + ph - bh;
+    const label = b.max == null ? `$${b.min/1000}k+` : `$${b.min/1000}k – $${b.max/1000}k`;
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${bh.toFixed(1)}"
+      fill="${barColors[i]}" rx="2"
+      data-label="${label}" data-count="${b.count}"
+      style="--i:${i};transform-origin:${(x + w/2).toFixed(1)}px ${(pad.t + ph).toFixed(1)}px;
+        animation:barGrow 400ms ease-out both;animation-delay:calc(var(--i)*30ms)"
+      class="dist-bar"/>`;
+  }).join("");
+
+  // X axis labels — every other if tight
+  const tight = dist.length > 10;
+  const xLabels = dist.map((b, i) => {
+    if (tight && i % 2 !== 0) return "";
+    const lbl = b.max == null ? `$${b.min/1000}k+` : `$${b.min/1000}k`;
+    const cx = pad.l + (i + 0.5) * barW;
+    return `<text x="${cx.toFixed(1)}" y="${H - 4}" text-anchor="end" font-size="10" fill="#888"
+      transform="rotate(-45,${cx.toFixed(1)},${H - 4})">${lbl}</text>`;
+  }).join("");
+
+  const svg = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">
+    ${yTicks}${bars}${xLabels}
+  </svg>`;
+
+  const wrap = $("chart-dist");
+  wrap.innerHTML = svg;
+
+  // Tooltip
+  ensureTooltip();
+  wrap.querySelectorAll(".dist-bar").forEach(rect => {
+    rect.style.cursor = "pointer";
+    rect.addEventListener("mouseover", e => {
+      const tt = $("chart-tooltip");
+      tt.innerHTML = `<strong>${rect.dataset.label}</strong><br>${Number(rect.dataset.count).toLocaleString()} employees`;
+      tt.style.display = "block";
+    });
+    rect.addEventListener("mousemove", e => positionTooltip(e));
+    rect.addEventListener("mouseout", () => { $("chart-tooltip").style.display = "none"; });
   });
 }
 
@@ -138,27 +178,24 @@ const TYPE_COLORS_TREND = {
 };
 
 function renderTrend() {
-  if (charts.trend) { charts.trend.destroy(); charts.trend = null; }
   $("trend-empty").style.display = "none";
   $("chart-trend").style.display = "";
   const qs = filteredQuarters(trendQFilter);
   const labels = qs.map(q => q.label);
 
   if (trendMode === "overall") {
-    charts.trend = drawChart($("chart-trend"), labels, [{
+    drawSvgLineChart($("chart-trend"), labels, [{
       label: METRIC_LABELS[trendMetric], data: qs.map(q => q.overall[trendMetric]),
-      borderColor: "#c0392b", backgroundColor: "rgba(192,57,43,.07)", fill: true,
-      tension: 0.3, pointRadius: 4, pointBackgroundColor: "#fff", pointBorderColor: "#c0392b", pointBorderWidth: 2, borderWidth: 2,
+      color: "#c0392b", fill: true,
     }]);
 
   } else if (trendMode === "type") {
     const datasets = ["member","committee","leadership","administrative"].map(type => ({
       label: TYPE_LABELS[type],
       data: qs.map(q => q.by_type[type]?.[trendMetric] ?? null),
-      borderColor: TYPE_COLORS_TREND[type], backgroundColor: TYPE_COLORS_TREND[type] + "15",
-      tension: 0.3, pointRadius: 3, borderWidth: 2, spanGaps: true,
+      color: TYPE_COLORS_TREND[type], fill: false,
     }));
-    charts.trend = drawChart($("chart-trend"), labels, datasets, { legend: true });
+    drawSvgLineChart($("chart-trend"), labels, datasets, { legend: true });
 
   } else if (trendMode === "position") {
     if (!trendPosTitle) {
@@ -170,9 +207,8 @@ function renderTrend() {
       const t = (q.top_titles || []).find(t => t.title === trendPosTitle);
       return t ? t[trendMetric] : null;
     });
-    charts.trend = drawChart($("chart-trend"), labels, [{
-      label: "", data, borderColor: "#c0392b", backgroundColor: "rgba(192,57,43,.07)", fill: true,
-      tension: 0.3, pointRadius: 4, pointBackgroundColor: "#fff", pointBorderColor: "#c0392b", pointBorderWidth: 2, borderWidth: 2, spanGaps: true,
+    drawSvgLineChart($("chart-trend"), labels, [{
+      label: "", data, color: "#c0392b", fill: true,
     }]);
   }
 }
@@ -506,28 +542,161 @@ function filteredQuarters(qFilter) {
   return qFilter ? qs.filter(q => q.quarter === qFilter) : qs;
 }
 
-function drawChart(canvasEl, labels, datasets, opts = {}) {
-  const { legend = false, mini = false } = opts;
-  const sz = mini ? 9 : 11;
-  return new Chart(canvasEl, {
-    type: "line",
-    data: { labels, datasets },
-    options: {
-      responsive: true, maintainAspectRatio: false, animation: !mini,
-      plugins: {
-        legend: legend ? { display: true, position: "bottom", labels: { font: { size: 11 }, boxWidth: 12, padding: 16 } } : { display: false },
-        tooltip: { backgroundColor: "#111", padding: mini ? 8 : 10, cornerRadius: 5,
-          callbacks: {
-            title: items => labels[items[0].dataIndex],
-            label: item => item.raw != null ? ` ${item.dataset.label ? item.dataset.label+": " : ""}${fmt(item.raw)}` : " No data",
-          }},
-      },
-      scales: {
-        x: { grid: { display: false }, ticks: { font: { size: sz }, maxRotation: 45, color: "#aaa", maxTicksLimit: mini ? 6 : 12 } },
-        y: { grid: { color: "#eeece8" }, ticks: { font: { size: sz }, color: "#aaa", callback: v => "$"+(v/1000).toFixed(0)+"k", maxTicksLimit: mini ? 4 : 6 } },
-      },
-    },
+function ensureTooltip() {
+  if ($("chart-tooltip")) return;
+  const tt = document.createElement("div");
+  tt.id = "chart-tooltip";
+  tt.style.cssText = "position:fixed;pointer-events:none;background:#111;color:#fff;font-size:.75rem;padding:8px 12px;border-radius:6px;z-index:1000;display:none;line-height:1.6;white-space:nowrap";
+  document.body.appendChild(tt);
+}
+
+function positionTooltip(e) {
+  const tt = $("chart-tooltip");
+  if (!tt) return;
+  let x = e.clientX + 14, y = e.clientY - 10;
+  const tw = tt.offsetWidth, th = tt.offsetHeight;
+  if (x + tw > window.innerWidth - 8) x = e.clientX - tw - 14;
+  if (y + th > window.innerHeight - 8) y = e.clientY - th - 10;
+  tt.style.left = x + "px";
+  tt.style.top = y + "px";
+}
+
+function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
+  const { legend = false } = opts;
+  const W = 680, H = 300;
+  const pad = { t: 16, r: 16, b: 52, l: 58 };
+  const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+  const n = labels.length;
+
+  // Gather all valid values for Y range
+  const allVals = datasets.flatMap(ds => ds.data.filter(v => v != null));
+  if (!allVals.length) { containerEl.innerHTML = `<p style="padding:20px;color:#888;font-size:.85rem">No data.</p>`; return; }
+
+  const minV = Math.min(...allVals), maxV = Math.max(...allVals);
+  const vPad = (maxV - minV) * 0.1 || maxV * 0.1 || 1;
+  const yMin = Math.max(0, minV - vPad), yMax = maxV + vPad;
+  const vRange = yMax - yMin || 1;
+
+  const sx = i => pad.l + (n <= 1 ? pw / 2 : (i / (n - 1)) * pw);
+  const sy = v => pad.t + ph - ((v - yMin) / vRange) * ph;
+
+  // Y ticks
+  const yTicks = Array.from({ length: 5 }, (_, i) => {
+    const v = yMin + (vRange * i / 4), y = sy(v);
+    return `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#eeece8" stroke-width="1"/>
+            <text x="${(pad.l - 6).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
+  }).join("");
+
+  // X labels
+  const rotateX = n > 6;
+  const xLabels = labels.map((lb, i) => {
+    const x = sx(i);
+    if (rotateX) {
+      return `<text x="${x.toFixed(1)}" y="${H - 4}" text-anchor="end" font-size="10" fill="#888"
+        transform="rotate(-45,${x.toFixed(1)},${H - 4})">${lb}</text>`;
+    }
+    return `<text x="${x.toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="#888">${lb}</text>`;
+  }).join("");
+
+  // Per-dataset paths
+  const pathEls = datasets.map(ds => {
+    const color = ds.color;
+    // Segment into runs of non-null
+    const segs = [];
+    let cur = [];
+    ds.data.forEach((v, i) => {
+      if (v != null) cur.push([i, v]);
+      else if (cur.length) { segs.push(cur); cur = []; }
+    });
+    if (cur.length) segs.push(cur);
+
+    const fills = (ds.fill && segs.length) ? segs.map(s => {
+      if (s.length < 2) return "";
+      const d = s.map(([i, v], j) => `${j ? "L" : "M"}${sx(i).toFixed(1)},${sy(v).toFixed(1)}`).join(" ");
+      const last = s[s.length - 1], first = s[0];
+      return `<path d="${d} L${sx(last[0]).toFixed(1)},${(pad.t + ph).toFixed(1)} L${sx(first[0]).toFixed(1)},${(pad.t + ph).toFixed(1)} Z" fill="${color}" opacity=".07" stroke="none"/>`;
+    }).join("") : "";
+
+    const lines = segs.map(s => {
+      const d = s.map(([i, v], j) => `${j ? "L" : "M"}${sx(i).toFixed(1)},${sy(v).toFixed(1)}`).join(" ");
+      return `<path d="${d}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" class="trend-line"/>`;
+    }).join("");
+
+    const dots = ds.data.map((v, i) => {
+      if (v == null) return "";
+      return `<circle cx="${sx(i).toFixed(1)}" cy="${sy(v).toFixed(1)}" r="4" fill="white" stroke="${color}" stroke-width="2"
+        class="trend-dot" data-i="${i}" data-val="${v}" data-label="${esc(ds.label || "")}"
+        style="animation:fadeIn 300ms ease-out both;animation-delay:400ms;opacity:0"/>`;
+    }).join("");
+
+    return fills + lines + dots;
+  }).join("");
+
+  const svgStr = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">
+    ${yTicks}${pathEls}${xLabels}
+  </svg>`;
+
+  containerEl.innerHTML = svgStr;
+
+  // Animate lines via stroke-dashoffset
+  containerEl.querySelectorAll(".trend-line").forEach(path => {
+    const len = path.getTotalLength();
+    path.style.strokeDasharray = len;
+    path.style.strokeDashoffset = len;
+    path.style.transition = "stroke-dashoffset 500ms ease-out";
+    requestAnimationFrame(() => requestAnimationFrame(() => { path.style.strokeDashoffset = "0"; }));
   });
+
+  // Tooltip on dots
+  ensureTooltip();
+  // Group dots by x-index for multi-series tooltips
+  const dotsByIndex = {};
+  containerEl.querySelectorAll(".trend-dot").forEach(dot => {
+    const i = dot.dataset.i;
+    if (!dotsByIndex[i]) dotsByIndex[i] = [];
+    dotsByIndex[i].push(dot);
+  });
+  Object.entries(dotsByIndex).forEach(([i, dots]) => {
+    const hoverRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+    const cx = sx(+i);
+    hoverRect.setAttribute("x", (cx - 12).toFixed(1));
+    hoverRect.setAttribute("y", pad.t);
+    hoverRect.setAttribute("width", "24");
+    hoverRect.setAttribute("height", ph);
+    hoverRect.setAttribute("fill", "transparent");
+    hoverRect.style.cursor = "crosshair";
+    containerEl.querySelector("svg").appendChild(hoverRect);
+    hoverRect.addEventListener("mouseover", e => {
+      const tt = $("chart-tooltip");
+      const lbl = labels[+i];
+      const lines = datasets.map(ds => {
+        const v = ds.data[+i];
+        const prefix = ds.label ? `${ds.label}: ` : "";
+        return `${prefix}${v != null ? fmt(v) : "—"}`;
+      });
+      tt.innerHTML = `<strong>${lbl}</strong><br>${lines.join("<br>")}`;
+      tt.style.display = "block";
+      positionTooltip(e);
+    });
+    hoverRect.addEventListener("mousemove", positionTooltip);
+    hoverRect.addEventListener("mouseout", () => { $("chart-tooltip").style.display = "none"; });
+  });
+
+  // Legend
+  const legendEl = containerEl.querySelector(".trend-legend");
+  if (legendEl) legendEl.remove();
+  if (legend && datasets.length > 1) {
+    const leg = document.createElement("div");
+    leg.className = "trend-legend";
+    leg.style.cssText = "display:flex;flex-wrap:wrap;gap:12px 20px;margin-top:10px;font-size:.75rem;color:#444";
+    leg.innerHTML = datasets.map(ds =>
+      `<span style="display:flex;align-items:center;gap:5px">
+        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${ds.color}"></span>
+        ${esc(ds.label)}
+      </span>`
+    ).join("");
+    containerEl.after(leg);
+  }
 }
 
 function svgSparkline(data, labels) {
@@ -787,27 +956,24 @@ document.addEventListener("DOMContentLoaded", () => {
     document.querySelectorAll(".tab-pane").forEach(p => p.classList.toggle("active", p.id==="tab-"+tab));
     if (tab==="type" && !$("office-list").children.length) renderOfficeList();
     if (tab==="typebars" && !$("type-bars").children.length) renderTypeBars();
-    if (tab==="trend") { if (!charts.trend) renderTrend(); }
+    if (tab==="trend") { renderTrend(); }
   }));
   document.querySelectorAll(".trend-mode").forEach(b => b.addEventListener("click", () => {
     trendMode = b.dataset.mode;
     document.querySelectorAll(".trend-mode").forEach(x => x.classList.toggle("active", x===b));
     $("trend-overall-ctrl").style.display = trendMode === "overall" ? "" : "none";
     $("trend-pos-ctrl").style.display = trendMode === "position" ? "" : "none";
-    if (charts.trend) { charts.trend.destroy(); charts.trend=null; }
     renderTrend();
   }));
   document.querySelectorAll(".pill").forEach(p => p.addEventListener("click", () => {
     trendMetric = p.dataset.metric;
     document.querySelectorAll(".pill").forEach(x => x.classList.toggle("active", x===p));
-    if (charts.trend) { charts.trend.destroy(); charts.trend=null; }
     renderTrend();
   }));
   document.querySelectorAll(".trend-q").forEach(b => b.addEventListener("click", () => {
     trendQFilter = +b.dataset.q;
     document.querySelectorAll(".trend-q").forEach(x => x.classList.toggle("active", x===b));
     $("trend-q-note").style.display = trendQFilter === 4 ? "" : "none";
-    if (charts.trend) { charts.trend.destroy(); charts.trend=null; }
     renderTrend();
   }));
 
@@ -828,7 +994,6 @@ document.addEventListener("DOMContentLoaded", () => {
       trendPosTitle = row.dataset.title;
       trendSearch.value = trendPosTitle;
       trendResults.style.display = "none";
-      if (charts.trend) { charts.trend.destroy(); charts.trend=null; }
       renderTrend();
     }));
   });
