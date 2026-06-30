@@ -471,9 +471,9 @@ tr:hover td { background: var(--bg2); }
 .office-list { display: flex; flex-direction: column; }
 .office-row {
   display: grid;
-  grid-template-columns: 1fr auto auto auto auto;
+  grid-template-columns: 1fr 96px 72px 116px 16px;
   align-items: center;
-  gap: 16px;
+  gap: 12px;
   padding: 11px 0;
   border-bottom: 1px solid var(--line);
   cursor: pointer;
@@ -483,10 +483,16 @@ tr:hover td { background: var(--bg2); }
 .office-row:hover { background: var(--bg2); padding-left: 6px; padding-right: 6px; margin: 0 -6px; }
 .office-row:last-child { border-bottom: none; }
 .office-name { font-size: .88rem; font-weight: 700; color: var(--ink); }
-.office-count { font-size: .75rem; color: var(--ink3); white-space: nowrap; }
-.office-range { font-size: .88rem; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; }
+/* badge column: fixed width, right-align so all badges share a right edge */
+.office-row .badge { justify-self: end; }
+/* count: number right-aligns, " staff" label anchors it */
+.office-count { font-size: .75rem; color: var(--ink3); white-space: nowrap; display: flex; justify-content: flex-end; font-variant-numeric: tabular-nums; }
+.office-count-num { text-align: right; min-width: 2.2ch; }
+.office-count-label { flex-shrink: 0; }
+/* range: fixed width, right-aligned */
+.office-range { font-size: .88rem; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
 .office-range-sep { color: var(--ink3); font-weight: 400; margin: 0 2px; }
-.office-chevron { font-size: 1rem; color: var(--ink3); transition: transform .15s; flex-shrink: 0; }
+.office-chevron { font-size: 1rem; color: var(--ink3); transition: transform .15s; }
 
 .office-detail { background: var(--bg2); border-radius: 8px; margin: 4px 0 10px; padding: 16px 18px; }
 .office-detail-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 0; margin-bottom: 14px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--line); }

@@ -1003,7 +1003,7 @@ function renderOfficeList() {
       <div class="office-row">
         <div class="office-name">${esc(o.name)}</div>
         <span class="badge badge-${o.type}">${TYPE_LABELS[o.type]||o.type}</span>
-        <span class="office-count">${o.count} staff</span>
+        <span class="office-count"><span class="office-count-num">${o.count}</span><span class="office-count-label"> staff</span></span>
         <span class="office-range">${fmtK(o.min)}<span class="office-range-sep">–</span>${fmtK(o.max)}</span>
         <span class="office-chevron">›</span>
       </div>
