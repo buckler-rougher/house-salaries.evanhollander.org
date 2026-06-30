@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>House Staff Salaries</title>
   <meta name="description" content="Salary data for U.S. House of Representatives staff." />
-  <link rel="stylesheet" href="styles.css?v=20260630a" />
+  <link rel="stylesheet" href="styles.css?v=20260630b" />
 </head>
 <body>
 
@@ -40,7 +40,7 @@
         <div class="hero-stat-sub" id="stat-intern-note">—</div>
       </div>
       <div class="hero-stat">
-        <div class="hero-stat-num" id="stat-quarter" style="font-size:1.2rem;letter-spacing:-.01em">—</div>
+        <div class="hero-stat-num" id="stat-quarter">—</div>
         <div class="hero-stat-label">Latest quarter</div>
         <div class="hero-stat-sub">updated <span id="stat-updated">—</span></div>
       </div>
@@ -79,7 +79,7 @@
 
       <div class="tab-pane active" id="tab-dist">
         <div class="pane-label" id="dist-pane-label">Annual salary equivalent — full-time staff — latest quarter</div>
-        <div class="chart-wrap"><canvas id="chart-dist"></canvas></div>
+        <div class="chart-wrap"><div id="chart-dist" class="chart-svg-wrap"></div></div>
       </div>
 
       <div class="tab-pane" id="tab-type">
@@ -138,7 +138,7 @@
           <div id="trend-pos-results" class="pos-results" style="max-width:340px;background:var(--bg);border:1.5px solid var(--line);border-radius:8px;margin-top:4px;display:none"></div>
         </div>
 
-        <div class="chart-wrap tall"><canvas id="chart-trend"></canvas></div>
+        <div class="chart-wrap tall"><div id="chart-trend" class="chart-svg-wrap"></div></div>
         <div id="trend-empty" style="display:none;font-size:.82rem;color:var(--ink3);padding:12px 0">Search a position above to see its salary trend.</div>
       </div>
 
@@ -189,7 +189,6 @@
 
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
-<script src="app.js?v=20260630a"></script>
+<script src="app.js?v=20260630b"></script>
 </body>
 </html>
