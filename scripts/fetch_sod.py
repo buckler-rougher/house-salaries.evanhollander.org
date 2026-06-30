@@ -331,5 +331,65 @@ def main():
         json.dump({"people": people_list}, f, separators=(",", ":"))
     print(f"Wrote data/people.json ({os.path.getsize('data/people.json'):,} bytes, {len(people_list):,} people)", flush=True)
 
+def add_quarter(url):
+    """
+    Add a new quarter to the top of the QUARTERS list in this file.
+    Infers quarter id and label from the URL (e.g. JAN-MAR-2026 → 2026Q1).
+    """
+    import ast, textwrap
+
+    MONTH_TO_Q = {
+        "JAN": 1, "JANUARY": 1, "FEB": 1, "FEBRUARY": 1, "MAR": 1, "MARCH": 1,
+        "APR": 2, "APRIL": 2, "MAY": 2, "JUN": 2, "JUNE": 2,
+        "JUL": 3, "JULY": 3, "AUG": 3, "AUGUST": 3, "SEP": 3, "SEPT": 3, "SEPTEMBER": 3,
+        "OCT": 4, "OCTOBER": 4, "NOV": 4, "NOVEMBER": 4, "DEC": 4, "DECEMBER": 4,
+    }
+    Q_LABELS = {1: "Jan–Mar", 2: "Apr–Jun", 3: "Jul–Sep", 4: "Oct–Dec"}
+
+    # Pull year and first month from url
+    tokens = re.findall(r'[A-Z]+|\d{4}', url.upper())
+    year = next((int(t) for t in tokens if len(t) == 4 and t.isdigit()), None)
+    q = next((MONTH_TO_Q[t] for t in tokens if t in MONTH_TO_Q), None)
+    if not year or not q:
+        print("ERROR: could not infer quarter from URL. Check URL format.", file=sys.stderr)
+        sys.exit(1)
+
+    qid = f"{year}Q{q}"
+    label = f"{Q_LABELS[q]} {year}"
+
+    # Check not already present
+    if any(x["id"] == qid for x in QUARTERS):
+        print(f"{qid} already in QUARTERS list.")
+        return
+
+    # Validate URL fetches OK
+    print(f"Validating {url} …", flush=True)
+    try:
+        with urllib.request.urlopen(url) as r:
+            r.read(512)
+    except Exception as e:
+        print(f"ERROR: could not fetch URL: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    entry = f'    {{"id": "{qid}", "label": "{label}", "year": {year}, "q": {q}, "url": f"{{BASE}}{url.replace(BASE, "")}"}},\n'
+
+    # Rewrite this file, inserting after "QUARTERS = ["
+    path = os.path.abspath(__file__)
+    src = open(path).read()
+    marker = "QUARTERS = [\n"
+    idx = src.index(marker) + len(marker)
+    new_src = src[:idx] + entry + src[idx:]
+    open(path, "w").write(new_src)
+    print(f"Added {qid} ({label}) to QUARTERS in {path}")
+
+
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--add-quarter", metavar="URL",
+                        help="Add a new quarter CSV URL to the top of QUARTERS, then exit")
+    args = parser.parse_args()
+    if args.add_quarter:
+        add_quarter(args.add_quarter)
+    else:
+        main()
