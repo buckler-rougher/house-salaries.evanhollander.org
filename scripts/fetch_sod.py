@@ -38,6 +38,13 @@ QUARTERS = [
     {"id": "2021Q1", "label": "Jan–Mar 2021", "year": 2021, "q": 1, "url": f"{BASE}/sites/default/files/uploads/documents/SODs/2021q1/JAN_MAR_2021_SOD_DETAIL_GRID_FINAL.csv"},
 ]
 
+HOUSE_MIN_ANNUAL = 45000  # House minimum salary (set 2022)
+HOUSE_MIN_QUARTERLY = HOUSE_MIN_ANNUAL / 4  # ~$11,250
+
+def is_intern(title):
+    t = title.upper()
+    return "INTERN" in t
+
 def classify_office(org):
     s = re.sub(r"^\d{4}\s+", "", org.upper())
     if s.startswith("HON.") or "REPRESENTATIVE" in s:
@@ -51,17 +58,54 @@ def classify_office(org):
         return "leadership"
     return "administrative"
 
+NAME_SUFFIXES = {"II", "III", "IV", "V", "JR", "SR"}
+
+def cap_part(p):
+    """Capitalize a name segment, handling hyphens."""
+    if "-" in p:
+        return "-".join(seg.capitalize() for seg in p.split("-"))
+    return p.capitalize()
+
 def fmt_name(raw):
-    """SMITH JOHN → John Smith (handles LAST, FIRST and LAST FIRST forms)"""
+    """SOD format is LAST FIRST [MIDDLE [SUFFIX]] — output First [Middle] Last [Suffix]."""
     raw = raw.strip()
     if "," in raw:
-        parts = raw.split(",", 1)
-        return f"{parts[1].strip().capitalize()} {parts[0].strip().capitalize()}"
+        last, rest = raw.split(",", 1)
+        parts = [p.strip() for p in rest.split() if p.strip()]
+        return " ".join(cap_part(p) for p in parts) + " " + cap_part(last)
     parts = raw.split()
+    if not parts:
+        return raw
+    # Pull trailing suffix (II, III, Jr., Sr.)
+    suffix = None
+    if len(parts) > 1 and parts[-1].upper().rstrip(".") in NAME_SUFFIXES:
+        raw_suf = parts[-1].upper().rstrip(".")
+        suffix = raw_suf if raw_suf not in {"JR", "SR"} else raw_suf.capitalize() + "."
+        parts = parts[:-1]
     if len(parts) >= 2:
-        # Likely LAST FIRST format — put first name first
-        return " ".join(p.capitalize() for p in reversed(parts))
-    return raw.capitalize()
+        last, first_middle = parts[0], parts[1:]
+        result = " ".join(cap_part(p) for p in first_middle) + " " + cap_part(last)
+        return result + (" " + suffix if suffix else "")
+    return cap_part(parts[0])
+
+TITLE_SMALL = {"of","the","a","an","and","or","but","in","on","at","to","for","with","by","from","vs","via"}
+KEEP_UPPER = {"DC","LA","IT","PR","HR","VA","MD","NY","CA","TX","FL","OH","PA","US","GOP","DNC","FBI","DOJ","CBO","OMB"}
+
+def _cap_word(w, force=False):
+    """Capitalize a single word segment, respecting abbreviations and small words."""
+    if "/" in w:
+        return "/".join(_cap_word(p, force=True) for p in w.split("/"))
+    up = w.upper()
+    if up in KEEP_UPPER:
+        return up
+    if not force and w.lower() in TITLE_SMALL:
+        return w.lower()
+    return w.capitalize()
+
+def title_case(s):
+    """Smart title case: lowercase prepositions, preserve abbreviations, capitalize after /."""
+    words = s.split()
+    return " ".join(_cap_word(w, force=(i == 0)) for i, w in enumerate(words))
 
 def normalize_title(desc):
     """Normalize job title for grouping."""
@@ -136,22 +180,33 @@ def fetch_quarter(q):
         title = normalize_title(row.get("DESCRIPTION", ""))
         if not vendor or not org:
             continue
-        key = (vendor, org)
+        # Normalize org: strip leading year so "2025 HON. X" and "2026 HON. X" merge
+        org_key = re.sub(r"^\d{4}\s+", "", org).upper().strip()
+        key = (vendor, org_key)
         payments[key]["amount"] += amount
-        payments[key]["org"] = org
+        payments[key]["org"] = org  # keep most recent raw name for display
         if not payments[key]["title"]:
             payments[key]["title"] = title
+
+    # Detect shared employees: same vendor name appears under multiple offices
+    vendor_orgs = defaultdict(set)
+    for (vendor, org) in payments:
+        vendor_orgs[vendor].add(org)
+    shared_vendors = {v for v, orgs in vendor_orgs.items() if len(orgs) > 1}
 
     employees = []
     for (vendor, org), data in payments.items():
         total = data["amount"]
         if total <= 0:
             continue
+        title = title_case(data["title"])
         employees.append({
             "name": fmt_name(vendor),
-            "office": org,
-            "type": classify_office(org),
-            "title": data["title"].title(),  # Title-case
+            "office": data["org"],
+            "type": classify_office(data["org"]),
+            "title": title,
+            "intern": is_intern(title),
+            "shared": vendor in shared_vendors,
             "quarterly_pay": round(total),
             "annual_equiv": round(total * 4),
         })
@@ -163,37 +218,75 @@ def process_all(quarters_to_process=None):
     quarter_summaries = []
     all_employees_latest = None
     latest_id = None
+    # key: (fmt_name, org_key) → {meta, history:[]}
+    people_index = defaultdict(lambda: {"name":"","office":"","title":"","type":"","history":[]})
 
     for q in qs:
         employees = fetch_quarter(q)
         if employees is None:
             continue
 
-        annual_amts = [e["annual_equiv"] for e in employees]
+        # Separate interns from regular staff; exclude shared employees from stats
+        interns = [e for e in employees if e["intern"]]
+        staff = [e for e in employees if not e["intern"] and not e["shared"] and e["annual_equiv"] >= HOUSE_MIN_ANNUAL]
+
+        staff_amts = [e["annual_equiv"] for e in staff]
         by_type = defaultdict(list)
         by_title = defaultdict(list)
-        for e in employees:
+        for e in staff:
             by_type[e["type"]].append(e["annual_equiv"])
             if e["title"]:
                 by_title[e["title"]].append(e["annual_equiv"])
 
-        # Top titles by count (min 5 employees)
+        # Top titles by count (min 2 staff)
         top_titles = sorted(
-            [(t, compute_stats(v)) for t, v in by_title.items() if len(v) >= 5],
+            [(t, compute_stats(v)) for t, v in by_title.items() if len(v) >= 2],
             key=lambda x: -x[1]["count"]
-        )[:50]
+        )[:200]
+
+        # Top offices by staff count (for trend charts)
+        by_office = defaultdict(list)
+        for e in staff:
+            key = re.sub(r"^FISCAL YEAR \d{4}\s*", "", re.sub(r"^\d{4}\s+", "", e["office"])).strip()
+            by_office[key].append(e["annual_equiv"])
+        by_office_pay = defaultdict(float)
+        for e in staff:
+            key = re.sub(r"^FISCAL YEAR \d{4}\s*", "", re.sub(r"^\d{4}\s+", "", e["office"])).strip()
+            by_office_pay[key] += e["quarterly_pay"]
+        top_offices = sorted(
+            [{"name": name, "type": classify_office(name),
+              "total_quarterly_pay": round(by_office_pay[name]), **compute_stats(v)}
+             for name, v in by_office.items()],
+            key=lambda x: -x["count"]
+        )
 
         summary = {
             "id": q["id"],
             "label": q["label"],
             "year": q["year"],
             "quarter": q["q"],
-            "overall": compute_stats(annual_amts),
-            "distribution": distribution_buckets(annual_amts),
+            "overall": compute_stats(staff_amts),
+            "intern_count": len(interns),
+            "total_count": len(employees),
+            "distribution": distribution_buckets(staff_amts),
             "by_type": {t: compute_stats(v) for t, v in by_type.items()},
             "top_titles": [{"title": t, **s} for t, s in top_titles],
+            "top_offices": top_offices,
         }
         quarter_summaries.append(summary)
+
+        # Build people history index (non-intern, non-shared only)
+        for e in employees:
+            if e["intern"] or e["shared"]:
+                continue
+            org_key = re.sub(r"^FISCAL YEAR \d{4}\s*", "", re.sub(r"^\d{4}\s+", "", e["office"])).strip()
+            pk = (e["name"], org_key)
+            p = people_index[pk]
+            p["name"] = e["name"]
+            p["office"] = org_key
+            p["title"] = e["title"]
+            p["type"] = e["type"]
+            p["history"].append({"quarter": q["id"], "quarterly_pay": e["quarterly_pay"]})
 
         if all_employees_latest is None:
             all_employees_latest = employees
@@ -201,13 +294,20 @@ def process_all(quarters_to_process=None):
 
         print(f"    → {len(employees)} employees, median annual equiv ${summary['overall']['median']:,}", flush=True)
 
-    return quarter_summaries, all_employees_latest, latest_id
+    # Only keep people who appear in 3+ quarters (history is in reverse-chron order from QUARTERS list)
+    people_list = [
+        {**v, "history": list(reversed(v["history"]))}
+        for v in people_index.values() if len(v["history"]) >= 3
+    ]
+    people_list.sort(key=lambda p: p["name"])
+
+    return quarter_summaries, all_employees_latest, latest_id, people_list
 
 def main():
     os.makedirs("data", exist_ok=True)
 
     print("Processing quarters...", flush=True)
-    quarter_summaries, latest_employees, latest_id = process_all()
+    quarter_summaries, latest_employees, latest_id, people_list = process_all()
 
     quarter_summaries.sort(key=lambda q: (q["year"], q["quarter"]))
 
@@ -226,6 +326,10 @@ def main():
         with open("data/employees.json", "w") as f:
             json.dump({"quarter": latest_id, "employees": latest_employees}, f, separators=(",", ":"))
         print(f"Wrote data/employees.json ({os.path.getsize('data/employees.json'):,} bytes)", flush=True)
+
+    with open("data/people.json", "w") as f:
+        json.dump({"people": people_list}, f, separators=(",", ":"))
+    print(f"Wrote data/people.json ({os.path.getsize('data/people.json'):,} bytes, {len(people_list):,} people)", flush=True)
 
 if __name__ == "__main__":
     main()
