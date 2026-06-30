@@ -338,8 +338,13 @@ function selectTitle(t, el) {
     </div>` : "";
 
   $("range-card").innerHTML = `
-    <div class="range-card-title">${esc(t.title)}</div>
-    <div class="range-card-sub">${t.count.toLocaleString()} employees · latest quarter · annual equivalent</div>
+    <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
+      <div>
+        <div class="range-card-title">${esc(t.title)}</div>
+        <div class="range-card-sub">${t.count.toLocaleString()} employees · latest quarter · annual equivalent</div>
+      </div>
+      <button onclick="clearTitle()" style="background:none;border:none;cursor:pointer;color:var(--ink3);font-size:1.1rem;line-height:1;padding:2px;flex-shrink:0;margin-top:2px">&times;</button>
+    </div>
     <div class="range-bar-wrap">
       <div class="range-bar-track">
         <div class="range-bar-fill" style="left:${pct(t.p10)}%;width:${pct(t.p90)-pct(t.p10)}%"></div>
@@ -521,6 +526,14 @@ async function showPerson(name, officeName) {
       });
     }
   }
+}
+
+function clearTitle() {
+  currentSelection = null;
+  setHash({});
+  $("range-card-wrap").style.display = "none";
+  $("lookup-hint").style.display = "";
+  document.querySelectorAll(".pos-row").forEach(r => r.classList.remove("active"));
 }
 
 function clearPerson() {
