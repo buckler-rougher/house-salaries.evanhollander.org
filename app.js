@@ -487,8 +487,9 @@ async function showPerson(name, officeName) {
       if (!el) return;
       if (!ts) { el.innerHTML = `<div style="font-size:.78rem;color:var(--ink3);padding:6px 0">No salary data for this title.</div>`; return; }
       const you = latestEmp.annual_equiv;
-      const pctile = you < ts.p25 ? "below 25th pct." : you < ts.median ? "25th–50th pct." : you < ts.p75 ? "50th–75th pct." : "above 75th pct.";
-      const youRow = `<div class="person-modal-comp-row person-modal-comp-you"><span>${esc(name)} <span style="font-weight:400;font-size:.72rem;opacity:.7">${pctile}</span></span><span>${fmtK(you)}</span></div>`;
+      const pctileNum = estimatePercentile(you, ts);
+      const pctile = pctileNum != null ? `${ordinal(pctileNum)} percentile` : "";
+      const youRow = `<div class="person-modal-comp-row person-modal-comp-you"><span>${esc(name)} ${pctile ? `<span style="font-weight:400;font-size:.72rem;opacity:.7">${pctile}</span>` : ""}</span><span>${fmtK(you)}</span></div>`;
       const r25 = `<div class="person-modal-comp-row"><span>25th pct.</span><span>${fmtK(ts.p25)}</span></div>`;
       const rMed = `<div class="person-modal-comp-row"><span>Median</span><span>${fmtK(ts.median)}</span></div>`;
       const r75 = `<div class="person-modal-comp-row"><span>75th pct.</span><span>${fmtK(ts.p75)}</span></div>`;
@@ -801,6 +802,34 @@ function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
     ).join("");
     containerEl.after(leg);
   }
+}
+
+function ordinal(n) {
+  const r100 = n % 100;
+  if (r100 >= 11 && r100 <= 13) return `${n}th`;
+  switch (n % 10) {
+    case 1: return `${n}st`;
+    case 2: return `${n}nd`;
+    case 3: return `${n}rd`;
+    default: return `${n}th`;
+  }
+}
+
+// Piecewise-linear interpolation across known percentile points
+function estimatePercentile(v, ts) {
+  const pts = [[0, ts.min], [10, ts.p10], [25, ts.p25], [50, ts.median], [75, ts.p75], [90, ts.p90], [100, ts.max]]
+    .filter(([, val]) => val != null);
+  if (pts.length < 2) return null;
+  if (v <= pts[0][1]) return pts[0][0];
+  if (v >= pts[pts.length - 1][1]) return pts[pts.length - 1][0];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [p0, v0] = pts[i], [p1, v1] = pts[i + 1];
+    if (v >= v0 && v <= v1) {
+      if (v1 === v0) return p0;
+      return Math.round(p0 + (p1 - p0) * (v - v0) / (v1 - v0));
+    }
+  }
+  return null;
 }
 
 function linReg(xs, ys) {
