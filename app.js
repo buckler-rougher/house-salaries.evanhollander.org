@@ -78,6 +78,10 @@ function renderStats() {
   }
 }
 
+function isLatestQuarter() {
+  return viewQIdx < 0 || viewQIdx === summary.quarters.length - 1;
+}
+
 function navigateQuarter(dir) {
   const qs = summary.quarters;
   const cur = viewQIdx < 0 ? qs.length - 1 : viewQIdx;
@@ -86,6 +90,17 @@ function navigateQuarter(dir) {
   viewQIdx = next === qs.length - 1 ? -1 : next;
   renderStats();
   renderDist();
+  buildTitles();
+  renderPosResults($("pos-search")?.value || "");
+  buildOfficeData();
+  renderOfficeList();
+  $("type-bars").innerHTML = ""; renderTypeBars();
+  // Re-render trend highlight if trend tab is active
+  const trendPane = $("tab-trend");
+  if (trendPane && trendPane.classList.contains("active")) renderTrend();
+  // All Staff: show note if historical
+  const tableNote = $("table-quarter-note");
+  if (tableNote) tableNote.style.display = isLatestQuarter() ? "none" : "";
 }
 
 function renderDist() {
@@ -181,7 +196,7 @@ function renderDist() {
 }
 
 function renderTypeBars() {
-  const q = summary.quarters[summary.quarters.length - 1];
+  const q = viewedQuarter();
   if (!q) return;
   const max = 220000, pct = v => Math.min(100, v/max*100);
   const c = $("type-bars"); c.innerHTML = "";
@@ -214,12 +229,14 @@ function renderTrend() {
   $("chart-trend").style.display = "";
   const qs = filteredQuarters(trendQFilter);
   const labels = qs.map(q => q.label);
+  const hlLabel = isLatestQuarter() ? null : viewedQuarter().label;
+  const hlOpts = { highlightLabel: hlLabel };
 
   if (trendMode === "overall") {
     drawSvgLineChart($("chart-trend"), labels, [{
       label: METRIC_LABELS[trendMetric], data: qs.map(q => q.overall[trendMetric]),
       color: "#c0392b", fill: true,
-    }]);
+    }], hlOpts);
 
   } else if (trendMode === "type") {
     const datasets = ["member","committee","leadership","administrative"].map(type => ({
@@ -227,7 +244,7 @@ function renderTrend() {
       data: qs.map(q => q.by_type[type]?.[trendMetric] ?? null),
       color: TYPE_COLORS_TREND[type], fill: false,
     }));
-    drawSvgLineChart($("chart-trend"), labels, datasets, { legend: true });
+    drawSvgLineChart($("chart-trend"), labels, datasets, { legend: true, ...hlOpts });
 
   } else if (trendMode === "position") {
     if (!trendPosTitle) {
@@ -241,7 +258,7 @@ function renderTrend() {
     });
     drawSvgLineChart($("chart-trend"), labels, [{
       label: "", data, color: "#c0392b", fill: true,
-    }]);
+    }], hlOpts);
   }
 }
 
@@ -249,20 +266,25 @@ function renderTrend() {
 let titles = [];
 
 function buildTitles() {
-  // Compute from all employees in the latest quarter (covers every title, any count)
-  const groups = {};
-  employees.filter(e => !e.intern && !e.shared).forEach(e => {
-    if (!e.title) return;
-    if (!groups[e.title]) groups[e.title] = [];
-    groups[e.title].push(e.annual_equiv);
-  });
-  titles = Object.entries(groups).map(([title, amts]) => {
-    const s = amts.slice().sort((a,b)=>a-b);
-    const p = pct => { const i=(s.length-1)*pct/100,lo=Math.floor(i),hi=Math.min(lo+1,s.length-1); return s[lo]+(s[hi]-s[lo])*(i-lo); };
-    return { title, count: s.length, median: Math.round(p(50)), mean: Math.round(s.reduce((a,b)=>a+b,0)/s.length),
-      p25: Math.round(p(25)), p75: Math.round(p(75)), p10: Math.round(p(10)), p90: Math.round(p(90)),
-      min: s[0], max: s[s.length-1] };
-  }).sort((a,b) => b.count - a.count);
+  if (isLatestQuarter()) {
+    // Compute from full employee list (covers every title, any count)
+    const groups = {};
+    employees.filter(e => !e.intern && !e.shared).forEach(e => {
+      if (!e.title) return;
+      if (!groups[e.title]) groups[e.title] = [];
+      groups[e.title].push(e.annual_equiv);
+    });
+    titles = Object.entries(groups).map(([title, amts]) => {
+      const s = amts.slice().sort((a,b)=>a-b);
+      const p = pct => { const i=(s.length-1)*pct/100,lo=Math.floor(i),hi=Math.min(lo+1,s.length-1); return s[lo]+(s[hi]-s[lo])*(i-lo); };
+      return { title, count: s.length, median: Math.round(p(50)), mean: Math.round(s.reduce((a,b)=>a+b,0)/s.length),
+        p25: Math.round(p(25)), p75: Math.round(p(75)), p10: Math.round(p(10)), p90: Math.round(p(90)),
+        min: s[0], max: s[s.length-1] };
+    }).sort((a,b) => b.count - a.count);
+  } else {
+    // Use pre-aggregated top_titles from that quarter's summary
+    titles = (viewedQuarter().top_titles || []).slice();
+  }
 }
 
 function renderPosResults(query) {
@@ -528,21 +550,30 @@ function restoreHash() {
 let officeData = [];
 
 function buildOfficeData() {
-  const groups = {};
-  employees.filter(e => !e.intern && !e.shared).forEach(e => {
-    const key = cleanOrg(e.office);
-    if (!groups[key]) groups[key] = { name: key, type: e.type, amounts: [] };
-    groups[key].amounts.push(e.annual_equiv);
-  });
-  officeData = Object.values(groups).map(g => {
-    const s = g.amounts.slice().sort((a,b) => a-b);
-    const p = pct => { const i=(s.length-1)*pct/100; const lo=Math.floor(i),hi=Math.min(lo+1,s.length-1); return s[lo]+(s[hi]-s[lo])*(i-lo); };
-    const totalAnnual = Math.round(s.reduce((a,b)=>a+b,0));
-    return { name: g.name, type: g.type, count: s.length,
-      min: Math.round(s[0]), max: Math.round(s[s.length-1]),
-      median: Math.round(p(50)), p25: Math.round(p(25)), p75: Math.round(p(75)),
-      totalAnnual };
-  });
+  if (isLatestQuarter()) {
+    const groups = {};
+    employees.filter(e => !e.intern && !e.shared).forEach(e => {
+      const key = cleanOrg(e.office);
+      if (!groups[key]) groups[key] = { name: key, type: e.type, amounts: [] };
+      groups[key].amounts.push(e.annual_equiv);
+    });
+    officeData = Object.values(groups).map(g => {
+      const s = g.amounts.slice().sort((a,b) => a-b);
+      const p = pct => { const i=(s.length-1)*pct/100; const lo=Math.floor(i),hi=Math.min(lo+1,s.length-1); return s[lo]+(s[hi]-s[lo])*(i-lo); };
+      const totalAnnual = Math.round(s.reduce((a,b)=>a+b,0));
+      return { name: g.name, type: g.type, count: s.length,
+        min: Math.round(s[0]), max: Math.round(s[s.length-1]),
+        median: Math.round(p(50)), p25: Math.round(p(25)), p75: Math.round(p(75)),
+        totalAnnual };
+    });
+  } else {
+    // Use pre-aggregated top_offices from that quarter's summary
+    officeData = (viewedQuarter().top_offices || []).map(o => ({
+      name: o.name, type: o.type, count: o.count,
+      min: o.min, max: o.max, median: o.median, p25: o.p25, p75: o.p75,
+      totalAnnual: o.total_quarterly_pay != null ? o.total_quarterly_pay * 4 : null,
+    }));
+  }
 }
 
 const METRIC_LABELS = { median:"Median", mean:"Average", p25:"25th pct.", p75:"75th pct." };
@@ -594,7 +625,7 @@ function positionTooltip(e) {
 }
 
 function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
-  const { legend = false } = opts;
+  const { legend = false, highlightLabel = null } = opts;
   const W = 680, H = 300;
   const pad = { t: 16, r: 16, b: 52, l: 58 };
   const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
@@ -624,8 +655,9 @@ function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
   const xLabels = labels.map((lb, i) => {
     const x = sx(i);
     if (rotateX) {
-      return `<text x="${x.toFixed(1)}" y="${H - 4}" text-anchor="end" font-size="10" fill="#888"
-        transform="rotate(-45,${x.toFixed(1)},${H - 4})">${lb}</text>`;
+      const ty = pad.t + ph + 6;
+      return `<text text-anchor="end" font-size="10" fill="#888"
+        transform="translate(${x.toFixed(1)},${ty.toFixed(1)}) rotate(-45)">${lb}</text>`;
     }
     return `<text x="${x.toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="#888">${lb}</text>`;
   }).join("");
@@ -664,8 +696,16 @@ function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
     return fills + lines + dots;
   }).join("");
 
+  // Viewed-quarter highlight line
+  const hlIdx = highlightLabel != null ? labels.indexOf(highlightLabel) : -1;
+  const hlLine = hlIdx >= 0 ? (() => {
+    const x = sx(hlIdx).toFixed(1);
+    return `<line x1="${x}" x2="${x}" y1="${pad.t}" y2="${pad.t + ph}" stroke="#c0392b" stroke-width="1.5" stroke-dasharray="4 3" opacity=".5"/>
+            <text x="${x}" y="${(pad.t - 4).toFixed(1)}" text-anchor="middle" font-size="9" fill="#c0392b" opacity=".8">${labels[hlIdx]}</text>`;
+  })() : "";
+
   const svgStr = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">
-    ${yTicks}${pathEls}${xLabels}
+    ${yTicks}${hlLine}${pathEls}${xLabels}
   </svg>`;
 
   containerEl.innerHTML = svgStr;
@@ -816,31 +856,47 @@ function makeMiniTrend(wrapEl, getDataFn) {
 }
 
 function renderOfficeDetail(officeName, el) {
-  const staff = employees.filter(e => !e.intern && cleanOrg(e.office) === officeName)
-    .sort((a,b) => b.annual_equiv - a.annual_equiv);
-  if (!staff.length) { el.innerHTML = `<div class="office-detail-empty">No staff data.</div>`; return; }
-  const amts = staff.map(e => e.annual_equiv).sort((a,b)=>a-b);
-  const p = pct => { const i=(amts.length-1)*pct/100,lo=Math.floor(i),hi=Math.min(lo+1,amts.length-1); return amts[lo]+(amts[hi]-amts[lo])*(i-lo); };
-  const median = Math.round(p(50)), p25 = Math.round(p(25)), p75 = Math.round(p(75));
   const trendWrapId = "mini-office-" + officeName.replace(/[^a-z0-9]/gi, "_");
   const hasTrend = summary.quarters.some(q => (q.top_offices || []).find(o => o.name === officeName));
 
-  el.innerHTML = `
-    <div class="office-detail-stats">
-      <div class="office-detail-stat"><div class="office-detail-val">${fmtK(p25)}</div><div class="office-detail-key">25th pct.</div></div>
-      <div class="office-detail-stat"><div class="office-detail-val">${fmtK(median)}</div><div class="office-detail-key">Median</div></div>
-      <div class="office-detail-stat"><div class="office-detail-val">${fmtK(p75)}</div><div class="office-detail-key">75th pct.</div></div>
-    </div>
-    <div class="office-total-payroll">Est. annual payroll: <strong>${fmt(staff.reduce((s,e)=>s+e.annual_equiv,0))}</strong> across ${staff.length} staff</div>
-    ${hasTrend ? miniTrendHtml(trendWrapId, "Salary trend") : ""}
-    <div class="office-staff-list">${staff.map(e => {
-      const over = e.annual_equiv > SALARY_CAP;
-      return `<div class="office-staff-row">
-        <span class="office-staff-name person-link" data-name="${esc(e.name)}" data-office="${esc(officeName)}">${esc(e.name)}</span>
-        <span class="office-staff-title">${esc(e.title)}</span>
-        <span class="office-staff-amt">${over?`<span class="cap-warn" title="May include bonus/lump sum">⚠</span> `:""}${fmt(e.annual_equiv)}</span>
-      </div>`;
-    }).join("")}</div>`;
+  if (isLatestQuarter()) {
+    const staff = employees.filter(e => !e.intern && cleanOrg(e.office) === officeName)
+      .sort((a,b) => b.annual_equiv - a.annual_equiv);
+    if (!staff.length) { el.innerHTML = `<div class="office-detail-empty">No staff data.</div>`; return; }
+    const amts = staff.map(e => e.annual_equiv).sort((a,b)=>a-b);
+    const p = pct => { const i=(amts.length-1)*pct/100,lo=Math.floor(i),hi=Math.min(lo+1,amts.length-1); return amts[lo]+(amts[hi]-amts[lo])*(i-lo); };
+    const median = Math.round(p(50)), p25 = Math.round(p(25)), p75 = Math.round(p(75));
+    el.innerHTML = `
+      <div class="office-detail-stats">
+        <div class="office-detail-stat"><div class="office-detail-val">${fmtK(p25)}</div><div class="office-detail-key">25th pct.</div></div>
+        <div class="office-detail-stat"><div class="office-detail-val">${fmtK(median)}</div><div class="office-detail-key">Median</div></div>
+        <div class="office-detail-stat"><div class="office-detail-val">${fmtK(p75)}</div><div class="office-detail-key">75th pct.</div></div>
+      </div>
+      <div class="office-total-payroll">Est. annual payroll: <strong>${fmt(staff.reduce((s,e)=>s+e.annual_equiv,0))}</strong> across ${staff.length} staff</div>
+      ${hasTrend ? miniTrendHtml(trendWrapId, "Salary trend") : ""}
+      <div class="office-staff-list">${staff.map(e => {
+        const over = e.annual_equiv > SALARY_CAP;
+        return `<div class="office-staff-row">
+          <span class="office-staff-name person-link" data-name="${esc(e.name)}" data-office="${esc(officeName)}">${esc(e.name)}</span>
+          <span class="office-staff-title">${esc(e.title)}</span>
+          <span class="office-staff-amt">${over?`<span class="cap-warn" title="May include bonus/lump sum">⚠</span> `:""}${fmt(e.annual_equiv)}</span>
+        </div>`;
+      }).join("")}</div>`;
+  } else {
+    // Historical quarter: use top_offices aggregate stats, no individual staff list
+    const qData = viewedQuarter();
+    const o = (qData.top_offices || []).find(o => o.name === officeName);
+    if (!o) { el.innerHTML = `<div class="office-detail-empty">No data for this quarter.</div>`; return; }
+    el.innerHTML = `
+      <div class="office-detail-stats">
+        <div class="office-detail-stat"><div class="office-detail-val">${fmtK(o.p25)}</div><div class="office-detail-key">25th pct.</div></div>
+        <div class="office-detail-stat"><div class="office-detail-val">${fmtK(o.median)}</div><div class="office-detail-key">Median</div></div>
+        <div class="office-detail-stat"><div class="office-detail-val">${fmtK(o.p75)}</div><div class="office-detail-key">75th pct.</div></div>
+      </div>
+      ${o.total_quarterly_pay ? `<div class="office-total-payroll">Est. annual payroll: <strong>${fmt(o.total_quarterly_pay * 4)}</strong> across ${o.count} staff</div>` : ""}
+      ${hasTrend ? miniTrendHtml(trendWrapId, "Salary trend") : ""}
+      <div class="office-detail-empty" style="font-size:.75rem;margin-top:8px">Individual staff data only available for the latest quarter.</div>`;
+  }
   if (hasTrend) {
     const wrap = document.getElementById(trendWrapId);
     if (wrap) makeMiniTrend(wrap, (metric, qf) => {
