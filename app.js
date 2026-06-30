@@ -10,6 +10,7 @@ let trendMetric = "median", trendMode = "overall", trendPosTitle = null, trendQF
 let sortKey = "annual_equiv", sortDir = -1, page = 1, filtered = [];
 let peopleData = null, peopleLoading = false;
 let viewQIdx = -1; // index into summary.quarters; -1 = latest
+let currentSelection = null; // { type: "title"|"person", titleName, personName, personOffice }
 const PAGE = 25;
 
 const SALARY_CAP = 228000;
@@ -101,6 +102,17 @@ function navigateQuarter(dir) {
   // All Staff: show note if historical
   const tableNote = $("table-quarter-note");
   if (tableNote) tableNote.style.display = isLatestQuarter() ? "none" : "";
+
+  // Re-render whatever is open in the left panel
+  if (currentSelection) {
+    if (currentSelection.type === "title") {
+      const t = titles.find(x => x.title === currentSelection.titleName);
+      const activeRow = document.querySelector(`.pos-row.active`);
+      if (t) selectTitle(t, activeRow);
+    } else if (currentSelection.type === "person") {
+      showPerson(currentSelection.personName, currentSelection.personOffice);
+    }
+  }
 }
 
 function renderDist() {
@@ -304,6 +316,7 @@ function renderPosResults(query) {
 }
 
 function selectTitle(t, el) {
+  currentSelection = { type: "title", titleName: t.title };
   document.querySelectorAll(".pos-row").forEach(r => r.classList.remove("active"));
   el?.classList.add("active");
   $("lookup-hint").style.display = "none";
@@ -367,6 +380,7 @@ function selectTitle(t, el) {
 
 // ── Person profile ──
 async function showPerson(name, officeName) {
+  currentSelection = { type: "person", personName: name, personOffice: officeName };
   setHash({ person: name + "|" + officeName });
   $("lookup-hint").style.display = "none";
   $("range-card-wrap").style.display = "";
@@ -512,6 +526,7 @@ async function showPerson(name, officeName) {
 }
 
 function clearPerson() {
+  currentSelection = null;
   setHash({});
   $("range-card-wrap").style.display = "none";
   $("lookup-hint").style.display = "";
