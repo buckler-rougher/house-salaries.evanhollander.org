@@ -406,13 +406,6 @@ async function showPerson(name, officeName) {
   if (person) {
     const labelMap = {};
     summary.quarters.forEach(q => labelMap[q.id] = q.label);
-    const hist = [...person.history].sort((a, b) => a.quarter.localeCompare(b.quarter));
-    const first = hist[0]?.quarterly_pay * 4, last = hist[hist.length - 1]?.quarterly_pay * 4;
-    const change = last - first;
-    const changePct = first ? Math.round((change / first) * 100) : null;
-    const changeHtml = changePct != null
-      ? `<div class="person-modal-change"><span style="color:${change >= 0 ? '#059669' : '#dc2626'};font-weight:700">${change >= 0 ? "+" : ""}${fmt(change)} (${change >= 0 ? "+" : ""}${changePct}%)</span> since ${hist[0].label || labelMap[hist[0].quarter] || hist[0].quarter}</div>`
-      : "";
     qFilterHtml = `<div class="mini-ctrl-row" style="margin-bottom:8px">
       <div class="mini-pills">
         <button class="mini-q active" data-q="0">All</button>
@@ -422,7 +415,7 @@ async function showPerson(name, officeName) {
         <button class="mini-q" data-q="4">Q4</button>
       </div>
     </div>`;
-    chartHtml = `${changeHtml}<div class="person-modal-section">Pay history · annual equivalent</div>${qFilterHtml}<div class="person-modal-chart" id="person-modal-chart"></div>`;
+    chartHtml = `<div class="person-modal-section">Pay history · annual equivalent</div>${qFilterHtml}<div class="person-modal-chart" id="person-modal-chart"></div>`;
   } else {
     chartHtml = `<div style="font-size:.82rem;color:var(--ink3);margin:16px 0">No multi-quarter history — this person may have joined recently or changed offices.</div>`;
   }
@@ -770,9 +763,20 @@ function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
   }
 }
 
+function linReg(xs, ys) {
+  const n = xs.length;
+  const mx = xs.reduce((a, b) => a + b, 0) / n;
+  const my = ys.reduce((a, b) => a + b, 0) / n;
+  const num = xs.reduce((s, x, i) => s + (x - mx) * (ys[i] - my), 0);
+  const den = xs.reduce((s, x) => s + (x - mx) ** 2, 0);
+  const slope = den ? num / den : 0;
+  const intercept = my - slope * mx;
+  return { slope, intercept };
+}
+
 function svgSparkline(data, labels) {
   const W = 560, H = 200;
-  const pad = { t: 14, r: 16, b: 48, l: 54 };
+  const pad = { t: 22, r: 16, b: 48, l: 54 };
   const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
 
   const valid = data.map((v, i) => ({ v, i })).filter(d => d.v != null);
@@ -822,7 +826,23 @@ function svgSparkline(data, labels) {
     `<circle cx="${sx(i).toFixed(1)}" cy="${sy(v).toFixed(1)}" r="4" fill="white" stroke="#c0392b" stroke-width="2"><title>${labels[i]}: $${Math.round(v).toLocaleString()}</title></circle>`
   ).join("");
 
-  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">${yTicks}${fills}${lines}${dots}${xLabels}</svg>`;
+  // Trend line + annotation (need ≥3 valid points)
+  let trendEl = "", annotEl = "";
+  if (valid.length >= 3) {
+    const { slope, intercept } = linReg(valid.map(d => d.i), valid.map(d => d.v));
+    const x0 = valid[0].i, x1 = valid[valid.length - 1].i;
+    const ty0 = sy(slope * x0 + intercept), ty1 = sy(slope * x1 + intercept);
+    trendEl = `<line x1="${sx(x0).toFixed(1)}" y1="${ty0.toFixed(1)}" x2="${sx(x1).toFixed(1)}" y2="${ty1.toFixed(1)}"
+      stroke="#6b7280" stroke-width="1.2" stroke-dasharray="4 3" opacity=".7"/>`;
+    // slope is per quarter index step; annualise × 4
+    const annualSlope = slope * 4;
+    const sign = annualSlope >= 0 ? "+" : "−";
+    const abs = Math.abs(annualSlope);
+    const label = `${sign}$${abs >= 1000 ? (abs/1000).toFixed(1)+"k" : Math.round(abs)} / yr trend`;
+    annotEl = `<text x="${(W - pad.r).toFixed(1)}" y="14" text-anchor="end" font-size="11" fill="#6b7280">${label}</text>`;
+  }
+
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">${yTicks}${fills}${lines}${trendEl}${dots}${xLabels}${annotEl}</svg>`;
 }
 
 function makeMiniTrend(wrapEl, getDataFn) {
