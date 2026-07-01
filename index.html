@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>House Staff Salaries</title>
   <meta name="description" content="Salary data for U.S. House of Representatives staff." />
-  <link rel="stylesheet" href="styles.css?v=20260701k" />
+  <link rel="stylesheet" href="styles.css?v=20260701l" />
 </head>
 <body>
 
@@ -15,7 +15,10 @@
 <div id="app" style="display:none">
 
   <div class="hero">
-    <h1 class="hero-title">House Staff <span>Salaries</span></h1>
+    <div class="hero-top">
+      <h1 class="hero-title">House Staff <span>Salaries</span></h1>
+      <button id="suggest-fab" aria-label="Open suggestion box">Suggestion Box</button>
+    </div>
     <div class="hero-stats">
       <div class="hero-stat">
         <div class="hero-stat-num"><span class="prefix">$</span><span id="stat-median">—</span></div>
@@ -205,11 +208,10 @@
 </div>
 
 <!-- Suggestion drawer -->
-<button id="suggest-fab" aria-label="Leave a suggestion">Suggest</button>
 <div id="suggest-overlay" class="suggest-overlay" style="display:none"></div>
 <div id="suggest-drawer" class="suggest-drawer" aria-hidden="true" role="dialog" aria-label="Suggestion box">
   <div class="suggest-drawer-header">
-    <span class="suggest-drawer-title">Leave a suggestion</span>
+    <span class="suggest-drawer-title">Suggestion Box</span>
     <button class="suggest-drawer-close" id="suggest-close" aria-label="Close">&times;</button>
   </div>
   <form id="suggest-form" class="suggest-form" novalidate>
@@ -238,6 +240,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260701k"></script>
+<script src="app.js?v=20260701l"></script>
 </body>
 </html>
