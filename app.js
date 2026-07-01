@@ -1248,5 +1248,51 @@ document.addEventListener("DOMContentLoaded", () => {
   $("emp-search").addEventListener("input", applyFilters);
   $("emp-type").addEventListener("change", applyFilters);
   $("emp-office").addEventListener("change", applyFilters);
+
+  // Suggestion drawer
+  const drawer = $("suggest-drawer");
+  const overlay = $("suggest-overlay");
+  const openDrawer = () => {
+    overlay.style.display = "";
+    drawer.removeAttribute("aria-hidden");
+    drawer.classList.add("open");
+    $("suggest-message")?.focus();
+  };
+  const closeDrawer = () => {
+    drawer.classList.remove("open");
+    drawer.setAttribute("aria-hidden", "true");
+    overlay.style.display = "none";
+  };
+  $("suggest-fab").addEventListener("click", openDrawer);
+  $("suggest-close").addEventListener("click", closeDrawer);
+  overlay.addEventListener("click", closeDrawer);
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && drawer.classList.contains("open")) closeDrawer();
+  });
+
+  $("suggest-form").addEventListener("submit", async e => {
+    e.preventDefault();
+    const btn = $("suggest-submit");
+    const errEl = $("suggest-error");
+    errEl.style.display = "none";
+    btn.disabled = true;
+    btn.textContent = "Sending…";
+    try {
+      const fd = new FormData(e.target);
+      const res = await fetch("https://contact.evanhollander.org/api/submit", {
+        method: "POST", body: fd,
+      });
+      const json = await res.json().catch(() => ({}));
+      if (!res.ok || !json.success) throw new Error(json.error || "Something went wrong.");
+      $("suggest-form").style.display = "none";
+      $("suggest-success").style.display = "";
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = "";
+      btn.disabled = false;
+      btn.textContent = "Send";
+    }
+  });
+
   loadData();
 });

@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>House Staff Salaries</title>
   <meta name="description" content="Salary data for U.S. House of Representatives staff." />
-  <link rel="stylesheet" href="styles.css?v=20260701j" />
+  <link rel="stylesheet" href="styles.css?v=20260701k" />
 </head>
 <body>
 
@@ -204,6 +204,32 @@
 
 </div>
 
+<!-- Suggestion drawer -->
+<button id="suggest-fab" aria-label="Leave a suggestion">Suggest</button>
+<div id="suggest-overlay" class="suggest-overlay" style="display:none"></div>
+<div id="suggest-drawer" class="suggest-drawer" aria-hidden="true" role="dialog" aria-label="Suggestion box">
+  <div class="suggest-drawer-header">
+    <span class="suggest-drawer-title">Leave a suggestion</span>
+    <button class="suggest-drawer-close" id="suggest-close" aria-label="Close">&times;</button>
+  </div>
+  <form id="suggest-form" class="suggest-form" novalidate>
+    <input type="text" name="website" class="suggest-hp" tabindex="-1" autocomplete="off" aria-hidden="true" />
+    <input type="hidden" name="ref" value="house-salaries" />
+    <input type="hidden" name="subject" value="House Salaries — Suggestion" />
+    <input type="hidden" name="name" value="Anonymous" />
+    <label class="suggest-label" for="suggest-message">Message <span class="suggest-req">*</span></label>
+    <textarea id="suggest-message" name="message" class="suggest-textarea" rows="5" placeholder="Ideas, corrections, data questions…" required></textarea>
+    <label class="suggest-label" for="suggest-email">Email <span class="suggest-opt">(optional, for follow-up)</span></label>
+    <input type="email" id="suggest-email" name="email" class="suggest-input" placeholder="you@example.com" autocomplete="email" />
+    <div id="suggest-error" class="suggest-error" style="display:none"></div>
+    <button type="submit" class="suggest-submit" id="suggest-submit">Send</button>
+  </form>
+  <div id="suggest-success" class="suggest-success" style="display:none">
+    <div class="suggest-success-icon">✓</div>
+    <div class="suggest-success-msg">Thanks — got it!</div>
+  </div>
+</div>
+
 <!-- Person modal -->
 <div id="person-modal-overlay" class="person-modal-overlay" style="display:none" role="dialog" aria-modal="true">
   <div class="person-modal" id="person-modal">
@@ -212,6 +238,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260701j"></script>
+<script src="app.js?v=20260701k"></script>
 </body>
 </html>
