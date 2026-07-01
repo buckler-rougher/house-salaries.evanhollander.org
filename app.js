@@ -1270,6 +1270,17 @@ document.addEventListener("DOMContentLoaded", () => {
     if (e.key === "Escape" && drawer.classList.contains("open")) closeDrawer();
   });
 
+  // Data & privacy modal
+  const dataModal = $("suggest-data-modal");
+  const openDataModal  = () => { dataModal.style.display = "flex"; $("suggest-data-close").focus(); };
+  const closeDataModal = () => { dataModal.style.display = "none"; $("suggest-privacy-link")?.focus(); };
+  $("suggest-privacy-link").addEventListener("click", e => { e.preventDefault(); openDataModal(); });
+  $("suggest-data-close").addEventListener("click", closeDataModal);
+  $("suggest-data-backdrop").addEventListener("click", closeDataModal);
+  document.addEventListener("keydown", e => {
+    if (e.key === "Escape" && dataModal.style.display !== "none") { e.stopPropagation(); closeDataModal(); }
+  }, true);
+
   $("suggest-form").addEventListener("submit", async e => {
     e.preventDefault();
     const btn = $("suggest-submit");

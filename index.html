@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>House Staff Salaries</title>
   <meta name="description" content="Salary data for U.S. House of Representatives staff." />
-  <link rel="stylesheet" href="styles.css?v=20260701l" />
+  <link rel="stylesheet" href="styles.css?v=20260701m" />
 </head>
 <body>
 
@@ -199,6 +199,8 @@
       <a class="site-footer-link" href="https://house-floor.evanhollander.org" target="_blank" rel="noopener">Floor Monitor</a>
       <span class="site-footer-sep">&middot;</span>
       <a class="site-footer-link" href="https://contact.evanhollander.org/?subject=House Staff Salaries" target="_blank" rel="noopener">Contact</a>
+      <span class="site-footer-sep">&middot;</span>
+      <a class="site-footer-link" href="/legal.html">Privacy &amp; Terms</a>
     </div>
     <div class="site-footer-secondary">
       Data: <a href="https://www.house.gov/the-house-explained/open-government/statement-of-disbursements" target="_blank" rel="noopener">Statement of Disbursements of the House</a>. Annual figures = quarterly pay &times; 4 (estimate). Full-time staff = &ge;$45k annual. Not affiliated with the U.S. House of Representatives.
@@ -224,11 +226,29 @@
     <label class="suggest-label" for="suggest-email">Email <span class="suggest-opt">(optional, for follow-up)</span></label>
     <input type="email" id="suggest-email" name="email" class="suggest-input" placeholder="you@example.com" autocomplete="email" />
     <div id="suggest-error" class="suggest-error" style="display:none"></div>
+    <p class="suggest-consent">By submitting, you agree to the <a href="#" id="suggest-privacy-link" class="suggest-privacy-link">use of your data</a>.</p>
     <button type="submit" class="suggest-submit" id="suggest-submit">Send</button>
   </form>
   <div id="suggest-success" class="suggest-success" style="display:none">
     <div class="suggest-success-icon">✓</div>
     <div class="suggest-success-msg">Thanks — got it!</div>
+  </div>
+</div>
+
+<!-- Data & privacy modal -->
+<div id="suggest-data-modal" class="suggest-data-modal" style="display:none" role="dialog" aria-modal="true" aria-labelledby="suggest-data-modal-title">
+  <div class="suggest-data-backdrop" id="suggest-data-backdrop"></div>
+  <div class="suggest-data-box">
+    <button class="suggest-data-close" id="suggest-data-close" aria-label="Close">&times;</button>
+    <h2 id="suggest-data-modal-title" class="suggest-data-title">Data &amp; Privacy</h2>
+    <p class="suggest-data-p">When you submit a suggestion, the following is collected and sent to me by email:</p>
+    <ul class="suggest-data-list">
+      <li>Your message</li>
+      <li>Your email address, if provided</li>
+      <li>Your IP address and the time of submission</li>
+    </ul>
+    <p class="suggest-data-p">This information is used solely to read and respond to your suggestion. It is not stored in a database, not shared with third parties, and not used for marketing.</p>
+    <p class="suggest-data-p">For more, see the <a href="/legal.html#privacy" target="_blank" rel="noopener">full Privacy Policy</a>.</p>
   </div>
 </div>
 
@@ -240,6 +260,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260701l"></script>
+<script src="app.js?v=20260701m"></script>
 </body>
 </html>

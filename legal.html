@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Legal — House Staff Salaries</title>
+  <meta name="robots" content="noindex" />
+  <link rel="stylesheet" href="styles.css?v=20260701l" />
+  <style>
+    .legal-header {
+      border-bottom: 1px solid var(--line);
+      padding: 16px 32px;
+    }
+    .legal-header a {
+      font-size: .8rem; font-weight: 600; color: var(--ink3);
+      text-decoration: none; letter-spacing: .02em;
+    }
+    .legal-header a:hover { color: var(--ink); }
+    .legal-content {
+      max-width: 680px;
+      margin: 48px auto;
+      padding: 0 24px 80px;
+    }
+    .legal-nav {
+      display: flex; gap: 24px;
+      margin-bottom: 48px;
+      border-bottom: 1px solid var(--line);
+      padding-bottom: 16px;
+    }
+    .legal-nav a {
+      font-size: .72rem; font-weight: 700; color: var(--ink3);
+      text-decoration: none; letter-spacing: .08em; text-transform: uppercase;
+    }
+    .legal-nav a:hover { color: var(--ink); }
+    .legal-section { margin-bottom: 56px; }
+    .legal-section h1 {
+      font-size: 1.25rem; font-weight: 800; color: var(--ink);
+      margin-bottom: 4px; letter-spacing: -.02em;
+    }
+    .legal-section .effective {
+      font-size: .72rem; color: var(--ink3); margin-bottom: 28px;
+    }
+    .legal-section h2 {
+      font-size: .68rem; font-weight: 700; color: var(--ink3);
+      text-transform: uppercase; letter-spacing: .1em;
+      margin: 28px 0 10px;
+    }
+    .legal-section p {
+      font-size: .875rem; color: var(--ink2); line-height: 1.7;
+      margin-bottom: 12px;
+    }
+    .legal-section a { color: var(--accent); text-decoration: none; }
+    .legal-section a:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<header class="legal-header">
+  <a href="/">&larr; House Staff Salaries</a>
+</header>
+
+<div class="legal-content">
+  <nav class="legal-nav">
+    <a href="#privacy">Privacy Policy</a>
+    <a href="#terms">Terms of Service</a>
+  </nav>
+
+  <!-- Privacy Policy -->
+  <section class="legal-section" id="privacy">
+    <h1>Privacy Policy</h1>
+    <p class="effective">Effective July 1, 2026</p>
+
+    <h2>Browsing this site</h2>
+    <p>Browsing House Staff Salaries does not require an account and does not place any cookies. No personal information is collected simply by viewing the site.</p>
+
+    <h2>Suggestion box</h2>
+    <p>If you submit a message through the Suggestion Box, we collect the message text, your email address (if provided), your IP address, and the time of submission. This information is used solely to read and respond to your suggestion and is not shared with third parties or used for any other purpose.</p>
+
+    <h2>Analytics</h2>
+    <p>This site uses <a href="https://www.cloudflare.com/web-analytics/" target="_blank" rel="noopener">Cloudflare Web Analytics</a>, a privacy-first analytics tool. It collects anonymized data about page visits (page URL, referrer, browser type, country) without cookies or cross-site tracking. No personally identifiable information is stored.</p>
+
+    <h2>Infrastructure</h2>
+    <p>This site is hosted on <a href="https://www.cloudflare.com" target="_blank" rel="noopener">Cloudflare Pages</a>. As part of normal network operations, Cloudflare may process your IP address and request metadata. See <a href="https://www.cloudflare.com/privacypolicy/" target="_blank" rel="noopener">Cloudflare's Privacy Policy</a> for details.</p>
+
+    <h2>Salary data</h2>
+    <p>All salary data displayed on this site is sourced from the <a href="https://www.house.gov/the-house-explained/open-government/statement-of-disbursements" target="_blank" rel="noopener">Statement of Disbursements of the House</a>, a public record published by the U.S. House of Representatives. No data is transmitted to the House or any government agency based on your visit.</p>
+
+    <h2>Changes</h2>
+    <p>This policy may be updated from time to time. The effective date above reflects the most recent revision.</p>
+  </section>
+
+  <!-- Terms of Service -->
+  <section class="legal-section" id="terms">
+    <h1>Terms of Service</h1>
+    <p class="effective">Effective July 1, 2026</p>
+
+    <h2>Informational use only</h2>
+    <p>This site compiles and displays publicly available salary data for U.S. House of Representatives staff for informational purposes only. It is not an official government resource and is not affiliated with, endorsed by, or operated by the U.S. House of Representatives or any government entity.</p>
+
+    <h2>Accuracy</h2>
+    <p>Annual salary figures are estimates derived from quarterly pay data (quarterly pay × 4) and may not reflect actual annual compensation. Staff who appear in a quarter for only part of the period may show lower annualized figures. While we strive for accuracy, we make no representations regarding the completeness or timeliness of any data shown. Do not rely on this site for legal, employment, or official purposes.</p>
+
+    <h2>No liability</h2>
+    <p>This site is provided "as is" without warranty of any kind. We are not liable for any damages arising from your use of or reliance on this site, or from any errors or omissions in the data displayed.</p>
+
+    <h2>Availability</h2>
+    <p>We make no guarantee of uptime or continued availability. The site may be modified, suspended, or discontinued at any time without notice.</p>
+
+    <h2>License</h2>
+    <p>Original content and code on this site is licensed under the <a href="https://opensource.org/licenses/MIT" target="_blank" rel="noopener license">MIT License</a>. Salary data sourced from the Statement of Disbursements is a public government record and remains in the public domain.</p>
+  </section>
+</div>
+
+<footer class="site-footer">
+  <div class="site-footer-primary">
+    <span class="site-footer-brand">House Staff Salaries</span>
+    <span class="site-footer-sep">&middot;</span>
+    <span class="site-footer-copy">&copy; <span id="footer-year"></span> Evan M. Hollander</span>
+  </div>
+</footer>
+<script>document.getElementById('footer-year').textContent = new Date().getFullYear();</script>
+
+</body>
+</html>
