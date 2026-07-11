@@ -234,21 +234,24 @@ const TYPE_COLORS_TREND = {
 function renderTrend() {
   $("trend-empty").style.display = "none";
   $("chart-trend").style.display = "";
-  const qs = filteredQuarters(trendQFilter);
-  const labels = qs.map(q => q.label);
+  // Always compute against every quarter so a quarter-filter change can zoom
+  // between "all quarters" and "just this subset" instead of a hard cut.
+  const allQs = summary.quarters;
+  const labels = allQs.map(q => q.label);
+  const visible = allQs.map(q => !trendQFilter || q.quarter === trendQFilter);
   const hlLabel = isLatestQuarter() ? null : viewedQuarter().label;
-  const hlOpts = { highlightLabel: hlLabel };
+  const hlOpts = { highlightLabel: hlLabel, visible };
 
   if (trendMode === "overall") {
     drawSvgLineChart($("chart-trend"), labels, [{
-      label: METRIC_LABELS[trendMetric], data: qs.map(q => q.overall[trendMetric]),
+      label: METRIC_LABELS[trendMetric], data: allQs.map(q => q.overall[trendMetric]),
       color: "#c0392b", fill: true,
     }], hlOpts);
 
   } else if (trendMode === "type") {
     const datasets = ["member","committee","leadership","administrative"].map(type => ({
       label: TYPE_LABELS[type],
-      data: qs.map(q => q.by_type[type]?.[trendMetric] ?? null),
+      data: allQs.map(q => q.by_type[type]?.[trendMetric] ?? null),
       color: TYPE_COLORS_TREND[type], fill: false,
     }));
     drawSvgLineChart($("chart-trend"), labels, datasets, { legend: true, ...hlOpts });
@@ -259,7 +262,7 @@ function renderTrend() {
       $("trend-empty").style.display = "";
       return;
     }
-    const data = qs.map(q => {
+    const data = allQs.map(q => {
       const t = (q.top_titles || []).find(t => t.title === trendPosTitle);
       return t ? t[trendMetric] : null;
     });
@@ -729,16 +732,19 @@ function positionTooltip(e) {
   tt.style.top = y + "px";
 }
 
-const trendChartCache = new WeakMap(); // containerEl -> { sig, labels, yMin, yMax, datasets }
+const trendChartCache = new WeakMap(); // containerEl -> { datasetSig, yMin, yMax, datasets (filtered), fullLabels, visible }
 
-function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel) {
+// xs/opacities let a zoom animation override each point's pixel position and
+// visibility independently of its index — everything else derives from them.
+function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel, xs = null, opacities = null) {
   const W = 680, H = 300;
   const pad = { t: 16, r: 16, b: 52, l: 58 };
   const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
   const n = labels.length;
   const vRange = yMax - yMin || 1;
 
-  const sx = i => pad.l + (n <= 1 ? pw / 2 : (i / (n - 1)) * pw);
+  const sx = xs ? (i => xs[i]) : (i => pad.l + (n <= 1 ? pw / 2 : (i / (n - 1)) * pw));
+  const op = opacities ? (i => opacities[i]) : (() => 1);
   const sy = v => pad.t + ph - ((v - yMin) / vRange) * ph;
 
   const yTicks = Array.from({ length: 5 }, (_, i) => {
@@ -747,15 +753,20 @@ function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel) {
             <text x="${(pad.l - 6).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
   }).join("");
 
-  // X labels — thin so last two don't collide
-  const rotateX = n > 6;
-  const step = Math.max(1, Math.ceil(n / 8));
+  // X labels — only for points that are (mostly) visible right now, thinned so they don't collide
+  const visibleIdx = [];
+  for (let i = 0; i < n; i++) if (op(i) > 0.5) visibleIdx.push(i);
+  const vn = visibleIdx.length;
+  const rotateX = vn > 6;
+  const step = Math.max(1, Math.ceil(vn / 8));
   const showIdx = new Set();
-  for (let i = 0; i < n; i += step) showIdx.add(i);
-  showIdx.add(n - 1);
-  const sorted = [...showIdx].sort((a, b) => a - b);
-  if (sorted.length >= 2 && n - 1 - sorted[sorted.length - 2] < step) {
-    showIdx.delete(sorted[sorted.length - 2]);
+  for (let k = 0; k < vn; k += step) showIdx.add(visibleIdx[k]);
+  if (vn) showIdx.add(visibleIdx[vn - 1]);
+  const sortedVis = [...showIdx].sort((a, b) => a - b);
+  if (sortedVis.length >= 2) {
+    const lastPos = visibleIdx.indexOf(sortedVis[sortedVis.length - 1]);
+    const penPos = visibleIdx.indexOf(sortedVis[sortedVis.length - 2]);
+    if (lastPos - penPos < step) showIdx.delete(sortedVis[sortedVis.length - 2]);
   }
   const xLabels = labels.map((lb, i) => {
     if (!showIdx.has(i)) return "";
@@ -768,13 +779,14 @@ function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel) {
     return `<text x="${x.toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="#888">${lb}</text>`;
   }).join("");
 
-  // Per-dataset paths
+  // Per-dataset paths — a point counts as part of a line segment only while it's
+  // (mostly) visible, so fading/appearing points during a zoom detach cleanly.
   const pathEls = datasets.map(ds => {
     const color = ds.color;
     const segs = [];
     let cur = [];
     ds.data.forEach((v, i) => {
-      if (v != null) cur.push([i, v]);
+      if (v != null && op(i) > 0.5) cur.push([i, v]);
       else if (cur.length) { segs.push(cur); cur = []; }
     });
     if (cur.length) segs.push(cur);
@@ -793,7 +805,9 @@ function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel) {
 
     const dots = ds.data.map((v, i) => {
       if (v == null) return "";
-      return `<circle cx="${sx(i).toFixed(1)}" cy="${sy(v).toFixed(1)}" r="4" fill="white" stroke="${color}" stroke-width="2"
+      const o = op(i);
+      if (o <= 0.02) return "";
+      return `<circle cx="${sx(i).toFixed(1)}" cy="${sy(v).toFixed(1)}" r="4" fill="white" stroke="${color}" stroke-width="2" opacity="${o.toFixed(2)}"
         class="trend-dot" data-i="${i}" data-val="${v}" data-label="${esc(ds.label || "")}"/>`;
     }).join("");
 
@@ -810,8 +824,14 @@ function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel) {
   return { svgBody: `${yTicks}${hlLine}${pathEls}${xLabels}`, W, H, pad, ph, sx };
 }
 
-function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
+function drawSvgLineChart(containerEl, fullLabels, fullDatasets, opts = {}) {
   const { legend = false, highlightLabel = null } = opts;
+  const visible = opts.visible || fullLabels.map(() => true);
+
+  const visIdx = [];
+  for (let i = 0; i < fullLabels.length; i++) if (visible[i]) visIdx.push(i);
+  const labels = visIdx.map(i => fullLabels[i]);
+  const datasets = fullDatasets.map(d => ({ ...d, data: visIdx.map(i => d.data[i]) }));
 
   const allVals = datasets.flatMap(ds => ds.data.filter(v => v != null));
   if (!allVals.length) { containerEl.innerHTML = `<p style="padding:20px;color:#888;font-size:.85rem">No data.</p>`; return; }
@@ -899,21 +919,40 @@ function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
 
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const datasetSig = datasets.map(d => d.label ?? "").join("|");
-  const sig = datasetSig + "::" + labels.join(",");
   const prev = trendChartCache.get(containerEl);
   const gen = (parseInt(containerEl.dataset.trendGen || "0", 10) + 1).toString();
   containerEl.dataset.trendGen = gen;
 
-  const canMorph = prev && prev.sig === sig && !reduceMotion
+  // Same series and same point count — covers metric switches (Median -> Average)
+  // AND switching directly between two same-size quarter filters (Q1 -> Q3): both
+  // are just "the Nth point changed value", so tween values/position by index,
+  // regardless of which actual quarters they are.
+  const canMorph = prev && !reduceMotion && prev.datasetSig === datasetSig
     && prev.datasets.length === datasets.length
     && prev.datasets.every((d, i) => d.data.length === datasets[i].data.length);
-  // Same series (e.g. Overall/Median -> Overall/Average) but a different quarter subset
-  // (the "Compare: Q1/Q2/Q3/Q4" filter) — that's zooming into/out of the same timeline.
-  const isQuarterZoom = !canMorph && prev && prev.datasetSig === datasetSig && !reduceMotion;
 
-  if (canMorph) {
+  const sameFull = prev && prev.fullLabels && prev.fullLabels.join(",") === fullLabels.join(",");
+  const prevWasAll = prev && prev.visible && prev.visible.every(v => v);
+  const nowIsAll = visible.every(v => v);
+  // Only zoom when one side is literally "All quarters" and the other is a subset —
+  // that's the case where the point count actually changes.
+  const isQuarterZoom = !canMorph && prev && prev.datasetSig === datasetSig && sameFull
+    && !reduceMotion && prevWasAll !== nowIsAll;
+
+  if (!containerEl.dataset.trendRendered) {
+    // Very first paint ever for this container — keep the draw-in flourish
+    containerEl.dataset.trendRendered = "1";
+    containerEl.style.opacity = "1";
+    containerEl.style.transform = "";
+    renderStatic(true);
+  } else if (reduceMotion) {
+    containerEl.style.opacity = "1";
+    containerEl.style.transform = "";
+    renderStatic(false);
+  } else if (canMorph) {
     // Same series/quarters, values changed (e.g. switching median -> average):
     // tween each point and the y-axis range to their new values instead of a hard cut.
+    containerEl.style.transform = "";
     const fromDatasets = prev.datasets, fromYMin = prev.yMin, fromYMax = prev.yMax;
     const duration = 420;
     const start = performance.now();
@@ -941,25 +980,67 @@ function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
     };
     requestAnimationFrame(step);
   } else if (isQuarterZoom) {
-    // Zoom into/out of the same timeline instead of a flat fade
-    containerEl.style.transformOrigin = "center center";
-    containerEl.style.transition = `opacity 200ms ${EASE}, transform 200ms ${EASE}`;
-    containerEl.style.opacity = "0";
-    containerEl.style.transform = "scale(0.94)";
-    setTimeout(() => {
-      if (containerEl.dataset.trendGen !== gen) return;
+    // Real zoom: pull back to show every quarter on the full timeline, then push
+    // in on the newly-selected slice — not a flat fade, an actual position/scale change.
+    containerEl.style.transform = "";
+    const n = fullLabels.length;
+    const W = 680, H = 300, pad = { t: 16, r: 16, b: 52, l: 58 }, pw = W - pad.l - pad.r;
+    const allIdx = fullLabels.map((_, i) => i);
+    const oldVisIdx = allIdx.filter(i => prev.visible[i]);
+    const newVisIdx = allIdx.filter(i => visible[i]);
+
+    const xFull = i => pad.l + (n <= 1 ? pw / 2 : (i / (n - 1)) * pw);
+    const xSubset = (idxArr, i) => {
+      const rank = idxArr.indexOf(i);
+      return pad.l + (idxArr.length <= 1 ? pw / 2 : (rank / (idxArr.length - 1)) * pw);
+    };
+
+    const fullVals = fullDatasets.flatMap(d => d.data.filter(v => v != null));
+    const fMinV = Math.min(...fullVals), fMaxV = Math.max(...fullVals);
+    const fPad = (fMaxV - fMinV) * 0.1 || fMaxV * 0.1 || 1;
+    const fullYMin = Math.max(0, fMinV - fPad), fullYMax = fMaxV + fPad;
+
+    const oldYMin = prev.yMin, oldYMax = prev.yMax;
+    const newYMin = yMin, newYMax = yMax;
+
+    const oldX = i => oldVisIdx.includes(i) ? xSubset(oldVisIdx, i) : xFull(i);
+    const oldOp = i => oldVisIdx.includes(i) ? 1 : 0;
+    const fullX = i => xFull(i);
+    const fullOp = () => 1;
+    const newX = i => newVisIdx.includes(i) ? xSubset(newVisIdx, i) : xFull(i);
+    const newOp = i => newVisIdx.includes(i) ? 1 : 0;
+
+    const needsOut = oldVisIdx.length !== n;
+    const needsIn = newVisIdx.length !== n;
+
+    const runPhase = (fromX, toX, fromOp, toOp, fromYMinV, toYMinV, fromYMaxV, toYMaxV, duration, onDone) => {
+      const start = performance.now();
+      const step = now => {
+        if (containerEl.dataset.trendGen !== gen) return;
+        const t = Math.min(1, (now - start) / duration);
+        const e = easeCubic(t);
+        const xs = allIdx.map(i => fromX(i) + (toX(i) - fromX(i)) * e);
+        const ops = allIdx.map(i => fromOp(i) + (toOp(i) - fromOp(i)) * e);
+        const iYMin = fromYMinV + (toYMinV - fromYMinV) * e;
+        const iYMax = fromYMaxV + (toYMaxV - fromYMaxV) * e;
+        const { svgBody } = buildTrendChartBody(fullLabels, fullDatasets, iYMin, iYMax, highlightLabel, xs, ops);
+        containerEl.innerHTML = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">${svgBody}</svg>`;
+        if (t < 1) requestAnimationFrame(step); else onDone();
+      };
+      requestAnimationFrame(step);
+    };
+
+    if (needsOut) {
+      runPhase(oldX, fullX, oldOp, fullOp, oldYMin, fullYMin, oldYMax, fullYMax, 260, () => {
+        if (needsIn) runPhase(fullX, newX, fullOp, newOp, fullYMin, newYMin, fullYMax, newYMax, 300, () => renderStatic(false));
+        else renderStatic(false);
+      });
+    } else if (needsIn) {
+      runPhase(fullX, newX, fullOp, newOp, fullYMin, newYMin, fullYMax, newYMax, 300, () => renderStatic(false));
+    } else {
       renderStatic(false);
-      containerEl.style.transition = "none";
-      containerEl.style.opacity = "0";
-      containerEl.style.transform = "scale(1.05)";
-      void containerEl.offsetWidth; // force reflow so the zoomed-out start point is committed
-      containerEl.style.transition = `opacity 200ms ${EASE}, transform 200ms ${EASE}`;
-      if (containerEl.dataset.trendGen === gen) {
-        containerEl.style.opacity = "1";
-        containerEl.style.transform = "scale(1)";
-      }
-    }, 200);
-  } else if (containerEl.dataset.trendRendered && !reduceMotion) {
+    }
+  } else {
     // Different series (mode switch) — plain crossfade, no zoom metaphor
     containerEl.style.transform = "";
     containerEl.style.transition = `opacity 150ms ${EASE}`;
@@ -971,14 +1052,13 @@ function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
       void containerEl.offsetWidth; // force reflow so the dip is committed before animating back to 1
       if (containerEl.dataset.trendGen === gen) containerEl.style.opacity = "1";
     }, 150);
-  } else {
-    containerEl.dataset.trendRendered = "1";
-    containerEl.style.opacity = "1";
-    containerEl.style.transform = "";
-    renderStatic(true); // first-ever paint: keep the draw-in flourish
   }
 
-  trendChartCache.set(containerEl, { sig, datasetSig, yMin, yMax, datasets: datasets.map(d => ({ ...d, data: d.data.slice() })) });
+  trendChartCache.set(containerEl, {
+    datasetSig, yMin, yMax,
+    datasets: datasets.map(d => ({ ...d, data: d.data.slice() })),
+    fullLabels: fullLabels.slice(), visible: visible.slice(),
+  });
 }
 
 function ordinal(n) {
