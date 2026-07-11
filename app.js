@@ -1014,6 +1014,19 @@ function renderOfficeDetail(officeName, el) {
 
 let officeSortKey = "median";
 
+function fmtTotal(n) {
+  if (n == null) return "—";
+  if (n >= 1000000) return "$" + (n/1000000).toFixed(1).replace(/\.0$/,"") + "M";
+  return fmtK(n);
+}
+
+function officeRangeHtml(o, sortKey) {
+  if (sortKey === "median") return `${fmtK(o.median)}<span class="office-range-tag">median</span>`;
+  if (sortKey === "mean")   return `${fmtK(o.mean)}<span class="office-range-tag">avg</span>`;
+  if (sortKey === "total")  return `${fmtTotal(o.totalAnnual)}<span class="office-range-tag">total</span>`;
+  return `${fmtK(o.min)}<span class="office-range-sep">–</span>${fmtK(o.max)}`;
+}
+
 function renderOfficeList() {
   const q = ($("office-search").value || "").toLowerCase().trim();
   const type = $("office-type-filter").value;
@@ -1050,7 +1063,7 @@ function renderOfficeList() {
         <div class="office-name">${esc(o.name)}</div>
         <span class="badge badge-${o.type}">${TYPE_LABELS[o.type]||o.type}</span>
         <span class="office-count"><span class="office-count-num">${o.count}</span><span class="office-count-label">&nbsp;staff</span></span>
-        <span class="office-range">${fmtK(o.min)}<span class="office-range-sep">–</span>${fmtK(o.max)}</span>
+        <span class="office-range">${officeRangeHtml(o, officeSortKey)}</span>
         <span class="office-chevron">›</span>
       </div>
       <div class="office-detail" style="display:none"></div>`;
