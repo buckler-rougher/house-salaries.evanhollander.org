@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>House Staff Salaries</title>
   <meta name="description" content="Salary data for U.S. House of Representatives staff." />
-  <link rel="stylesheet" href="styles.css?v=20260701n" />
+  <link rel="stylesheet" href="styles.css?v=20260711a" />
 </head>
 <body>
 
@@ -147,39 +147,41 @@
 
       <div class="tab-pane" id="tab-table">
         <div id="table-quarter-note" class="trend-q-note" style="display:none;margin-bottom:10px">Individual staff data is only available for the latest quarter.</div>
-        <div class="table-bar">
-          <input type="search" id="emp-search" class="t-input" placeholder="Name, office, or title…" />
-          <select id="emp-type" class="t-select">
-            <option value="staff">Staff only</option>
-            <option value="all">Include interns</option>
-            <option value="intern">Interns only</option>
-          </select>
-          <select id="emp-office" class="t-select">
-            <option value="">All offices</option>
-            <option value="member">Member</option>
-            <option value="committee">Committee</option>
-            <option value="leadership">Leadership</option>
-            <option value="administrative">Admin</option>
-          </select>
-        </div>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th data-sort="name">Name <span class="sort-icon">↕</span></th>
-                <th>Office</th>
-                <th>Title</th>
-                <th>Type</th>
-                <th data-sort="quarterly_pay">Quarterly <span class="sort-icon">↕</span></th>
-                <th data-sort="annual_equiv" class="sorted">Annual est. <span class="sort-icon">↓</span></th>
-              </tr>
-            </thead>
-            <tbody id="emp-tbody"></tbody>
-          </table>
-        </div>
-        <div class="table-footer">
-          <span id="table-info"></span>
-          <div id="pagination" class="pagination"></div>
+        <div id="table-content">
+          <div class="table-bar">
+            <input type="search" id="emp-search" class="t-input" placeholder="Name, office, or title…" />
+            <select id="emp-type" class="t-select">
+              <option value="staff">Staff only</option>
+              <option value="all">Include interns</option>
+              <option value="intern">Interns only</option>
+            </select>
+            <select id="emp-office" class="t-select">
+              <option value="">All offices</option>
+              <option value="member">Member</option>
+              <option value="committee">Committee</option>
+              <option value="leadership">Leadership</option>
+              <option value="administrative">Admin</option>
+            </select>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th data-sort="name">Name <span class="sort-icon">↕</span></th>
+                  <th>Office</th>
+                  <th>Title</th>
+                  <th>Type</th>
+                  <th data-sort="quarterly_pay">Quarterly <span class="sort-icon">↕</span></th>
+                  <th data-sort="annual_equiv" class="sorted">Annual est. <span class="sort-icon">↓</span></th>
+                </tr>
+              </thead>
+              <tbody id="emp-tbody"></tbody>
+            </table>
+          </div>
+          <div class="table-footer">
+            <span id="table-info"></span>
+            <div id="pagination" class="pagination"></div>
+          </div>
         </div>
       </div>
     </div>
@@ -260,6 +262,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260701n"></script>
+<script src="app.js?v=20260711a"></script>
 </body>
 </html>

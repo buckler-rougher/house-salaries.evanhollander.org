@@ -98,9 +98,12 @@ function navigateQuarter(dir) {
   // Re-render trend highlight if trend tab is active
   const trendPane = $("tab-trend");
   if (trendPane && trendPane.classList.contains("active")) renderTrend();
-  // All Staff: show note if historical
+  // All Staff: individual records only exist for the latest quarter —
+  // show the note and hide the (stale) table instead of leaving latest-quarter rows on screen
   const tableNote = $("table-quarter-note");
+  const tableContent = $("table-content");
   if (tableNote) tableNote.style.display = isLatestQuarter() ? "none" : "";
+  if (tableContent) tableContent.style.display = isLatestQuarter() ? "" : "none";
 
   // Re-render whatever is open in the left panel
   if (currentSelection) {
