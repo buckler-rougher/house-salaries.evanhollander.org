@@ -594,6 +594,7 @@ function buildOfficeData() {
       return { name: g.name, type: g.type, count: s.length,
         min: Math.round(s[0]), max: Math.round(s[s.length-1]),
         median: Math.round(p(50)), p25: Math.round(p(25)), p75: Math.round(p(75)),
+        mean: Math.round(totalAnnual / s.length),
         totalAnnual };
     });
   } else {
@@ -601,6 +602,7 @@ function buildOfficeData() {
     officeData = (viewedQuarter().top_offices || []).map(o => ({
       name: o.name, type: o.type, count: o.count,
       min: o.min, max: o.max, median: o.median, p25: o.p25, p75: o.p75,
+      mean: o.mean,
       totalAnnual: o.total_quarterly_pay != null ? o.total_quarterly_pay * 4 : null,
     }));
   }
@@ -1024,8 +1026,11 @@ function renderOfficeList() {
   });
 
   rows.sort((a,b) => {
-    if (officeSortKey === "count") return b.count - a.count;
-    if (officeSortKey === "name")  return a.name.localeCompare(b.name);
+    if (officeSortKey === "count")  return b.count - a.count;
+    if (officeSortKey === "name")   return a.name.localeCompare(b.name);
+    if (officeSortKey === "median") return b.median - a.median;
+    if (officeSortKey === "mean")   return b.mean - a.mean;
+    if (officeSortKey === "total")  return (b.totalAnnual||0) - (a.totalAnnual||0);
     return b.max - a.max;
   });
 
