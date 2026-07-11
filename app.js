@@ -824,65 +824,90 @@ function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
     ${yTicks}${hlLine}${pathEls}${xLabels}
   </svg>`;
 
-  containerEl.innerHTML = svgStr;
+  const applyContent = () => {
+    containerEl.innerHTML = svgStr;
 
-  // Animate lines via stroke-dashoffset
-  containerEl.querySelectorAll(".trend-line").forEach(path => {
-    const len = path.getTotalLength();
-    path.style.strokeDasharray = len;
-    path.style.strokeDashoffset = len;
-    path.style.transition = "stroke-dashoffset 500ms ease-out";
-    requestAnimationFrame(() => requestAnimationFrame(() => { path.style.strokeDashoffset = "0"; }));
-  });
-
-  // Tooltip on dots
-  ensureTooltip();
-  // Group dots by x-index for multi-series tooltips
-  const dotsByIndex = {};
-  containerEl.querySelectorAll(".trend-dot").forEach(dot => {
-    const i = dot.dataset.i;
-    if (!dotsByIndex[i]) dotsByIndex[i] = [];
-    dotsByIndex[i].push(dot);
-  });
-  Object.entries(dotsByIndex).forEach(([i, dots]) => {
-    const hoverRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
-    const cx = sx(+i);
-    hoverRect.setAttribute("x", (cx - 12).toFixed(1));
-    hoverRect.setAttribute("y", pad.t);
-    hoverRect.setAttribute("width", "24");
-    hoverRect.setAttribute("height", ph);
-    hoverRect.setAttribute("fill", "transparent");
-    hoverRect.style.cursor = "crosshair";
-    containerEl.querySelector("svg").appendChild(hoverRect);
-    hoverRect.addEventListener("mouseover", e => {
-      const tt = $("chart-tooltip");
-      const lbl = labels[+i];
-      const lines = datasets.map(ds => {
-        const v = ds.data[+i];
-        const prefix = ds.label ? `${ds.label}: ` : "";
-        return `${prefix}${v != null ? fmt(v) : "—"}`;
-      });
-      tt.innerHTML = `<strong>${lbl}</strong><br>${lines.join("<br>")}`;
-      tt.style.display = "block";
-      positionTooltip(e);
+    // Animate lines via stroke-dashoffset
+    containerEl.querySelectorAll(".trend-line").forEach(path => {
+      const len = path.getTotalLength();
+      path.style.strokeDasharray = len;
+      path.style.strokeDashoffset = len;
+      path.style.transition = "stroke-dashoffset 500ms ease-out";
+      requestAnimationFrame(() => requestAnimationFrame(() => { path.style.strokeDashoffset = "0"; }));
     });
-    hoverRect.addEventListener("mousemove", positionTooltip);
-    hoverRect.addEventListener("mouseout", () => { $("chart-tooltip").style.display = "none"; });
-  });
 
-  // Legend (appended as a sibling after containerEl, so look for it there)
-  containerEl.parentElement?.querySelectorAll(".trend-legend").forEach(el => el.remove());
-  if (legend && datasets.length > 1) {
-    const leg = document.createElement("div");
-    leg.className = "trend-legend";
-    leg.style.cssText = "display:flex;flex-wrap:wrap;gap:12px 20px;margin-top:10px;font-size:.75rem;color:#444";
-    leg.innerHTML = datasets.map(ds =>
-      `<span style="display:flex;align-items:center;gap:5px">
-        <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${ds.color}"></span>
-        ${esc(ds.label)}
-      </span>`
-    ).join("");
-    containerEl.after(leg);
+    // Tooltip on dots
+    ensureTooltip();
+    // Group dots by x-index for multi-series tooltips
+    const dotsByIndex = {};
+    containerEl.querySelectorAll(".trend-dot").forEach(dot => {
+      const i = dot.dataset.i;
+      if (!dotsByIndex[i]) dotsByIndex[i] = [];
+      dotsByIndex[i].push(dot);
+    });
+    Object.entries(dotsByIndex).forEach(([i, dots]) => {
+      const hoverRect = document.createElementNS("http://www.w3.org/2000/svg", "rect");
+      const cx = sx(+i);
+      hoverRect.setAttribute("x", (cx - 12).toFixed(1));
+      hoverRect.setAttribute("y", pad.t);
+      hoverRect.setAttribute("width", "24");
+      hoverRect.setAttribute("height", ph);
+      hoverRect.setAttribute("fill", "transparent");
+      hoverRect.style.cursor = "crosshair";
+      containerEl.querySelector("svg").appendChild(hoverRect);
+      hoverRect.addEventListener("mouseover", e => {
+        const tt = $("chart-tooltip");
+        const lbl = labels[+i];
+        const lines = datasets.map(ds => {
+          const v = ds.data[+i];
+          const prefix = ds.label ? `${ds.label}: ` : "";
+          return `${prefix}${v != null ? fmt(v) : "—"}`;
+        });
+        tt.innerHTML = `<strong>${lbl}</strong><br>${lines.join("<br>")}`;
+        tt.style.display = "block";
+        positionTooltip(e);
+      });
+      hoverRect.addEventListener("mousemove", positionTooltip);
+      hoverRect.addEventListener("mouseout", () => { $("chart-tooltip").style.display = "none"; });
+    });
+
+    // Legend (appended as a sibling after containerEl, so look for it there)
+    containerEl.parentElement?.querySelectorAll(".trend-legend").forEach(el => el.remove());
+    if (legend && datasets.length > 1) {
+      const leg = document.createElement("div");
+      leg.className = "trend-legend";
+      leg.style.cssText = "display:flex;flex-wrap:wrap;gap:12px 20px;margin-top:10px;font-size:.75rem;color:#444";
+      leg.innerHTML = datasets.map(ds =>
+        `<span style="display:flex;align-items:center;gap:5px">
+          <span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${ds.color}"></span>
+          ${esc(ds.label)}
+        </span>`
+      ).join("");
+      containerEl.after(leg);
+    }
+  };
+
+  // Crossfade into the new chart instead of hard-cutting, unless this is the
+  // first paint or the visitor prefers reduced motion. Renders can overlap
+  // (e.g. restoring saved state also re-triggers the active tab's render), so
+  // a generation token lets a stale, superseded call bail out instead of
+  // clobbering a newer one mid-transition and leaving opacity stuck at 0.
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const gen = (parseInt(containerEl.dataset.trendGen || "0", 10) + 1).toString();
+  containerEl.dataset.trendGen = gen;
+  if (containerEl.dataset.trendRendered && !reduceMotion) {
+    containerEl.style.transition = "opacity 120ms ease";
+    containerEl.style.opacity = "0";
+    setTimeout(() => {
+      if (containerEl.dataset.trendGen !== gen) return; // superseded by a later render
+      applyContent();
+      containerEl.style.opacity = "0";
+      void containerEl.offsetWidth; // force reflow so the opacity:0 is committed before animating to 1
+      if (containerEl.dataset.trendGen === gen) containerEl.style.opacity = "1";
+    }, 120);
+  } else {
+    containerEl.dataset.trendRendered = "1";
+    applyContent();
   }
 }
 
