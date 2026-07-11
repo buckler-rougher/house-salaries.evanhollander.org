@@ -1,7 +1,7 @@
 @font-face {
-  font-family: "Remus";
-  src: url('https://cdn.evanhollander.org/fonts/RemusVariableVF.woff2') format('woff2-variations'),
-       url('https://cdn.evanhollander.org/fonts/RemusVariableVF.woff2') format('woff2');
+  font-family: "Inter";
+  src: url('https://cdn.evanhollander.org/fonts/InterVariableVF.woff2') format('woff2-variations'),
+       url('https://cdn.evanhollander.org/fonts/InterVariableVF.woff2') format('woff2');
   font-weight: 100 900;
   font-style: normal;
   font-display: swap;
@@ -25,7 +25,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
 
 html { font-size: 16px; }
 body {
-  font-family: "Remus", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: "Inter", -apple-system, BlinkMacSystemFont, sans-serif;
   background: var(--bg);
   color: var(--text);
   line-height: 1.5;
