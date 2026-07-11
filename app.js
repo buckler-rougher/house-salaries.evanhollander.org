@@ -737,18 +737,30 @@ function positionTooltip(e) {
 // quarter-filter zoom collapse onto (or peel off) that line instead of just
 // holding their real position and fading in place.
 function interceptSeriesValue(dataArr, selIdx, i) {
+  const withData = selIdx.filter(idx => dataArr[idx] != null);
+  if (withData.length < 2) return dataArr[i] ?? (withData[0] != null ? dataArr[withData[0]] : dataArr[i]);
+
   let prev = null, next = null;
-  for (const idx of selIdx) {
+  for (const idx of withData) {
     if (idx < i) prev = idx;
     if (idx > i && next === null) next = idx;
   }
-  const pv = prev != null ? dataArr[prev] : null;
-  const nv = next != null ? dataArr[next] : null;
-  if (pv == null && nv == null) return dataArr[i];
-  if (pv == null) return nv;
-  if (nv == null) return pv;
-  const frac = (i - prev) / (next - prev);
-  return pv + (nv - pv) * frac;
+  if (prev != null && next != null) {
+    const frac = (i - prev) / (next - prev);
+    return dataArr[prev] + (dataArr[next] - dataArr[prev]) * frac;
+  }
+  // Before the first selected point or after the last one — extrapolate along
+  // the nearest segment's slope instead of flatlining to a single endpoint,
+  // so leading/trailing points slide consistently with the interior ones.
+  if (prev == null) {
+    const [i0, i1] = withData;
+    const slope = (dataArr[i1] - dataArr[i0]) / (i1 - i0);
+    return dataArr[i0] + slope * (i - i0);
+  } else {
+    const iN = withData[withData.length - 1], iM = withData[withData.length - 2];
+    const slope = (dataArr[iN] - dataArr[iM]) / (iN - iM);
+    return dataArr[iN] + slope * (i - iN);
+  }
 }
 
 const trendChartCache = new WeakMap(); // containerEl -> { datasetSig, yMin, yMax, datasets (filtered), fullLabels, visible }
