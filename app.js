@@ -9,6 +9,7 @@ let summary = null, employees = [];
 let trendMetric = "median", trendMode = "overall", trendPosTitle = null, trendQFilter = 0;
 let sortKey = "annual_equiv", sortDir = -1, page = 1, filtered = [];
 let peopleData = null, peopleLoading = false;
+let historicalEmployeesCache = {}; // quarter id -> synthesized employee rows, built from peopleData
 let viewQIdx = -1; // index into summary.quarters; -1 = latest
 let currentSelection = null; // { type: "title"|"person", titleName, personName, personOffice }
 const PAGE = 25;
@@ -82,7 +83,7 @@ function isLatestQuarter() {
   return viewQIdx < 0 || viewQIdx === summary.quarters.length - 1;
 }
 
-function navigateQuarter(dir) {
+async function navigateQuarter(dir) {
   const qs = summary.quarters;
   const cur = viewQIdx < 0 ? qs.length - 1 : viewQIdx;
   const next = cur + dir;
@@ -98,12 +99,13 @@ function navigateQuarter(dir) {
   // Re-render trend highlight if trend tab is active
   const trendPane = $("tab-trend");
   if (trendPane && trendPane.classList.contains("active")) renderTrend();
-  // All Staff: individual records only exist for the latest quarter —
-  // show the note and hide the (stale) table instead of leaving latest-quarter rows on screen
+
+  // All Staff: for historical quarters, synthesize rows from each person's
+  // history (only staff active 3+ quarters are tracked there, so some are missing)
   const tableNote = $("table-quarter-note");
-  const tableContent = $("table-content");
   if (tableNote) tableNote.style.display = isLatestQuarter() ? "none" : "";
-  if (tableContent) tableContent.style.display = isLatestQuarter() ? "" : "none";
+  if (!isLatestQuarter()) await loadPeople();
+  applyFilters();
 
   // Re-render whatever is open in the left panel
   if (currentSelection) {
@@ -1072,11 +1074,31 @@ function renderOfficeList() {
 }
 
 // ── Table ──
+function buildHistoricalEmployees(qId) {
+  if (historicalEmployeesCache[qId]) return historicalEmployeesCache[qId];
+  const list = (peopleData || []).reduce((acc, p) => {
+    const h = p.history.find(x => x.quarter === qId);
+    if (h) acc.push({
+      name: p.name, office: p.office, title: p.title, type: p.type,
+      intern: false, shared: false,
+      quarterly_pay: h.quarterly_pay,
+      annual_equiv: Math.round(h.quarterly_pay * 4),
+    });
+    return acc;
+  }, []);
+  historicalEmployeesCache[qId] = list;
+  return list;
+}
+
+function currentEmployeeSource() {
+  return isLatestQuarter() ? employees : buildHistoricalEmployees(viewedQuarter().id);
+}
+
 function applyFilters() {
   const q = $("emp-search").value.toLowerCase().trim();
   const type = $("emp-office").value;
   const show = $("emp-type").value;
-  filtered = employees.filter(e => {
+  filtered = currentEmployeeSource().filter(e => {
     if (show === "staff"  &&  e.intern) return false;
     if (show === "intern" && !e.intern) return false;
     if (type && e.type !== type) return false;
