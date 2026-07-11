@@ -1177,15 +1177,172 @@ function svgSparkline(data, labels) {
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">${yTicks}${fills}${lines}${trendEl}${dots}${xLabels}${annotEl}</svg>`;
 }
 
+const MINI_EASE_CUBIC = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+
+// Stripped-down sparkline frame for mid-zoom animation only — no x-axis text or
+// trend annotation (those come back once renderStatic() calls the real svgSparkline).
+function buildSparklineFrame(fullLabels, fullData, xs, opacities) {
+  const W = 560, H = 200;
+  const pad = { t: 22, r: 16, b: 48, l: 54 };
+  const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+  const n = fullLabels.length;
+
+  const visNow = [];
+  for (let i = 0; i < n; i++) if (opacities[i] > 0.5 && fullData[i] != null) visNow.push(fullData[i]);
+  const minV = visNow.length ? Math.min(...visNow) : 0;
+  const maxV = visNow.length ? Math.max(...visNow) : 1;
+  const vRange = maxV - minV || 1;
+
+  const sx = i => xs[i];
+  const sy = v => pad.t + ph - ((v - minV) / vRange) * ph;
+  const op = i => opacities[i];
+
+  const yTicks = [0, .33, .67, 1].map(f => {
+    const v = minV + vRange * f, y = sy(v);
+    return `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#eeece8" stroke-width="1"/>
+            <text x="${pad.l - 7}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
+  }).join("");
+
+  const segs = [];
+  let cur = [];
+  fullData.forEach((v, i) => {
+    if (v != null && op(i) > 0.5) cur.push([sx(i), sy(v)]);
+    else if (cur.length) { segs.push(cur); cur = []; }
+  });
+  if (cur.length) segs.push(cur);
+
+  const fills = segs.map(s => {
+    if (s.length < 2) return "";
+    const d = s.map((p, j) => `${j ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+    return `<path d="${d} L${s[s.length-1][0].toFixed(1)},${(pad.t+ph).toFixed(1)} L${s[0][0].toFixed(1)},${(pad.t+ph).toFixed(1)} Z" fill="rgba(192,57,43,.07)" stroke="none"/>`;
+  }).join("");
+
+  const lines = segs.map(s => {
+    const d = s.map((p, j) => `${j ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
+    return `<path d="${d}" fill="none" stroke="#c0392b" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+  }).join("");
+
+  const dots = fullData.map((v, i) => {
+    if (v == null) return "";
+    const o = op(i);
+    if (o <= 0.02) return "";
+    return `<circle cx="${sx(i).toFixed(1)}" cy="${sy(v).toFixed(1)}" r="4" fill="white" stroke="#c0392b" stroke-width="2" opacity="${o.toFixed(2)}"/>`;
+  }).join("");
+
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">${yTicks}${fills}${lines}${dots}</svg>`;
+}
+
 function makeMiniTrend(wrapEl, getDataFn) {
   let metric = "median", qf = 0;
+  const chartWrap = wrapEl.querySelector(".mini-chart-wrap");
+  let prev = null; // { fullLabels, fullData, visible, data, labels }
+  let gen = 0;
+
+  function computeView() {
+    const allQs = summary.quarters;
+    const fullLabels = allQs.map(q => q.label);
+    const visible = allQs.map(q => !qf || q.quarter === qf);
+    const fullData = getDataFn(metric, 0); // qf=0 -> every quarter, aligned with fullLabels
+    const visIdx = [];
+    for (let i = 0; i < fullLabels.length; i++) if (visible[i]) visIdx.push(i);
+    return {
+      fullLabels, fullData, visible,
+      labels: visIdx.map(i => fullLabels[i]),
+      data: visIdx.map(i => fullData[i]),
+    };
+  }
+
+  function renderStatic(view) {
+    if (chartWrap) chartWrap.innerHTML = svgSparkline(view.data, view.labels);
+  }
 
   function render() {
-    const qs = filteredQuarters(qf);
-    const data = getDataFn(metric, qf);
-    const labels = qs.map(q => q.label);
-    const chartWrap = wrapEl.querySelector(".mini-chart-wrap");
-    if (chartWrap) chartWrap.innerHTML = svgSparkline(data, labels);
+    if (!chartWrap) return;
+    gen++;
+    const myGen = gen;
+    const view = computeView();
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+    const canMorph = prev && !reduceMotion && prev.data.length === view.data.length;
+    const prevWasAll = prev && prev.visible.every(v => v);
+    const nowIsAll = view.visible.every(v => v);
+    const isZoom = !canMorph && prev && !reduceMotion && prevWasAll !== nowIsAll
+      && prev.fullLabels.join(",") === view.fullLabels.join(",");
+
+    if (!prev || reduceMotion) {
+      renderStatic(view);
+    } else if (canMorph) {
+      // Same point count — a metric switch (Median -> Average) or a direct switch
+      // between two same-size quarter filters: tween each point's value by index.
+      const fromData = prev.data;
+      const duration = 380;
+      const start = performance.now();
+      const step = now => {
+        if (myGen !== gen) return;
+        const t = Math.min(1, (now - start) / duration);
+        const e = MINI_EASE_CUBIC(t);
+        const iData = view.data.map((v, i) => {
+          const fv = fromData[i];
+          if (v == null || fv == null) return t < 1 ? (t < .5 ? fv : v) : v;
+          return fv + (v - fv) * e;
+        });
+        chartWrap.innerHTML = svgSparkline(iData, view.labels);
+        if (t < 1) requestAnimationFrame(step);
+      };
+      requestAnimationFrame(step);
+    } else if (isZoom) {
+      // Real zoom: reveal every quarter on the timeline, then push in on the
+      // newly-selected slice (or the reverse when returning to "All quarters").
+      const n = view.fullLabels.length;
+      const pad = { l: 54, r: 16 }, pw = 560 - pad.l - pad.r;
+      const allIdx = view.fullLabels.map((_, i) => i);
+      const oldVisIdx = allIdx.filter(i => prev.visible[i]);
+      const newVisIdx = allIdx.filter(i => view.visible[i]);
+
+      const xFull = i => pad.l + (n <= 1 ? pw / 2 : (i / (n - 1)) * pw);
+      const xSubset = (idxArr, i) => {
+        const rank = idxArr.indexOf(i);
+        return pad.l + (idxArr.length <= 1 ? pw / 2 : (rank / (idxArr.length - 1)) * pw);
+      };
+      const oldX = i => oldVisIdx.includes(i) ? xSubset(oldVisIdx, i) : xFull(i);
+      const oldOp = i => oldVisIdx.includes(i) ? 1 : 0;
+      const fullX = i => xFull(i);
+      const fullOp = () => 1;
+      const newX = i => newVisIdx.includes(i) ? xSubset(newVisIdx, i) : xFull(i);
+      const newOp = i => newVisIdx.includes(i) ? 1 : 0;
+
+      const needsOut = oldVisIdx.length !== n;
+      const needsIn = newVisIdx.length !== n;
+
+      const runPhase = (fromX, toX, fromOp, toOp, duration, onDone) => {
+        const start = performance.now();
+        const step = now => {
+          if (myGen !== gen) return;
+          const t = Math.min(1, (now - start) / duration);
+          const e = MINI_EASE_CUBIC(t);
+          const xs = allIdx.map(i => fromX(i) + (toX(i) - fromX(i)) * e);
+          const ops = allIdx.map(i => fromOp(i) + (toOp(i) - fromOp(i)) * e);
+          chartWrap.innerHTML = buildSparklineFrame(view.fullLabels, view.fullData, xs, ops);
+          if (t < 1) requestAnimationFrame(step); else onDone();
+        };
+        requestAnimationFrame(step);
+      };
+
+      if (needsOut) {
+        runPhase(oldX, fullX, oldOp, fullOp, 240, () => {
+          if (needsIn) runPhase(fullX, newX, fullOp, newOp, 280, () => renderStatic(view));
+          else renderStatic(view);
+        });
+      } else if (needsIn) {
+        runPhase(fullX, newX, fullOp, newOp, 280, () => renderStatic(view));
+      } else {
+        renderStatic(view);
+      }
+    } else {
+      renderStatic(view);
+    }
+
+    prev = view;
   }
 
   wrapEl.querySelectorAll(".mini-pill[data-metric]").forEach(pill => {
