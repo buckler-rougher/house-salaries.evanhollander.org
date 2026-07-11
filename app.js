@@ -870,9 +870,8 @@ function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
     hoverRect.addEventListener("mouseout", () => { $("chart-tooltip").style.display = "none"; });
   });
 
-  // Legend
-  const legendEl = containerEl.querySelector(".trend-legend");
-  if (legendEl) legendEl.remove();
+  // Legend (appended as a sibling after containerEl, so look for it there)
+  containerEl.parentElement?.querySelectorAll(".trend-legend").forEach(el => el.remove());
   if (legend && datasets.length > 1) {
     const leg = document.createElement("div");
     leg.className = "trend-legend";
