@@ -732,6 +732,25 @@ function positionTooltip(e) {
   tt.style.top = y + "px";
 }
 
+// Where point i would sit if it were on the straight line between its nearest
+// selected (visible) neighbors — used so points being hidden/revealed during a
+// quarter-filter zoom collapse onto (or peel off) that line instead of just
+// holding their real position and fading in place.
+function interceptSeriesValue(dataArr, selIdx, i) {
+  let prev = null, next = null;
+  for (const idx of selIdx) {
+    if (idx < i) prev = idx;
+    if (idx > i && next === null) next = idx;
+  }
+  const pv = prev != null ? dataArr[prev] : null;
+  const nv = next != null ? dataArr[next] : null;
+  if (pv == null && nv == null) return dataArr[i];
+  if (pv == null) return nv;
+  if (nv == null) return pv;
+  const frac = (i - prev) / (next - prev);
+  return pv + (nv - pv) * frac;
+}
+
 const trendChartCache = new WeakMap(); // containerEl -> { datasetSig, yMin, yMax, datasets (filtered), fullLabels, visible }
 
 // xs/opacities let a zoom animation override each point's pixel position and
@@ -986,8 +1005,11 @@ function drawSvgLineChart(containerEl, fullLabels, fullDatasets, opts = {}) {
     };
     requestAnimationFrame(step);
   } else if (isQuarterZoom) {
-    // Real zoom: pull back to show every quarter on the full timeline, then push
-    // in on the newly-selected slice — not a flat fade, an actual position/scale change.
+    // Real zoom: the newly-(de)selected points slide to their new spots on the
+    // timeline; the *other* points collapse onto the straight line between their
+    // nearest selected neighbors (so the line "straightens out") before fading,
+    // or peel off that line as they fade in — instead of just holding position
+    // and fading in place, which read as moving "in odd directions".
     containerEl.style.transform = "";
     const n = fullLabels.length;
     const W = 680, H = 300, pad = { t: 16, r: 16, b: 52, l: 58 }, pw = W - pad.l - pad.r;
@@ -1019,7 +1041,14 @@ function drawSvgLineChart(containerEl, fullLabels, fullDatasets, opts = {}) {
     const needsOut = oldVisIdx.length !== n;
     const needsIn = newVisIdx.length !== n;
 
-    const runPhase = (fromX, toX, fromOp, toOp, fromYMinV, toYMinV, fromYMaxV, toYMaxV, duration, onDone) => {
+    // Datasets with every non-selected point's value replaced by where it sits
+    // on the straight line between its nearest selected neighbors.
+    const interceptedDatasets = selIdx => fullDatasets.map(ds => ({
+      ...ds,
+      data: ds.data.map((v, i) => selIdx.includes(i) ? v : interceptSeriesValue(ds.data, selIdx, i)),
+    }));
+
+    const runPhase = (fromX, toX, fromOp, toOp, fromDatasetsV, toDatasetsV, fromYMinV, toYMinV, fromYMaxV, toYMaxV, duration, onDone) => {
       const start = performance.now();
       const step = now => {
         if (containerEl.dataset.trendGen !== gen) return;
@@ -1029,7 +1058,15 @@ function drawSvgLineChart(containerEl, fullLabels, fullDatasets, opts = {}) {
         const ops = allIdx.map(i => fromOp(i) + (toOp(i) - fromOp(i)) * e);
         const iYMin = fromYMinV + (toYMinV - fromYMinV) * e;
         const iYMax = fromYMaxV + (toYMaxV - fromYMaxV) * e;
-        const { svgBody } = buildTrendChartBody(fullLabels, fullDatasets, iYMin, iYMax, highlightLabel, xs, ops);
+        const iDatasets = toDatasetsV.map((ds, di) => ({
+          ...ds,
+          data: ds.data.map((v, i) => {
+            const fv = fromDatasetsV[di].data[i];
+            if (v == null || fv == null) return v;
+            return fv + (v - fv) * e;
+          }),
+        }));
+        const { svgBody } = buildTrendChartBody(fullLabels, iDatasets, iYMin, iYMax, highlightLabel, xs, ops);
         containerEl.innerHTML = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">${svgBody}</svg>`;
         if (t < 1) requestAnimationFrame(step); else onDone();
       };
@@ -1037,12 +1074,12 @@ function drawSvgLineChart(containerEl, fullLabels, fullDatasets, opts = {}) {
     };
 
     if (needsOut) {
-      runPhase(oldX, fullX, oldOp, fullOp, oldYMin, fullYMin, oldYMax, fullYMax, 420, () => {
-        if (needsIn) runPhase(fullX, newX, fullOp, newOp, fullYMin, newYMin, fullYMax, newYMax, 480, () => renderStatic(false));
+      runPhase(oldX, fullX, oldOp, fullOp, interceptedDatasets(oldVisIdx), fullDatasets, oldYMin, fullYMin, oldYMax, fullYMax, 420, () => {
+        if (needsIn) runPhase(fullX, newX, fullOp, newOp, fullDatasets, interceptedDatasets(newVisIdx), fullYMin, newYMin, fullYMax, newYMax, 480, () => renderStatic(false));
         else renderStatic(false);
       });
     } else if (needsIn) {
-      runPhase(fullX, newX, fullOp, newOp, fullYMin, newYMin, fullYMax, newYMax, 480, () => renderStatic(false));
+      runPhase(fullX, newX, fullOp, newOp, fullDatasets, interceptedDatasets(newVisIdx), fullYMin, newYMin, fullYMax, newYMax, 480, () => renderStatic(false));
     } else {
       renderStatic(false);
     }
@@ -1321,7 +1358,11 @@ function makeMiniTrend(wrapEl, getDataFn) {
       const needsOut = oldVisIdx.length !== n;
       const needsIn = newVisIdx.length !== n;
 
-      const runPhase = (fromX, toX, fromOp, toOp, duration, onDone) => {
+      // Non-selected points collapse onto (or peel off) the straight line between
+      // their nearest selected neighbors, instead of holding position and fading.
+      const intercepted = selIdx => view.fullData.map((v, i) => selIdx.includes(i) ? v : interceptSeriesValue(view.fullData, selIdx, i));
+
+      const runPhase = (fromX, toX, fromOp, toOp, fromData, toData, duration, onDone) => {
         const start = performance.now();
         const step = now => {
           if (myGen !== gen) return;
@@ -1329,19 +1370,24 @@ function makeMiniTrend(wrapEl, getDataFn) {
           const e = MINI_EASE_ZOOM(t);
           const xs = allIdx.map(i => fromX(i) + (toX(i) - fromX(i)) * e);
           const ops = allIdx.map(i => fromOp(i) + (toOp(i) - fromOp(i)) * e);
-          chartWrap.innerHTML = buildSparklineFrame(view.fullLabels, view.fullData, xs, ops);
+          const iData = toData.map((v, i) => {
+            const fv = fromData[i];
+            if (v == null || fv == null) return v;
+            return fv + (v - fv) * e;
+          });
+          chartWrap.innerHTML = buildSparklineFrame(view.fullLabels, iData, xs, ops);
           if (t < 1) requestAnimationFrame(step); else onDone();
         };
         requestAnimationFrame(step);
       };
 
       if (needsOut) {
-        runPhase(oldX, fullX, oldOp, fullOp, 400, () => {
-          if (needsIn) runPhase(fullX, newX, fullOp, newOp, 460, () => renderStatic(view));
+        runPhase(oldX, fullX, oldOp, fullOp, intercepted(oldVisIdx), view.fullData, 400, () => {
+          if (needsIn) runPhase(fullX, newX, fullOp, newOp, view.fullData, intercepted(newVisIdx), 460, () => renderStatic(view));
           else renderStatic(view);
         });
       } else if (needsIn) {
-        runPhase(fullX, newX, fullOp, newOp, 460, () => renderStatic(view));
+        runPhase(fullX, newX, fullOp, newOp, view.fullData, intercepted(newVisIdx), 460, () => renderStatic(view));
       } else {
         renderStatic(view);
       }
