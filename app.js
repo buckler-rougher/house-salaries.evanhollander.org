@@ -458,7 +458,7 @@ async function showPerson(name, officeName) {
 
   body.innerHTML = `
     <div class="person-modal-name">${esc(name)}</div>
-    <div class="person-modal-meta">${esc(officeName)}${latestEmp ? ` · ${esc(latestEmp.title)}` : ""}</div>
+    <div class="person-modal-meta"><span class="office-link" data-office="${esc(officeName)}">${esc(officeName)}</span>${latestEmp ? ` · ${esc(latestEmp.title)}` : ""}</div>
     ${latestEmp ? `<div class="person-modal-salary">${over ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(latestEmp.annual_equiv)}</div>
     <div class="person-modal-salary-sub">est. annual · latest quarter</div>` : ""}
     ${yoyHtml}
@@ -1073,6 +1073,23 @@ function renderOfficeList() {
   container.appendChild(listEl);
 }
 
+function jumpToOffice(officeName) {
+  closePersonModal();
+  const tabBtn = document.querySelector('.tab-btn[data-tab="type"]');
+  if (tabBtn) tabBtn.click();
+  const search = $("office-search");
+  if (search) search.value = officeName;
+  renderOfficeList();
+  requestAnimationFrame(() => {
+    const wrap = [...document.querySelectorAll("#office-list .office-wrap")]
+      .find(w => w.querySelector(".office-name")?.textContent === officeName);
+    if (wrap) {
+      wrap.querySelector(".office-row").click();
+      wrap.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  });
+}
+
 // ── Table ──
 function buildHistoricalEmployees(qId) {
   if (historicalEmployeesCache[qId]) return historicalEmployeesCache[qId];
@@ -1117,7 +1134,7 @@ function renderTable() {
     const overCap = e.annual_equiv > SALARY_CAP;
     return `<tr>
       <td class="td-name"><span class="person-link" data-name="${esc(e.name)}" data-office="${esc(cleanOrg(e.office))}">${esc(e.name)}</span></td>
-      <td class="td-office" title="${esc(e.office)}">${esc(cleanOrg(e.office))}</td>
+      <td class="td-office" title="${esc(e.office)}"><span class="office-link" data-office="${esc(cleanOrg(e.office))}">${esc(cleanOrg(e.office))}</span></td>
       <td class="td-title">${esc(e.title)}</td>
       <td><span class="badge badge-${e.intern?"intern":e.shared?"shared":e.type}">${e.intern?"Intern":e.shared?"Shared":(TYPE_LABELS[e.type]||e.type)}</span></td>
       <td class="td-amt-q">${fmt(e.quarterly_pay)}</td>
@@ -1264,7 +1281,9 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("th[data-sort]").forEach(th => th.addEventListener("click", () => setSortKey(th.dataset.sort)));
   document.addEventListener("click", e => {
     const el = e.target.closest(".person-link");
-    if (el) { e.stopPropagation(); showPerson(el.dataset.name, el.dataset.office); }
+    if (el) { e.stopPropagation(); showPerson(el.dataset.name, el.dataset.office); return; }
+    const off = e.target.closest(".office-link");
+    if (off) { e.stopPropagation(); jumpToOffice(off.dataset.office); }
   });
   $("office-search").addEventListener("input", renderOfficeList);
   $("office-type-filter").addEventListener("change", renderOfficeList);
