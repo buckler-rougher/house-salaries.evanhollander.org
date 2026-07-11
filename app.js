@@ -888,14 +888,18 @@ function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
     }
   };
 
-  const renderStatic = () => {
+  const renderStatic = (animateIn) => {
     const { svgBody, W, H } = buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel);
     containerEl.innerHTML = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">${svgBody}</svg>`;
-    finish();
+    finish(animateIn);
   };
 
+  const EASE = "cubic-bezier(.4,0,.2,1)"; // smoother than plain "ease" for both CSS and the JS tween below
+  const easeCubic = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // easeInOutCubic
+
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const sig = datasets.map(d => d.label ?? "").join("|") + "::" + labels.join(",");
+  const datasetSig = datasets.map(d => d.label ?? "").join("|");
+  const sig = datasetSig + "::" + labels.join(",");
   const prev = trendChartCache.get(containerEl);
   const gen = (parseInt(containerEl.dataset.trendGen || "0", 10) + 1).toString();
   containerEl.dataset.trendGen = gen;
@@ -903,6 +907,9 @@ function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
   const canMorph = prev && prev.sig === sig && !reduceMotion
     && prev.datasets.length === datasets.length
     && prev.datasets.every((d, i) => d.data.length === datasets[i].data.length);
+  // Same series (e.g. Overall/Median -> Overall/Average) but a different quarter subset
+  // (the "Compare: Q1/Q2/Q3/Q4" filter) — that's zooming into/out of the same timeline.
+  const isQuarterZoom = !canMorph && prev && prev.datasetSig === datasetSig && !reduceMotion;
 
   if (canMorph) {
     // Same series/quarters, values changed (e.g. switching median -> average):
@@ -910,11 +917,10 @@ function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
     const fromDatasets = prev.datasets, fromYMin = prev.yMin, fromYMax = prev.yMax;
     const duration = 420;
     const start = performance.now();
-    const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // easeInOutQuad
     const step = now => {
       if (containerEl.dataset.trendGen !== gen) return; // superseded by a later render
       const t = Math.min(1, (now - start) / duration);
-      const e = ease(t);
+      const e = easeCubic(t);
       const iYMin = fromYMin + (yMin - fromYMin) * e;
       const iYMax = fromYMax + (yMax - fromYMax) * e;
       const iDatasets = datasets.map((ds, di) => ({
@@ -934,24 +940,45 @@ function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
       }
     };
     requestAnimationFrame(step);
+  } else if (isQuarterZoom) {
+    // Zoom into/out of the same timeline instead of a flat fade
+    containerEl.style.transformOrigin = "center center";
+    containerEl.style.transition = `opacity 200ms ${EASE}, transform 200ms ${EASE}`;
+    containerEl.style.opacity = "0";
+    containerEl.style.transform = "scale(0.94)";
+    setTimeout(() => {
+      if (containerEl.dataset.trendGen !== gen) return;
+      renderStatic(false);
+      containerEl.style.transition = "none";
+      containerEl.style.opacity = "0";
+      containerEl.style.transform = "scale(1.05)";
+      void containerEl.offsetWidth; // force reflow so the zoomed-out start point is committed
+      containerEl.style.transition = `opacity 200ms ${EASE}, transform 200ms ${EASE}`;
+      if (containerEl.dataset.trendGen === gen) {
+        containerEl.style.opacity = "1";
+        containerEl.style.transform = "scale(1)";
+      }
+    }, 200);
   } else if (containerEl.dataset.trendRendered && !reduceMotion) {
-    // Different shape (mode switch, quarter-filter change, etc.) — crossfade instead of morphing
-    containerEl.style.transition = "opacity 90ms ease";
+    // Different series (mode switch) — plain crossfade, no zoom metaphor
+    containerEl.style.transform = "";
+    containerEl.style.transition = `opacity 150ms ${EASE}`;
     containerEl.style.opacity = "0.35";
     setTimeout(() => {
       if (containerEl.dataset.trendGen !== gen) return;
-      renderStatic();
+      renderStatic(false);
       containerEl.style.opacity = "0.35";
       void containerEl.offsetWidth; // force reflow so the dip is committed before animating back to 1
       if (containerEl.dataset.trendGen === gen) containerEl.style.opacity = "1";
-    }, 90);
+    }, 150);
   } else {
     containerEl.dataset.trendRendered = "1";
     containerEl.style.opacity = "1";
-    renderStatic();
+    containerEl.style.transform = "";
+    renderStatic(true); // first-ever paint: keep the draw-in flourish
   }
 
-  trendChartCache.set(containerEl, { sig, yMin, yMax, datasets: datasets.map(d => ({ ...d, data: d.data.slice() })) });
+  trendChartCache.set(containerEl, { sig, datasetSig, yMin, yMax, datasets: datasets.map(d => ({ ...d, data: d.data.slice() })) });
 }
 
 function ordinal(n) {
