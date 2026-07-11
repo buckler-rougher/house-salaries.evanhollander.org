@@ -25,6 +25,7 @@ async function loadData() {
     summary = await sr.json();
     if (er.ok) { const d = await er.json(); employees = d.employees || []; }
     render();
+    await restoreState();
     restoreHash();
   } catch(e) {
     $("loading").innerHTML = `<div class="error-msg">${e.message}</div>`;
@@ -117,6 +118,7 @@ async function navigateQuarter(dir) {
       showPerson(currentSelection.personName, currentSelection.personOffice);
     }
   }
+  saveState();
 }
 
 function renderDist() {
@@ -574,6 +576,77 @@ function restoreHash() {
     const [name, office] = params.person.split("|");
     if (name && office) showPerson(name, office);
   }
+}
+
+// ── Persisted UI state (survives reload) ──
+const STATE_KEY = "hss-ui-state";
+
+function saveState() {
+  const state = {
+    tab: document.querySelector(".tab-btn.active")?.dataset.tab || "dist",
+    viewQIdx,
+    office: {
+      search: $("office-search")?.value || "",
+      type: $("office-type-filter")?.value || "",
+      sort: $("office-sort")?.value || "max",
+    },
+    table: {
+      search: $("emp-search")?.value || "",
+      type: $("emp-type")?.value || "staff",
+      office: $("emp-office")?.value || "",
+      sortKey, sortDir,
+    },
+    trend: { mode: trendMode, metric: trendMetric, qFilter: trendQFilter, posTitle: trendPosTitle },
+  };
+  try { localStorage.setItem(STATE_KEY, JSON.stringify(state)); } catch(e) { /* ignore (private mode, etc.) */ }
+}
+
+async function restoreState() {
+  let state;
+  try { state = JSON.parse(localStorage.getItem(STATE_KEY) || "null"); } catch(e) { state = null; }
+  if (!state) return;
+
+  if (typeof state.viewQIdx === "number" && state.viewQIdx >= 0 && state.viewQIdx < summary.quarters.length - 1) {
+    viewQIdx = state.viewQIdx;
+  }
+
+  if (state.office) {
+    if ($("office-search"))       $("office-search").value = state.office.search || "";
+    if ($("office-type-filter"))  $("office-type-filter").value = state.office.type || "";
+    if ($("office-sort"))         $("office-sort").value = state.office.sort || "max";
+  }
+  if (state.table) {
+    if ($("emp-search")) $("emp-search").value = state.table.search || "";
+    if ($("emp-type"))   $("emp-type").value = state.table.type || "staff";
+    if ($("emp-office")) $("emp-office").value = state.table.office || "";
+    if (state.table.sortKey) sortKey = state.table.sortKey;
+    if (typeof state.table.sortDir === "number") sortDir = state.table.sortDir;
+  }
+  if (state.trend) {
+    trendMode = state.trend.mode || "overall";
+    trendMetric = state.trend.metric || "median";
+    trendQFilter = state.trend.qFilter || 0;
+    trendPosTitle = state.trend.posTitle || null;
+    document.querySelectorAll(".trend-mode").forEach(x => x.classList.toggle("active", x.dataset.mode === trendMode));
+    document.querySelectorAll(".pill").forEach(x => x.classList.toggle("active", x.dataset.metric === trendMetric));
+    document.querySelectorAll(".trend-q").forEach(x => x.classList.toggle("active", +x.dataset.q === trendQFilter));
+    if ($("trend-overall-ctrl")) $("trend-overall-ctrl").style.display = trendMode === "overall" ? "" : "none";
+    if ($("trend-pos-ctrl"))     $("trend-pos-ctrl").style.display = trendMode === "position" ? "" : "none";
+    if ($("trend-q-note"))       $("trend-q-note").style.display = trendQFilter === 0 ? "" : "none";
+    if (trendPosTitle && $("trend-pos-search")) $("trend-pos-search").value = trendPosTitle;
+  }
+
+  // Re-render everything that depends on the restored quarter/filters
+  renderStats(); renderDist(); buildTitles(); buildOfficeData(); renderOfficeList();
+  $("type-bars").innerHTML = ""; renderTypeBars();
+  updateSortIcons();
+  if (!isLatestQuarter()) await loadPeople();
+  applyFilters();
+  renderTrend();
+  if (!isLatestQuarter()) { const note = $("table-quarter-note"); if (note) note.style.display = ""; }
+
+  const tabBtn = document.querySelector(`.tab-btn[data-tab="${state.tab}"]`);
+  if (tabBtn && !tabBtn.classList.contains("active")) tabBtn.click();
 }
 
 // ── By Office ──
@@ -1098,6 +1171,7 @@ function jumpToOffice(officeName) {
   const search = $("office-search");
   if (search) search.value = officeName;
   renderOfficeList();
+  saveState();
   requestAnimationFrame(() => {
     const wrap = [...document.querySelectorAll("#office-list .office-wrap")]
       .find(w => w.querySelector(".office-name")?.textContent === officeName);
@@ -1174,13 +1248,18 @@ function paginationRange(cur, total) {
   return [1,"…",cur-1,cur,cur+1,"…",total];
 }
 
-function setSortKey(key) {
-  if (sortKey===key) sortDir*=-1; else { sortKey=key; sortDir=-1; }
+function updateSortIcons() {
   document.querySelectorAll("th[data-sort]").forEach(th => {
-    const on = th.dataset.sort===key; th.classList.toggle("sorted",on);
+    const on = th.dataset.sort===sortKey; th.classList.toggle("sorted",on);
     th.querySelector(".sort-icon").textContent = on?(sortDir===1?"↑":"↓"):"↕";
   });
+}
+
+function setSortKey(key) {
+  if (sortKey===key) sortDir*=-1; else { sortKey=key; sortDir=-1; }
+  updateSortIcons();
   renderTable();
+  saveState();
 }
 
 function cleanOrg(o) {
@@ -1256,6 +1335,7 @@ document.addEventListener("DOMContentLoaded", () => {
     if (tab==="type" && !$("office-list").children.length) renderOfficeList();
     if (tab==="typebars" && !$("type-bars").children.length) renderTypeBars();
     if (tab==="trend") { renderTrend(); }
+    saveState();
   }));
   document.querySelectorAll(".trend-mode").forEach(b => b.addEventListener("click", () => {
     trendMode = b.dataset.mode;
@@ -1263,17 +1343,20 @@ document.addEventListener("DOMContentLoaded", () => {
     $("trend-overall-ctrl").style.display = trendMode === "overall" ? "" : "none";
     $("trend-pos-ctrl").style.display = trendMode === "position" ? "" : "none";
     renderTrend();
+    saveState();
   }));
   document.querySelectorAll(".pill").forEach(p => p.addEventListener("click", () => {
     trendMetric = p.dataset.metric;
     document.querySelectorAll(".pill").forEach(x => x.classList.toggle("active", x===p));
     renderTrend();
+    saveState();
   }));
   document.querySelectorAll(".trend-q").forEach(b => b.addEventListener("click", () => {
     trendQFilter = +b.dataset.q;
     document.querySelectorAll(".trend-q").forEach(x => x.classList.toggle("active", x===b));
     $("trend-q-note").style.display = trendQFilter === 0 ? "" : "none";
     renderTrend();
+    saveState();
   }));
 
   // Position search for trend tab
@@ -1294,6 +1377,7 @@ document.addEventListener("DOMContentLoaded", () => {
       trendSearch.value = trendPosTitle;
       trendResults.style.display = "none";
       renderTrend();
+      saveState();
     }));
   });
   document.querySelectorAll("th[data-sort]").forEach(th => th.addEventListener("click", () => setSortKey(th.dataset.sort)));
@@ -1303,13 +1387,13 @@ document.addEventListener("DOMContentLoaded", () => {
     const off = e.target.closest(".office-link");
     if (off) { e.stopPropagation(); jumpToOffice(off.dataset.office); }
   });
-  $("office-search").addEventListener("input", renderOfficeList);
-  $("office-type-filter").addEventListener("change", renderOfficeList);
-  $("office-sort").addEventListener("change", renderOfficeList);
+  $("office-search").addEventListener("input", () => { renderOfficeList(); saveState(); });
+  $("office-type-filter").addEventListener("change", () => { renderOfficeList(); saveState(); });
+  $("office-sort").addEventListener("change", () => { renderOfficeList(); saveState(); });
   $("pos-search").addEventListener("input", e => renderPosResults(e.target.value));
-  $("emp-search").addEventListener("input", applyFilters);
-  $("emp-type").addEventListener("change", applyFilters);
-  $("emp-office").addEventListener("change", applyFilters);
+  $("emp-search").addEventListener("input", () => { applyFilters(); saveState(); });
+  $("emp-type").addEventListener("change", () => { applyFilters(); saveState(); });
+  $("emp-office").addEventListener("change", () => { applyFilters(); saveState(); });
 
   // Suggestion drawer
   const drawer = $("suggest-drawer");
