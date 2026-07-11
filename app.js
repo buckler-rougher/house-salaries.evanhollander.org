@@ -244,13 +244,13 @@ function renderTrend() {
 
   if (trendMode === "overall") {
     drawSvgLineChart($("chart-trend"), labels, [{
-      label: METRIC_LABELS[trendMetric], data: allQs.map(q => q.overall[trendMetric]),
+      id: "overall", label: METRIC_LABELS[trendMetric], data: allQs.map(q => q.overall[trendMetric]),
       color: "#c0392b", fill: true,
     }], hlOpts);
 
   } else if (trendMode === "type") {
     const datasets = ["member","committee","leadership","administrative"].map(type => ({
-      label: TYPE_LABELS[type],
+      id: type, label: TYPE_LABELS[type],
       data: allQs.map(q => q.by_type[type]?.[trendMetric] ?? null),
       color: TYPE_COLORS_TREND[type], fill: false,
     }));
@@ -267,7 +267,7 @@ function renderTrend() {
       return t ? t[trendMetric] : null;
     });
     drawSvgLineChart($("chart-trend"), labels, [{
-      label: "", data, color: "#c0392b", fill: true,
+      id: "position", label: "", data, color: "#c0392b", fill: true,
     }], hlOpts);
   }
 }
@@ -914,11 +914,15 @@ function drawSvgLineChart(containerEl, fullLabels, fullDatasets, opts = {}) {
     finish(animateIn);
   };
 
-  const EASE = "cubic-bezier(.4,0,.2,1)"; // smoother than plain "ease" for both CSS and the JS tween below
-  const easeCubic = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // easeInOutCubic
+  const EASE = "cubic-bezier(.4,0,.2,1)"; // smoother than plain "ease" for the CSS crossfade below
+  const easeCubic = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // easeInOutCubic, for the value-morph tween
+  const easeQuint = t => t < .5 ? 16 * t ** 5 : 1 - Math.pow(-2 * t + 2, 5) / 2; // easeInOutQuint, gentler settle for the zoom
 
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-  const datasetSig = datasets.map(d => d.label ?? "").join("|");
+  // Use a stable per-series id (not the display label) so switching metrics —
+  // which changes the Overall series' label, e.g. "Median" -> "Average" — doesn't
+  // look like a different series and fall back to a crossfade instead of morphing.
+  const datasetSig = datasets.map((d, i) => d.id ?? d.label ?? i).join("|");
   const prev = trendChartCache.get(containerEl);
   const gen = (parseInt(containerEl.dataset.trendGen || "0", 10) + 1).toString();
   containerEl.dataset.trendGen = gen;
@@ -1018,7 +1022,7 @@ function drawSvgLineChart(containerEl, fullLabels, fullDatasets, opts = {}) {
       const step = now => {
         if (containerEl.dataset.trendGen !== gen) return;
         const t = Math.min(1, (now - start) / duration);
-        const e = easeCubic(t);
+        const e = easeQuint(t);
         const xs = allIdx.map(i => fromX(i) + (toX(i) - fromX(i)) * e);
         const ops = allIdx.map(i => fromOp(i) + (toOp(i) - fromOp(i)) * e);
         const iYMin = fromYMinV + (toYMinV - fromYMinV) * e;
@@ -1031,12 +1035,12 @@ function drawSvgLineChart(containerEl, fullLabels, fullDatasets, opts = {}) {
     };
 
     if (needsOut) {
-      runPhase(oldX, fullX, oldOp, fullOp, oldYMin, fullYMin, oldYMax, fullYMax, 260, () => {
-        if (needsIn) runPhase(fullX, newX, fullOp, newOp, fullYMin, newYMin, fullYMax, newYMax, 300, () => renderStatic(false));
+      runPhase(oldX, fullX, oldOp, fullOp, oldYMin, fullYMin, oldYMax, fullYMax, 420, () => {
+        if (needsIn) runPhase(fullX, newX, fullOp, newOp, fullYMin, newYMin, fullYMax, newYMax, 480, () => renderStatic(false));
         else renderStatic(false);
       });
     } else if (needsIn) {
-      runPhase(fullX, newX, fullOp, newOp, fullYMin, newYMin, fullYMax, newYMax, 300, () => renderStatic(false));
+      runPhase(fullX, newX, fullOp, newOp, fullYMin, newYMin, fullYMax, newYMax, 480, () => renderStatic(false));
     } else {
       renderStatic(false);
     }
@@ -1177,7 +1181,8 @@ function svgSparkline(data, labels) {
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">${yTicks}${fills}${lines}${trendEl}${dots}${xLabels}${annotEl}</svg>`;
 }
 
-const MINI_EASE_CUBIC = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+const MINI_EASE_CUBIC = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // value-morph
+const MINI_EASE_QUINT = t => t < .5 ? 16 * t ** 5 : 1 - Math.pow(-2 * t + 2, 5) / 2; // zoom
 
 // Stripped-down sparkline frame for mid-zoom animation only — no x-axis text or
 // trend annotation (those come back once renderStatic() calls the real svgSparkline).
@@ -1319,7 +1324,7 @@ function makeMiniTrend(wrapEl, getDataFn) {
         const step = now => {
           if (myGen !== gen) return;
           const t = Math.min(1, (now - start) / duration);
-          const e = MINI_EASE_CUBIC(t);
+          const e = MINI_EASE_QUINT(t);
           const xs = allIdx.map(i => fromX(i) + (toX(i) - fromX(i)) * e);
           const ops = allIdx.map(i => fromOp(i) + (toOp(i) - fromOp(i)) * e);
           chartWrap.innerHTML = buildSparklineFrame(view.fullLabels, view.fullData, xs, ops);
@@ -1329,12 +1334,12 @@ function makeMiniTrend(wrapEl, getDataFn) {
       };
 
       if (needsOut) {
-        runPhase(oldX, fullX, oldOp, fullOp, 240, () => {
-          if (needsIn) runPhase(fullX, newX, fullOp, newOp, 280, () => renderStatic(view));
+        runPhase(oldX, fullX, oldOp, fullOp, 400, () => {
+          if (needsIn) runPhase(fullX, newX, fullOp, newOp, 460, () => renderStatic(view));
           else renderStatic(view);
         });
       } else if (needsIn) {
-        runPhase(fullX, newX, fullOp, newOp, 280, () => renderStatic(view));
+        runPhase(fullX, newX, fullOp, newOp, 460, () => renderStatic(view));
       } else {
         renderStatic(view);
       }
