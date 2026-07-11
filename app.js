@@ -335,7 +335,7 @@ function selectTitle(t, el) {
         const over = e.annual_equiv > SALARY_CAP;
         return `<div class="range-staff-row">
           <span class="range-staff-name person-link" data-name="${esc(e.name)}" data-office="${esc(cleanOrg(e.office))}">${esc(e.name)}</span>
-          <span class="range-staff-office">${esc(cleanOrg(e.office))}</span>
+          <span class="range-staff-office office-link" data-office="${esc(cleanOrg(e.office))}">${esc(cleanOrg(e.office))}</span>
           <span class="range-staff-amt">${over?`<span class="cap-warn" title="May include bonus/lump sum">⚠</span> `:""}${fmt(e.annual_equiv)}</span>
         </div>`;
       }).join("")}
