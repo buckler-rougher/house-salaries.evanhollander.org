@@ -29,6 +29,7 @@ body {
   background: var(--bg);
   color: var(--text);
   line-height: 1.5;
+  font-variant-numeric: tabular-nums;
 }
 
 /* ── Loading screen ── */
@@ -97,7 +98,6 @@ body {
   font-weight: 800;
   letter-spacing: -.03em;
   color: var(--ink);
-  font-variant-numeric: tabular-nums;
   line-height: 1.85rem;
   height: 1.85rem;
   margin-bottom: 5px;
@@ -179,7 +179,7 @@ body {
 .pos-row.active { background: var(--accent2); }
 .pos-row-name { font-size: .88rem; font-weight: 600; color: var(--ink); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pos-row-count { font-size: .75rem; color: var(--ink3); white-space: nowrap; }
-.pos-row-median { font-size: .88rem; font-weight: 800; color: var(--accent); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.pos-row-median { font-size: .88rem; font-weight: 800; color: var(--accent); white-space: nowrap; }
 
 /* ── Range card ── */
 .range-card {
@@ -239,7 +239,6 @@ body {
   font-size: 1.3rem;
   font-weight: 800;
   color: var(--accent);
-  font-variant-numeric: tabular-nums;
   letter-spacing: -.02em;
 }
 .range-trio-key {
@@ -302,7 +301,7 @@ body {
 .range-staff-row:last-of-type { border-bottom: none; }
 .range-staff-name { font-weight: 700; color: var(--ink); }
 .range-staff-office { color: var(--ink3); font-size: .72rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.range-staff-amt { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ink); text-align: right; white-space: nowrap; }
+.range-staff-amt { font-weight: 800; color: var(--ink); text-align: right; white-space: nowrap; }
 .range-staff-more { font-size: .72rem; color: var(--ink3); padding-top: 8px; }
 
 .lookup-hint {
@@ -376,7 +375,7 @@ body {
 .type-bg { height: 6px; background: var(--bg3); left: 0; right: 0; }
 .type-iqr { height: 6px; background: var(--accent); opacity: .2; }
 .type-needle { width: 2px; height: 18px; background: var(--accent); transform: translateX(-50%); }
-.type-val { font-size: .85rem; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; width: 52px; text-align: right; }
+.type-val { font-size: .85rem; font-weight: 800; color: var(--accent); width: 52px; text-align: right; }
 
 /* ── Trend mode switcher ── */
 .trend-mode-row { display: flex; gap: 2px; margin-bottom: 16px; background: var(--bg3); border-radius: 8px; padding: 3px; width: fit-content; }
@@ -453,8 +452,8 @@ tr:hover td { background: var(--bg2); }
 .td-name { font-weight: 700; color: var(--ink); }
 .td-office { font-size: .75rem; color: var(--ink3); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .td-title { font-size: .78rem; color: var(--ink2); }
-.td-amt { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ink); }
-.td-amt-q { font-variant-numeric: tabular-nums; color: var(--ink3); }
+.td-amt { font-weight: 800; color: var(--ink); }
+.td-amt-q { color: var(--ink3); }
 
 .badge {
   display: inline-block;
@@ -506,11 +505,11 @@ tr:hover td { background: var(--bg2); }
 /* badge column: fixed width, right-align so all badges share a right edge */
 .office-row .badge { justify-self: end; }
 /* count: number right-aligns, " staff" label anchors it */
-.office-count { font-size: .75rem; color: var(--ink3); white-space: nowrap; display: flex; justify-content: flex-end; font-variant-numeric: tabular-nums; }
+.office-count { font-size: .75rem; color: var(--ink3); white-space: nowrap; display: flex; justify-content: flex-end; }
 .office-count-num { text-align: right; min-width: 2.2ch; }
 .office-count-label { flex-shrink: 0; }
 /* range: fixed width, right-aligned */
-.office-range { font-size: .88rem; font-weight: 700; color: var(--ink); font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
+.office-range { font-size: .88rem; font-weight: 700; color: var(--ink); white-space: nowrap; text-align: right; }
 .office-range-sep { color: var(--ink3); font-weight: 400; margin: 0 2px; }
 .office-range-tag { color: var(--ink3); font-weight: 400; font-size: .72rem; margin-left: 5px; text-transform: uppercase; letter-spacing: .02em; }
 .office-chevron { font-size: 1rem; color: var(--ink3); transition: transform .15s; }
@@ -518,14 +517,14 @@ tr:hover td { background: var(--bg2); }
 .office-detail { background: var(--bg2); border-radius: 8px; margin: 4px 0 10px; padding: 16px 18px; }
 .office-detail-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 0; margin-bottom: 14px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--line); }
 .office-detail-stat { background: var(--bg); padding: 12px 14px; }
-.office-detail-val { font-size: 1.1rem; font-weight: 800; color: var(--accent); font-variant-numeric: tabular-nums; }
+.office-detail-val { font-size: 1.1rem; font-weight: 800; color: var(--accent); }
 .office-detail-key { font-size: .65rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: var(--ink3); margin-top: 3px; }
 .office-staff-list { display: flex; flex-direction: column; gap: 0; }
 .office-staff-row { display: grid; grid-template-columns: 1fr 1fr 90px; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--line); font-size: .82rem; }
 .office-staff-row:last-of-type { border-bottom: none; }
 .office-staff-name { font-weight: 700; color: var(--ink); }
 .office-staff-title { color: var(--ink3); font-size: .78rem; }
-.office-staff-amt { font-weight: 800; font-variant-numeric: tabular-nums; color: var(--ink); text-align: right; white-space: nowrap; }
+.office-staff-amt { font-weight: 800; color: var(--ink); text-align: right; white-space: nowrap; }
 .office-staff-more { font-size: .75rem; color: var(--ink3); padding-top: 8px; }
 .office-detail-empty { font-size: .82rem; color: var(--ink3); }
 
@@ -559,7 +558,7 @@ tr:hover td { background: var(--bg2); }
 .person-modal-close:hover { color: var(--ink); }
 .person-modal-name { font-size: 1.4rem; font-weight: 800; color: var(--ink); letter-spacing: -.02em; }
 .person-modal-meta { font-size: .8rem; color: var(--ink3); margin-top: 3px; }
-.person-modal-salary { font-size: 2rem; font-weight: 800; color: var(--ink); font-variant-numeric: tabular-nums; letter-spacing: -.03em; margin: 16px 0 2px; }
+.person-modal-salary { font-size: 2rem; font-weight: 800; color: var(--ink); letter-spacing: -.03em; margin: 16px 0 2px; }
 .person-modal-salary-sub { font-size: .75rem; color: var(--ink3); margin-bottom: 16px; }
 .person-modal-yoy { font-size: .85rem; margin: 4px 0 18px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .person-modal-yoy-label { font-size: .75rem; color: var(--ink3); }
@@ -596,7 +595,7 @@ tr:hover td { background: var(--bg2); }
 .pm-comp-result:last-child { border-bottom: none; }
 .pm-comp-result:hover { background: var(--bg2); color: var(--ink); }
 .pm-comp-result-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.pm-comp-result-med { flex-shrink: 0; font-size: .75rem; color: var(--ink3); font-variant-numeric: tabular-nums; }
+.pm-comp-result-med { flex-shrink: 0; font-size: .75rem; color: var(--ink3); }
 
 /* ── Office total payroll ── */
 .office-total-payroll { font-size: .75rem; color: var(--ink3); margin: 10px 0 4px; }
