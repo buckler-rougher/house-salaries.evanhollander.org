@@ -916,7 +916,9 @@ function drawSvgLineChart(containerEl, fullLabels, fullDatasets, opts = {}) {
 
   const EASE = "cubic-bezier(.4,0,.2,1)"; // smoother than plain "ease" for the CSS crossfade below
   const easeCubic = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // easeInOutCubic, for the value-morph tween
-  const easeQuint = t => t < .5 ? 16 * t ** 5 : 1 - Math.pow(-2 * t + 2, 5) / 2; // easeInOutQuint, gentler settle for the zoom
+  // easeInOutSine: no sudden acceleration change anywhere along the curve — the
+  // smoothest standard easing, unlike quint/cubic which snap through the middle.
+  const easeZoomSine = t => -(Math.cos(Math.PI * t) - 1) / 2;
 
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   // Use a stable per-series id (not the display label) so switching metrics —
@@ -1022,7 +1024,7 @@ function drawSvgLineChart(containerEl, fullLabels, fullDatasets, opts = {}) {
       const step = now => {
         if (containerEl.dataset.trendGen !== gen) return;
         const t = Math.min(1, (now - start) / duration);
-        const e = easeQuint(t);
+        const e = easeZoomSine(t);
         const xs = allIdx.map(i => fromX(i) + (toX(i) - fromX(i)) * e);
         const ops = allIdx.map(i => fromOp(i) + (toOp(i) - fromOp(i)) * e);
         const iYMin = fromYMinV + (toYMinV - fromYMinV) * e;
@@ -1182,7 +1184,7 @@ function svgSparkline(data, labels) {
 }
 
 const MINI_EASE_CUBIC = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // value-morph
-const MINI_EASE_QUINT = t => t < .5 ? 16 * t ** 5 : 1 - Math.pow(-2 * t + 2, 5) / 2; // zoom
+const MINI_EASE_ZOOM = t => -(Math.cos(Math.PI * t) - 1) / 2; // easeInOutSine — no sudden snap through the middle
 
 // Stripped-down sparkline frame for mid-zoom animation only — no x-axis text or
 // trend annotation (those come back once renderStatic() calls the real svgSparkline).
@@ -1324,7 +1326,7 @@ function makeMiniTrend(wrapEl, getDataFn) {
         const step = now => {
           if (myGen !== gen) return;
           const t = Math.min(1, (now - start) / duration);
-          const e = MINI_EASE_QUINT(t);
+          const e = MINI_EASE_ZOOM(t);
           const xs = allIdx.map(i => fromX(i) + (toX(i) - fromX(i)) * e);
           const ops = allIdx.map(i => fromOp(i) + (toOp(i) - fromOp(i)) * e);
           chartWrap.innerHTML = buildSparklineFrame(view.fullLabels, view.fullData, xs, ops);
