@@ -166,20 +166,20 @@ body {
 
 .pos-results { margin-top: 6px; display: flex; flex-direction: column; }
 .pos-row {
-  display: flex;
+  display: grid;
+  grid-template-columns: 1fr 72px 54px;
   align-items: center;
-  justify-content: space-between;
   padding: 11px 12px;
   border-radius: 6px;
   cursor: pointer;
-  gap: 8px;
+  column-gap: 8px;
   transition: background .1s;
 }
 .pos-row:hover { background: var(--bg2); }
 .pos-row.active { background: var(--accent2); }
-.pos-row-name { font-size: .88rem; font-weight: 600; color: var(--ink); flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.pos-row-count { font-size: .75rem; color: var(--ink3); white-space: nowrap; }
-.pos-row-median { font-size: .88rem; font-weight: 800; color: var(--accent); white-space: nowrap; }
+.pos-row-name { font-size: .88rem; font-weight: 600; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pos-row-count { font-size: .75rem; color: var(--ink3); white-space: nowrap; text-align: right; }
+.pos-row-median { font-size: .88rem; font-weight: 800; color: var(--accent); white-space: nowrap; text-align: right; }
 
 /* ── Range card ── */
 .range-card {
