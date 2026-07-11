@@ -729,26 +729,18 @@ function positionTooltip(e) {
   tt.style.top = y + "px";
 }
 
-function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
-  const { legend = false, highlightLabel = null } = opts;
+const trendChartCache = new WeakMap(); // containerEl -> { sig, labels, yMin, yMax, datasets }
+
+function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel) {
   const W = 680, H = 300;
   const pad = { t: 16, r: 16, b: 52, l: 58 };
   const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
   const n = labels.length;
-
-  // Gather all valid values for Y range
-  const allVals = datasets.flatMap(ds => ds.data.filter(v => v != null));
-  if (!allVals.length) { containerEl.innerHTML = `<p style="padding:20px;color:#888;font-size:.85rem">No data.</p>`; return; }
-
-  const minV = Math.min(...allVals), maxV = Math.max(...allVals);
-  const vPad = (maxV - minV) * 0.1 || maxV * 0.1 || 1;
-  const yMin = Math.max(0, minV - vPad), yMax = maxV + vPad;
   const vRange = yMax - yMin || 1;
 
   const sx = i => pad.l + (n <= 1 ? pw / 2 : (i / (n - 1)) * pw);
   const sy = v => pad.t + ph - ((v - yMin) / vRange) * ph;
 
-  // Y ticks
   const yTicks = Array.from({ length: 5 }, (_, i) => {
     const v = yMin + (vRange * i / 4), y = sy(v);
     return `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#eeece8" stroke-width="1"/>
@@ -758,11 +750,9 @@ function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
   // X labels — thin so last two don't collide
   const rotateX = n > 6;
   const step = Math.max(1, Math.ceil(n / 8));
-  // Build set of indices to show; skip penultimate if too close to last
   const showIdx = new Set();
   for (let i = 0; i < n; i += step) showIdx.add(i);
   showIdx.add(n - 1);
-  // Remove second-to-last shown index if within one step of the last
   const sorted = [...showIdx].sort((a, b) => a - b);
   if (sorted.length >= 2 && n - 1 - sorted[sorted.length - 2] < step) {
     showIdx.delete(sorted[sorted.length - 2]);
@@ -781,7 +771,6 @@ function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
   // Per-dataset paths
   const pathEls = datasets.map(ds => {
     const color = ds.color;
-    // Segment into runs of non-null
     const segs = [];
     let cur = [];
     ds.data.forEach((v, i) => {
@@ -805,14 +794,12 @@ function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
     const dots = ds.data.map((v, i) => {
       if (v == null) return "";
       return `<circle cx="${sx(i).toFixed(1)}" cy="${sy(v).toFixed(1)}" r="4" fill="white" stroke="${color}" stroke-width="2"
-        class="trend-dot" data-i="${i}" data-val="${v}" data-label="${esc(ds.label || "")}"
-        style="animation:fadeIn 300ms ease-out both;animation-delay:400ms;opacity:0"/>`;
+        class="trend-dot" data-i="${i}" data-val="${v}" data-label="${esc(ds.label || "")}"/>`;
     }).join("");
 
     return fills + lines + dots;
   }).join("");
 
-  // Viewed-quarter highlight line
   const hlIdx = highlightLabel != null ? labels.indexOf(highlightLabel) : -1;
   const hlLine = hlIdx >= 0 ? (() => {
     const x = sx(hlIdx).toFixed(1);
@@ -820,25 +807,39 @@ function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
             <text x="${x}" y="${(pad.t - 4).toFixed(1)}" text-anchor="middle" font-size="9" fill="#c0392b" opacity=".8">${labels[hlIdx]}</text>`;
   })() : "";
 
-  const svgStr = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">
-    ${yTicks}${hlLine}${pathEls}${xLabels}
-  </svg>`;
+  return { svgBody: `${yTicks}${hlLine}${pathEls}${xLabels}`, W, H, pad, ph, sx };
+}
 
-  const applyContent = () => {
-    containerEl.innerHTML = svgStr;
+function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
+  const { legend = false, highlightLabel = null } = opts;
 
-    // Animate lines via stroke-dashoffset
-    containerEl.querySelectorAll(".trend-line").forEach(path => {
-      const len = path.getTotalLength();
-      path.style.strokeDasharray = len;
-      path.style.strokeDashoffset = len;
-      path.style.transition = "stroke-dashoffset 500ms ease-out";
-      requestAnimationFrame(() => requestAnimationFrame(() => { path.style.strokeDashoffset = "0"; }));
-    });
+  const allVals = datasets.flatMap(ds => ds.data.filter(v => v != null));
+  if (!allVals.length) { containerEl.innerHTML = `<p style="padding:20px;color:#888;font-size:.85rem">No data.</p>`; return; }
+
+  const minV = Math.min(...allVals), maxV = Math.max(...allVals);
+  const vPad = (maxV - minV) * 0.1 || maxV * 0.1 || 1;
+  const yMin = Math.max(0, minV - vPad), yMax = maxV + vPad;
+
+  const finish = (animateIn = true) => {
+    if (animateIn) {
+      // Animate lines via stroke-dashoffset
+      containerEl.querySelectorAll(".trend-line").forEach(path => {
+        const len = path.getTotalLength();
+        path.style.strokeDasharray = len;
+        path.style.strokeDashoffset = len;
+        path.style.transition = "stroke-dashoffset 500ms ease-out";
+        requestAnimationFrame(() => requestAnimationFrame(() => { path.style.strokeDashoffset = "0"; }));
+      });
+      containerEl.querySelectorAll(".trend-dot").forEach(dot => {
+        dot.style.animation = "fadeIn 300ms ease-out both";
+        dot.style.animationDelay = "400ms";
+        dot.style.opacity = "0";
+      });
+    }
 
     // Tooltip on dots
     ensureTooltip();
-    // Group dots by x-index for multi-series tooltips
+    const { pad, ph, sx } = buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel);
     const dotsByIndex = {};
     containerEl.querySelectorAll(".trend-dot").forEach(dot => {
       const i = dot.dataset.i;
@@ -887,28 +888,70 @@ function drawSvgLineChart(containerEl, labels, datasets, opts = {}) {
     }
   };
 
-  // Crossfade into the new chart instead of hard-cutting, unless this is the
-  // first paint or the visitor prefers reduced motion. Renders can overlap
-  // (e.g. restoring saved state also re-triggers the active tab's render), so
-  // a generation token lets a stale, superseded call bail out instead of
-  // clobbering a newer one mid-transition and leaving opacity stuck at 0.
+  const renderStatic = () => {
+    const { svgBody, W, H } = buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel);
+    containerEl.innerHTML = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">${svgBody}</svg>`;
+    finish();
+  };
+
   const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const sig = datasets.map(d => d.label ?? "").join("|") + "::" + labels.join(",");
+  const prev = trendChartCache.get(containerEl);
   const gen = (parseInt(containerEl.dataset.trendGen || "0", 10) + 1).toString();
   containerEl.dataset.trendGen = gen;
-  if (containerEl.dataset.trendRendered && !reduceMotion) {
-    containerEl.style.transition = "opacity 120ms ease";
-    containerEl.style.opacity = "0";
-    setTimeout(() => {
+
+  const canMorph = prev && prev.sig === sig && !reduceMotion
+    && prev.datasets.length === datasets.length
+    && prev.datasets.every((d, i) => d.data.length === datasets[i].data.length);
+
+  if (canMorph) {
+    // Same series/quarters, values changed (e.g. switching median -> average):
+    // tween each point and the y-axis range to their new values instead of a hard cut.
+    const fromDatasets = prev.datasets, fromYMin = prev.yMin, fromYMax = prev.yMax;
+    const duration = 420;
+    const start = performance.now();
+    const ease = t => t < .5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2; // easeInOutQuad
+    const step = now => {
       if (containerEl.dataset.trendGen !== gen) return; // superseded by a later render
-      applyContent();
-      containerEl.style.opacity = "0";
-      void containerEl.offsetWidth; // force reflow so the opacity:0 is committed before animating to 1
+      const t = Math.min(1, (now - start) / duration);
+      const e = ease(t);
+      const iYMin = fromYMin + (yMin - fromYMin) * e;
+      const iYMax = fromYMax + (yMax - fromYMax) * e;
+      const iDatasets = datasets.map((ds, di) => ({
+        ...ds,
+        data: ds.data.map((v, i) => {
+          const fv = fromDatasets[di].data[i];
+          if (v == null || fv == null) return t < 1 ? (t < .5 ? fv : v) : v;
+          return fv + (v - fv) * e;
+        }),
+      }));
+      const { svgBody, W, H } = buildTrendChartBody(labels, iDatasets, iYMin, iYMax, highlightLabel);
+      containerEl.innerHTML = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">${svgBody}</svg>`;
+      if (t < 1) {
+        requestAnimationFrame(step);
+      } else {
+        finish(false);
+      }
+    };
+    requestAnimationFrame(step);
+  } else if (containerEl.dataset.trendRendered && !reduceMotion) {
+    // Different shape (mode switch, quarter-filter change, etc.) — crossfade instead of morphing
+    containerEl.style.transition = "opacity 90ms ease";
+    containerEl.style.opacity = "0.35";
+    setTimeout(() => {
+      if (containerEl.dataset.trendGen !== gen) return;
+      renderStatic();
+      containerEl.style.opacity = "0.35";
+      void containerEl.offsetWidth; // force reflow so the dip is committed before animating back to 1
       if (containerEl.dataset.trendGen === gen) containerEl.style.opacity = "1";
-    }, 120);
+    }, 90);
   } else {
     containerEl.dataset.trendRendered = "1";
-    applyContent();
+    containerEl.style.opacity = "1";
+    renderStatic();
   }
+
+  trendChartCache.set(containerEl, { sig, yMin, yMax, datasets: datasets.map(d => ({ ...d, data: d.data.slice() })) });
 }
 
 function ordinal(n) {
