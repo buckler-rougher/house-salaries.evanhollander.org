@@ -818,8 +818,13 @@ async function restoreState() {
     if (trendPosTitle && $("trend-pos-search")) $("trend-pos-search").value = trendPosTitle;
   }
 
-  // Re-render everything that depends on the restored quarter/filters
-  renderStats(); renderDist(); buildTitles(); renderPosResults($("pos-search")?.value || ""); buildOfficeData(); renderOfficeList();
+  // Re-render everything that depends on the restored quarter/filters.
+  // renderStats()/renderDist() are deliberately NOT repeated here — the
+  // quarter and office-type filter are already applied before the very
+  // first render() call in loadData(), so re-running them here would just
+  // immediately replace (and cut short) the chart's first-load entrance
+  // animation with a redundant, value-identical re-render.
+  buildTitles(); renderPosResults($("pos-search")?.value || ""); buildOfficeData(); renderOfficeList();
   $("type-bars").innerHTML = ""; renderTypeBars();
   updateSortIcons();
   if (!isLatestQuarter()) await loadPeople();
