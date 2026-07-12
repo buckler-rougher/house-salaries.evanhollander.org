@@ -683,6 +683,7 @@ function togglePersonInline(name, officeName) {
   const row = detail ? detail.closest(".emp-detail-row") : null;
   const wasOpen = row && row.style.display !== "none";
   document.querySelectorAll(".emp-detail-row").forEach(r => r.style.display = "none");
+  document.querySelectorAll(".emp-row-chevron").forEach(c => c.classList.remove("open"));
   if (wasOpen) {
     currentSelection = null;
     setHash({});
@@ -696,6 +697,7 @@ function togglePersonInline(name, officeName) {
 async function showPersonInline(name, officeName) {
   // Close all other detail rows
   document.querySelectorAll(".emp-detail-row").forEach(row => row.style.display = "none");
+  document.querySelectorAll(".emp-row-chevron").forEach(c => c.classList.remove("open"));
 
   // Find the detail row for this person
   const detailId = `emp-detail-${esc(name).replace(/\s+/g,"-").toLowerCase()}`;
@@ -706,7 +708,9 @@ async function showPersonInline(name, officeName) {
   }
 
   detail.innerHTML = `<div style="padding:24px 0;color:var(--ink3);font-size:.85rem">Loading…</div>`;
-  detail.parentElement.parentElement.style.display = "";
+  const detailRow = detail.parentElement.parentElement;
+  detailRow.style.display = "";
+  detailRow.previousElementSibling?.querySelector(".emp-row-chevron")?.classList.add("open");
 
   await loadPeople();
 
@@ -1944,13 +1948,13 @@ function renderTable() {
   const totalPages = Math.max(1, Math.ceil(filtered.length/PAGE));
   $("emp-tbody").innerHTML = slice.map(e => {
     const overCap = e.annual_equiv > SALARY_CAP;
-    return `<tr data-person-row="${esc(e.name)}|${esc(cleanOrg(e.office))}">
+    return `<tr class="emp-row" data-name="${esc(e.name)}" data-office="${esc(cleanOrg(e.office))}">
       <td class="td-name"><span class="person-link" data-name="${esc(e.name)}" data-office="${esc(cleanOrg(e.office))}">${esc(e.name)}</span></td>
       <td class="td-office" title="${esc(e.office)}"><span class="office-link" data-office="${esc(cleanOrg(e.office))}">${esc(cleanOrg(e.office))}</span></td>
       <td class="td-title">${esc(e.title)}</td>
       <td><span class="badge badge-${e.intern?"intern":e.shared?"shared":e.type}">${e.intern?"Intern":e.shared?"Shared":(TYPE_LABELS[e.type]||e.type)}</span></td>
       <td class="td-amt-q">${fmt(e.quarterly_pay)}</td>
-      <td class="td-amt">${overCap ? `<span class="cap-warn" title="Exceeds $228k staff salary cap — may include a bonus or lump-sum payment">⚠</span> ` : ""}${fmt(e.annual_equiv)}</td>
+      <td class="td-amt">${overCap ? `<span class="cap-warn" title="Exceeds $228k staff salary cap — may include a bonus or lump-sum payment">⚠</span> ` : ""}${fmt(e.annual_equiv)}<span class="emp-row-chevron">›</span></td>
     </tr>
     <tr class="emp-detail-row" style="display:none">
       <td colspan="6"><div class="emp-detail" id="emp-detail-${esc(e.name).replace(/\s+/g,"-").toLowerCase()}"></div></td>
@@ -2097,6 +2101,9 @@ document.addEventListener("DOMContentLoaded", () => {
   });
   document.querySelectorAll("th[data-sort]").forEach(th => th.addEventListener("click", () => setSortKey(th.dataset.sort)));
   document.addEventListener("click", e => {
+    const off = e.target.closest(".office-link");
+    if (off) { e.preventDefault(); e.stopPropagation(); jumpToOffice(off.dataset.office); return; }
+
     const el = e.target.closest(".person-link");
     if (el) {
       e.preventDefault(); e.stopPropagation();
@@ -2105,8 +2112,9 @@ document.addEventListener("DOMContentLoaded", () => {
       else showPerson(el.dataset.name, el.dataset.office);
       return;
     }
-    const off = e.target.closest(".office-link");
-    if (off) { e.stopPropagation(); jumpToOffice(off.dataset.office); }
+
+    const row = e.target.closest(".emp-row");
+    if (row) togglePersonInline(row.dataset.name, row.dataset.office);
   });
   $("office-search").addEventListener("input", () => { renderOfficeList(); saveState(); });
   $("office-sort").addEventListener("change", () => { renderOfficeList(); saveState(); });

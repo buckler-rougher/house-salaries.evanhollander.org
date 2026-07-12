@@ -519,6 +519,11 @@ td { padding: 10px 12px; border-bottom: 1px solid var(--line); color: var(--ink2
 tr:last-child td { border-bottom: none; }
 tr:hover td { background: var(--bg2); }
 .td-name { font-weight: 700; color: var(--ink); }
+.emp-row { cursor: pointer; }
+.emp-row-chevron { display: inline-block; font-size: 1rem; color: var(--ink3); transition: transform .15s; margin-left: 8px; }
+.emp-row-chevron.open { transform: rotate(90deg); }
+.emp-detail-row { cursor: default; }
+.emp-detail-row:hover td { background: none; }
 .td-office { font-size: .75rem; color: var(--ink3); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .td-title { font-size: .78rem; color: var(--ink2); }
 .td-amt { font-weight: 800; color: var(--ink); }
