@@ -816,6 +816,7 @@ tr:hover td { background: var(--bg2); }
   margin-top: 8px; font-size: .68rem; color: var(--ink3); line-height: 1.5;
 }
 .site-footer-secondary a { color: var(--ink3); text-decoration: underline; text-underline-offset: 2px; }
+.footer-note { display: inline; }
 
 /* ── Error ── */
 .error-msg { padding: 40px; color: var(--accent); font-size: .9rem; }
