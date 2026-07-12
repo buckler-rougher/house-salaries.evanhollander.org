@@ -86,37 +86,42 @@ body {
 }
 .hero-title span { color: var(--accent); }
 
-/* Logo mark: logo-mark.svg is favicon.svg with its viewBox extended down
-   (0 0 210 300 instead of 0 0 210 210) to reveal the rest of the "$" — the
-   full S-curve below the crossbar that the favicon itself crops off. Sized
-   bigger than the text on purpose, overflowing above and below the line.
-   On load it slides up into view from behind the window like a card
-   sliding out from under a slit in a sheet of paper, with a little spring
-   overshoot; the image sits inset with a 6% margin so the overshoot has
-   room to move into without clipping the top of the glyph.
+/* Logo mark: logo-mark.svg is favicon.svg with its viewBox extended way
+   down (0 0 210 400 instead of 0 0 210 210) so the image itself contains
+   more "$" than we ever show at rest — a hidden reservoir below the final
+   crop line. The image is sized taller than its container (which clips
+   the overflow), so at rest we only see the top portion; the container
+   is the fixed "window" and a tiny top margin on the image is reserved as
+   overshoot headroom, not part of the artwork.
+   On load the image slides up from fully below the window (like a card
+   emerging from a slit in a sheet of paper). The bounce overshoots
+   upward past its resting spot, which pulls MORE of the reservoir into
+   view at the bottom of the window for a moment, then settles back down
+   to the final (smaller) crop — never touching the top margin enough to
+   clip the statue.
    Kept inline (not flex) so "House Staff Salaries" still wraps normally
    as text on narrow screens instead of breaking apart into flex items. */
 .logo-mark {
   display: inline-block;
-  width: 1.15em;
-  height: 1.65em;
+  width: 1.3em;
+  height: 2em;
   overflow: hidden;
   position: relative;
-  vertical-align: -0.4em;
-  margin-right: .18em;
+  vertical-align: -0.55em;
+  margin-right: .2em;
 }
 .logo-mark-img {
   position: absolute;
-  width: 88%;
-  height: 88%;
-  left: 6%;
-  top: 6%;
+  width: 1.3em;
+  height: 2.476em;
+  left: 0;
+  top: 0.12em;
   animation: logoRevealUp 750ms cubic-bezier(.3, 0, .2, 1) 200ms both;
 }
 @keyframes logoRevealUp {
-  0%   { transform: translateY(130%); }
-  65%  { transform: translateY(-5%); }
-  82%  { transform: translateY(2%); }
+  0%   { transform: translateY(2.1em); }
+  65%  { transform: translateY(-0.1em); }
+  82%  { transform: translateY(0.03em); }
   100% { transform: translateY(0); }
 }
 @media (prefers-reduced-motion: reduce) {
