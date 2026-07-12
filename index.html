@@ -17,7 +17,7 @@
   <link rel="icon" href="favicon.ico" sizes="any" />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="apple-touch-icon" href="favicon.png" />
-  <link rel="stylesheet" href="styles.css?v=20260712a" />
+  <link rel="stylesheet" href="styles.css?v=20260712c" />
 </head>
 <body>
 
@@ -57,6 +57,14 @@
         <div class="hero-stat-sub">updated <span id="stat-updated">—</span></div>
       </div>
     </div>
+    <div class="type-filter-row" id="type-filter-row">
+      <span class="type-filter-label">Office type:</span>
+      <button class="type-filter-btn active" data-type="">All</button>
+      <button class="type-filter-btn" data-type="member">Member</button>
+      <button class="type-filter-btn" data-type="committee">Committee</button>
+      <button class="type-filter-btn" data-type="leadership">Leadership</button>
+      <button class="type-filter-btn" data-type="administrative">Admin</button>
+    </div>
     <div id="q4-notice" style="display:none" class="q4-notice"></div>
   </div>
 
@@ -66,6 +74,7 @@
     <div class="lookup">
       <div>
         <div class="lookup-heading">Look up a position</div>
+        <div id="pos-type-note" class="trend-q-note" style="display:none;margin-bottom:10px">Position stats by office type are only available for the latest quarter — showing all types.</div>
         <div class="pos-input-wrap">
           <input type="search" id="pos-search" class="pos-input" placeholder="" autocomplete="off" />
           <span class="pos-placeholder" id="pos-placeholder" aria-hidden="true">e.g.&nbsp;<span id="pos-placeholder-word">Legislative Assistant…</span></span>
@@ -94,19 +103,13 @@
 
       <div class="tab-pane active" id="tab-dist">
         <div class="pane-label" id="dist-pane-label">Annual salary equivalent — full-time staff — latest quarter</div>
+        <div id="dist-type-note" class="trend-q-note" style="display:none;margin-bottom:10px">Distribution by office type is only available for the latest quarter — showing all types.</div>
         <div class="chart-wrap"><div id="chart-dist" class="chart-svg-wrap"></div></div>
       </div>
 
       <div class="tab-pane" id="tab-type">
         <div class="office-toolbar">
           <input type="search" id="office-search" class="t-input" placeholder="Search offices…" style="max-width:280px" />
-          <select id="office-type-filter" class="t-select">
-            <option value="">All types</option>
-            <option value="member">Member offices</option>
-            <option value="committee">Committees</option>
-            <option value="leadership">Leadership</option>
-            <option value="administrative">Administrative</option>
-          </select>
           <select id="office-sort" class="t-select">
             <option value="max">Sort by highest pay</option>
             <option value="median">Sort by median pay</option>
@@ -156,6 +159,7 @@
           <div id="trend-pos-results" class="pos-results" style="max-width:340px;background:var(--bg);border:1.5px solid var(--line);border-radius:8px;margin-top:4px;display:none"></div>
         </div>
 
+        <div id="trend-pos-type-note" class="trend-q-note" style="display:none;margin-bottom:10px">Position trends aren't broken out by office type yet — showing all types.</div>
         <div class="chart-wrap tall"><div id="chart-trend" class="chart-svg-wrap"></div></div>
         <div id="trend-empty" style="display:none;font-size:.82rem;color:var(--ink3);padding:12px 0">Search a position above to see its salary trend.</div>
       </div>
@@ -169,13 +173,6 @@
               <option value="staff">Staff only</option>
               <option value="all">Include interns</option>
               <option value="intern">Interns only</option>
-            </select>
-            <select id="emp-office" class="t-select">
-              <option value="">All offices</option>
-              <option value="member">Member</option>
-              <option value="committee">Committee</option>
-              <option value="leadership">Leadership</option>
-              <option value="administrative">Admin</option>
             </select>
           </div>
           <div class="table-wrap">
@@ -277,6 +274,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260712a"></script>
+<script src="app.js?v=20260712c"></script>
 </body>
 </html>

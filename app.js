@@ -11,6 +11,7 @@ let sortKey = "annual_equiv", sortDir = -1, page = 1, filtered = [];
 let peopleData = null, peopleLoading = false;
 let historicalEmployeesCache = {}; // quarter id -> synthesized employee rows, built from peopleData
 let viewQIdx = -1; // index into summary.quarters; -1 = latest
+let officeTypeFilter = ""; // "" = all types, else "member"|"committee"|"leadership"|"administrative"
 let currentSelection = null; // { type: "title"|"person", titleName, personName, personOffice }
 const PAGE = 25;
 
@@ -47,16 +48,21 @@ function viewedQuarter() {
   return viewQIdx < 0 ? qs[qs.length - 1] : qs[viewQIdx];
 }
 
+function statsFor(q) {
+  return officeTypeFilter ? (q.by_type[officeTypeFilter] || { median: null, mean: null, count: 0 }) : q.overall;
+}
+
 function renderStats() {
   const qs = summary.quarters;
   const q = viewedQuarter();
   if (!q) return;
   const isLatest = q === qs[qs.length - 1];
-  const o = q.overall;
+  const o = statsFor(q);
   $("stat-median").textContent  = o.median != null ? Math.round(o.median).toLocaleString() : "—";
   $("stat-mean").textContent    = o.mean   != null ? Math.round(o.mean).toLocaleString()   : "—";
   $("stat-count").textContent   = o.count  != null ? o.count.toLocaleString() : "—";
-  $("stat-intern-note").textContent = `+ ${(q.intern_count||0).toLocaleString()} interns`;
+  // Interns aren't broken out by office type, so that count is only meaningful unfiltered
+  $("stat-intern-note").textContent = officeTypeFilter ? "" : `+ ${(q.intern_count||0).toLocaleString()} interns`;
   $("stat-quarter").innerHTML = esc(q.label).replace(/–/g, '<span class="quarter-text-sep">–</span>');
   $("stat-updated").textContent = summary.updated;
 
@@ -72,7 +78,8 @@ function renderStats() {
   const notice = $("q4-notice");
   if (q.quarter === 4) {
     const prev2 = [...qs].reverse().find(x => x.quarter !== 4 && qs.indexOf(x) < idx);
-    const prevNote = prev2 ? ` For comparison, the median in ${prev2.label} was $${Math.round(prev2.overall.median).toLocaleString()}.` : "";
+    const prevMedian = prev2 ? statsFor(prev2).median : null;
+    const prevNote = prevMedian != null ? ` For comparison, the median in ${prev2.label} was $${Math.round(prevMedian).toLocaleString()}.` : "";
     notice.textContent = `Q4 (Oct–Dec) includes year-end bonuses and lump-sum payments that can significantly inflate these figures.${prevNote}`;
     notice.style.display = "";
   } else {
@@ -121,13 +128,60 @@ async function navigateQuarter(dir) {
   saveState();
 }
 
+async function setOfficeTypeFilter(type) {
+  officeTypeFilter = type;
+  document.querySelectorAll(".type-filter-btn").forEach(b => b.classList.toggle("active", (b.dataset.type || "") === type));
+
+  renderStats();
+  renderDist();
+  buildTitles();
+  renderPosResults($("pos-search")?.value || "");
+  buildOfficeData();
+  renderOfficeList();
+  $("type-bars").innerHTML = ""; renderTypeBars();
+  if (!isLatestQuarter()) await loadPeople();
+  applyFilters();
+  renderTrend();
+
+  // Re-render whatever is open in the left panel
+  if (currentSelection) {
+    if (currentSelection.type === "title") {
+      const t = titles.find(x => x.title === currentSelection.titleName);
+      const activeRow = document.querySelector(`.pos-row.active`);
+      if (t) selectTitle(t, activeRow); else clearTitle();
+    } else if (currentSelection.type === "person") {
+      showPerson(currentSelection.personName, currentSelection.personOffice);
+    }
+  }
+  saveState();
+}
+
+function computeDistributionBuckets(amounts, bucketSize = 10000, maxVal = 250000) {
+  const buckets = [];
+  for (let lo = 0; lo < maxVal; lo += bucketSize) {
+    const hi = lo + bucketSize;
+    buckets.push({ min: lo, max: hi, count: amounts.filter(a => a >= lo && a < hi).length });
+  }
+  const overflow = amounts.filter(a => a >= maxVal).length;
+  if (overflow) buckets.push({ min: maxVal, max: null, count: overflow });
+  return buckets;
+}
+
 function renderDist() {
   const viewed = viewedQuarter();
   if (!viewed) return;
   const q = viewed;
   const distLabel = $("dist-pane-label");
-  if (distLabel) distLabel.textContent = `Annual salary equivalent — full-time staff — ${q.label}`;
-  const dist = q.distribution;
+  const typeLabel = officeTypeFilter ? ` — ${TYPE_LABELS[officeTypeFilter]} offices` : "";
+  if (distLabel) distLabel.textContent = `Annual salary equivalent — full-time staff${typeLabel} — ${q.label}`;
+
+  const distNote = $("dist-type-note");
+  const canFilterHere = !officeTypeFilter || isLatestQuarter();
+  if (distNote) distNote.style.display = canFilterHere ? "none" : "";
+
+  const dist = (officeTypeFilter && isLatestQuarter())
+    ? computeDistributionBuckets(employees.filter(e => !e.intern && !e.shared && e.type === officeTypeFilter && e.annual_equiv != null).map(e => e.annual_equiv))
+    : q.distribution;
   const barColors = dist.map(b => {
     if (b.min < 50000)  return "#e8e5df";
     if (b.min < 80000)  return "#f4a69a";
@@ -207,7 +261,7 @@ function renderTypeBars() {
   if (!q) return;
   const max = 220000, pct = v => Math.min(100, v/max*100);
   const c = $("type-bars"); c.innerHTML = "";
-  ["member","committee","leadership","administrative"].forEach(type => {
+  ["member","committee","leadership","administrative"].filter(t => !officeTypeFilter || t === officeTypeFilter).forEach(type => {
     const s = q.by_type[type]; if (!s || !s.count) return;
     const col = TYPE_COLORS[type];
     const row = document.createElement("div"); row.className = "type-row";
@@ -244,15 +298,16 @@ function renderTrend() {
 
   if (trendMode === "overall") {
     drawSvgLineChart($("chart-trend"), labels, [{
-      id: "overall", label: METRIC_LABELS[trendMetric], data: allQs.map(q => q.overall[trendMetric]),
-      color: "#c0392b", fill: true,
+      id: "overall", label: METRIC_LABELS[trendMetric], color: "#c0392b", fill: true,
+      data: allQs.map(q => officeTypeFilter ? (q.by_type[officeTypeFilter]?.[trendMetric] ?? null) : q.overall[trendMetric]),
     }], hlOpts);
 
   } else if (trendMode === "type") {
-    const datasets = ["member","committee","leadership","administrative"].map(type => ({
+    const types = ["member","committee","leadership","administrative"].filter(t => !officeTypeFilter || t === officeTypeFilter);
+    const datasets = types.map(type => ({
       id: type, label: TYPE_LABELS[type],
       data: allQs.map(q => q.by_type[type]?.[trendMetric] ?? null),
-      color: TYPE_COLORS_TREND[type], fill: false,
+      color: TYPE_COLORS_TREND[type], fill: types.length === 1,
     }));
     drawSvgLineChart($("chart-trend"), labels, datasets, { legend: true, ...hlOpts });
 
@@ -262,6 +317,7 @@ function renderTrend() {
       $("trend-empty").style.display = "";
       return;
     }
+    // top_titles isn't broken out by office type, so this trend always covers every type
     const data = allQs.map(q => {
       const t = (q.top_titles || []).find(t => t.title === trendPosTitle);
       return t ? t[trendMetric] : null;
@@ -270,6 +326,9 @@ function renderTrend() {
       id: "position", label: "", data, color: "#c0392b", fill: true,
     }], hlOpts);
   }
+
+  const posTypeNote = $("trend-pos-type-note");
+  if (posTypeNote) posTypeNote.style.display = (trendMode === "position" && officeTypeFilter) ? "" : "none";
 }
 
 // ── Position lookup ──
@@ -279,7 +338,7 @@ function buildTitles() {
   if (isLatestQuarter()) {
     // Compute from full employee list (covers every title, any count)
     const groups = {};
-    employees.filter(e => !e.intern && !e.shared).forEach(e => {
+    employees.filter(e => !e.intern && !e.shared && (!officeTypeFilter || e.type === officeTypeFilter)).forEach(e => {
       if (!e.title) return;
       if (!groups[e.title]) groups[e.title] = [];
       groups[e.title].push(e.annual_equiv);
@@ -292,9 +351,12 @@ function buildTitles() {
         min: s[0], max: s[s.length-1] };
     }).sort((a,b) => b.count - a.count);
   } else {
-    // Use pre-aggregated top_titles from that quarter's summary
+    // Use pre-aggregated top_titles from that quarter's summary — not broken out
+    // by office type, so a type filter can't narrow these down (yet).
     titles = (viewedQuarter().top_titles || []).slice();
   }
+  const posTypeNote = $("pos-type-note");
+  if (posTypeNote) posTypeNote.style.display = (officeTypeFilter && !isLatestQuarter()) ? "" : "none";
 }
 
 function renderPosResults(query) {
@@ -323,7 +385,7 @@ function selectTitle(t, el) {
   const max = Math.max(t.max||0, 220000), pct = v => Math.min(100, v/max*100);
 
   const staff = employees
-    .filter(e => !e.intern && !e.shared && e.title === t.title)
+    .filter(e => !e.intern && !e.shared && e.title === t.title && (!officeTypeFilter || e.type === officeTypeFilter))
     .sort((a,b) => b.annual_equiv - a.annual_equiv);
 
   const trendLabels = summary.quarters.map(q => q.label);
@@ -351,7 +413,7 @@ function selectTitle(t, el) {
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div>
         <div class="range-card-title">${esc(t.title)}</div>
-        <div class="range-card-sub">${t.count.toLocaleString()} employees · latest quarter · annual equivalent</div>
+        <div class="range-card-sub">${t.count.toLocaleString()} employees${(officeTypeFilter && isLatestQuarter()) ? ` · ${TYPE_LABELS[officeTypeFilter]} offices` : ""} · latest quarter · annual equivalent</div>
       </div>
       <button onclick="clearTitle()" style="background:none;border:none;cursor:pointer;color:var(--ink3);font-size:1.1rem;line-height:1;padding:2px;flex-shrink:0;margin-top:2px">&times;</button>
     </div>
@@ -588,15 +650,14 @@ function saveState() {
   const state = {
     tab: document.querySelector(".tab-btn.active")?.dataset.tab || "dist",
     viewQIdx,
+    officeTypeFilter,
     office: {
       search: $("office-search")?.value || "",
-      type: $("office-type-filter")?.value || "",
       sort: $("office-sort")?.value || "max",
     },
     table: {
       search: $("emp-search")?.value || "",
       type: $("emp-type")?.value || "staff",
-      office: $("emp-office")?.value || "",
       sortKey, sortDir,
     },
     trend: { mode: trendMode, metric: trendMetric, qFilter: trendQFilter, posTitle: trendPosTitle },
@@ -613,15 +674,16 @@ async function restoreState() {
     viewQIdx = state.viewQIdx;
   }
 
+  officeTypeFilter = state.officeTypeFilter || "";
+  document.querySelectorAll(".type-filter-btn").forEach(b => b.classList.toggle("active", (b.dataset.type || "") === officeTypeFilter));
+
   if (state.office) {
     if ($("office-search"))       $("office-search").value = state.office.search || "";
-    if ($("office-type-filter"))  $("office-type-filter").value = state.office.type || "";
     if ($("office-sort"))         $("office-sort").value = state.office.sort || "max";
   }
   if (state.table) {
     if ($("emp-search")) $("emp-search").value = state.table.search || "";
     if ($("emp-type"))   $("emp-type").value = state.table.type || "staff";
-    if ($("emp-office")) $("emp-office").value = state.table.office || "";
     if (state.table.sortKey) sortKey = state.table.sortKey;
     if (typeof state.table.sortDir === "number") sortDir = state.table.sortDir;
   }
@@ -640,7 +702,7 @@ async function restoreState() {
   }
 
   // Re-render everything that depends on the restored quarter/filters
-  renderStats(); renderDist(); buildTitles(); buildOfficeData(); renderOfficeList();
+  renderStats(); renderDist(); buildTitles(); renderPosResults($("pos-search")?.value || ""); buildOfficeData(); renderOfficeList();
   $("type-bars").innerHTML = ""; renderTypeBars();
   updateSortIcons();
   if (!isLatestQuarter()) await loadPeople();
@@ -658,7 +720,7 @@ let officeData = [];
 function buildOfficeData() {
   if (isLatestQuarter()) {
     const groups = {};
-    employees.filter(e => !e.intern && !e.shared).forEach(e => {
+    employees.filter(e => !e.intern && !e.shared && (!officeTypeFilter || e.type === officeTypeFilter)).forEach(e => {
       const key = cleanOrg(e.office);
       if (!groups[key]) groups[key] = { name: key, type: e.type, amounts: [] };
       groups[key].amounts.push(e.annual_equiv);
@@ -675,12 +737,14 @@ function buildOfficeData() {
     });
   } else {
     // Use pre-aggregated top_offices from that quarter's summary
-    officeData = (viewedQuarter().top_offices || []).map(o => ({
-      name: o.name, type: o.type, count: o.count,
-      min: o.min, max: o.max, median: o.median, p25: o.p25, p75: o.p75,
-      mean: o.mean,
-      totalAnnual: o.total_quarterly_pay != null ? o.total_quarterly_pay * 4 : null,
-    }));
+    officeData = (viewedQuarter().top_offices || [])
+      .filter(o => !officeTypeFilter || o.type === officeTypeFilter)
+      .map(o => ({
+        name: o.name, type: o.type, count: o.count,
+        min: o.min, max: o.max, median: o.median, p25: o.p25, p75: o.p75,
+        mean: o.mean,
+        totalAnnual: o.total_quarterly_pay != null ? o.total_quarterly_pay * 4 : null,
+      }));
   }
 }
 
@@ -1498,11 +1562,10 @@ function officeRangeHtml(o, sortKey) {
 
 function renderOfficeList() {
   const q = ($("office-search").value || "").toLowerCase().trim();
-  const type = $("office-type-filter").value;
   officeSortKey = $("office-sort").value;
 
+  // Office type is filtered globally already (officeData is built from it in buildOfficeData())
   let rows = officeData.filter(o => {
-    if (type && o.type !== type) return false;
     if (q && !o.name.toLowerCase().includes(q)) return false;
     return true;
   });
@@ -1601,12 +1664,11 @@ function currentEmployeeSource() {
 
 function applyFilters() {
   const q = $("emp-search").value.toLowerCase().trim();
-  const type = $("emp-office").value;
   const show = $("emp-type").value;
   filtered = currentEmployeeSource().filter(e => {
     if (show === "staff"  &&  e.intern) return false;
     if (show === "intern" && !e.intern) return false;
-    if (type && e.type !== type) return false;
+    if (officeTypeFilter && e.type !== officeTypeFilter) return false;
     if (q && !e.name.toLowerCase().includes(q) && !e.office.toLowerCase().includes(q) && !e.title.toLowerCase().includes(q)) return false;
     return true;
   });
@@ -1784,12 +1846,13 @@ document.addEventListener("DOMContentLoaded", () => {
     if (off) { e.stopPropagation(); jumpToOffice(off.dataset.office); }
   });
   $("office-search").addEventListener("input", () => { renderOfficeList(); saveState(); });
-  $("office-type-filter").addEventListener("change", () => { renderOfficeList(); saveState(); });
   $("office-sort").addEventListener("change", () => { renderOfficeList(); saveState(); });
   $("pos-search").addEventListener("input", e => renderPosResults(e.target.value));
   $("emp-search").addEventListener("input", () => { applyFilters(); saveState(); });
   $("emp-type").addEventListener("change", () => { applyFilters(); saveState(); });
-  $("emp-office").addEventListener("change", () => { applyFilters(); saveState(); });
+  document.querySelectorAll(".type-filter-btn").forEach(btn => {
+    btn.addEventListener("click", () => setOfficeTypeFilter(btn.dataset.type || ""));
+  });
 
   // Suggestion drawer
   const drawer = $("suggest-drawer");
