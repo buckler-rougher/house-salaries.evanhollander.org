@@ -52,15 +52,39 @@ function statsFor(q) {
   return officeTypeFilter ? (q.by_type[officeTypeFilter] || { median: null, mean: null, count: 0 }) : q.overall;
 }
 
+// Scrolls a number element's displayed text from its current value to `to`,
+// the same tween used for the trend chart's points — same easing, same idea.
+function animateNumberText(el, to, fmt = (v => Math.round(v).toLocaleString())) {
+  if (!el) return;
+  if (to == null) { el.textContent = "—"; return; }
+  const from = parseFloat((el.textContent || "").replace(/[^0-9.-]/g, ""));
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (reduceMotion || !isFinite(from)) { el.textContent = fmt(to); return; }
+  if (from === to) { el.textContent = fmt(to); return; }
+
+  const gen = (parseInt(el.dataset.numGen || "0", 10) + 1).toString();
+  el.dataset.numGen = gen;
+  const duration = 500;
+  const start = performance.now();
+  const easeCubic = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+  const step = now => {
+    if (el.dataset.numGen !== gen) return; // superseded by a newer render
+    const t = Math.min(1, (now - start) / duration);
+    el.textContent = fmt(from + (to - from) * easeCubic(t));
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
 function renderStats() {
   const qs = summary.quarters;
   const q = viewedQuarter();
   if (!q) return;
   const isLatest = q === qs[qs.length - 1];
   const o = statsFor(q);
-  $("stat-median").textContent  = o.median != null ? Math.round(o.median).toLocaleString() : "—";
-  $("stat-mean").textContent    = o.mean   != null ? Math.round(o.mean).toLocaleString()   : "—";
-  $("stat-count").textContent   = o.count  != null ? o.count.toLocaleString() : "—";
+  animateNumberText($("stat-median"), o.median);
+  animateNumberText($("stat-mean"), o.mean);
+  animateNumberText($("stat-count"), o.count);
   // Interns aren't broken out by office type, so that count is only meaningful unfiltered
   $("stat-intern-note").textContent = officeTypeFilter ? "" : `+ ${(q.intern_count||0).toLocaleString()} interns`;
   $("stat-quarter").innerHTML = esc(q.label).replace(/–/g, '<span class="quarter-text-sep">–</span>');
