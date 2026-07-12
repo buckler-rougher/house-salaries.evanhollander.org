@@ -116,12 +116,18 @@ body {
   height: 2.476em;
   left: -0.02em;
   top: 0.12em;
-  animation: logoRevealUp 750ms cubic-bezier(.3, 0, .2, 1) 200ms both;
+  animation: logoRevealUp 620ms linear 150ms both;
 }
+/* Every keyframe carries its own timing-function (the curve for the
+   segment FROM that keyframe TO the next). A single shared easing
+   applied to the whole animation makes each leg of the bounce move at
+   the same rhythm, which is what reads as a cheap slide-in — real
+   springs snap up fast then decay through shrinking, slowing wobbles. */
 @keyframes logoRevealUp {
-  0%   { transform: translateY(2.1em); }
-  65%  { transform: translateY(-0.1em); }
-  82%  { transform: translateY(0.03em); }
+  0%   { transform: translateY(2.2em); animation-timing-function: cubic-bezier(.16, 1, .3, 1); }
+  58%  { transform: translateY(-0.1em); animation-timing-function: cubic-bezier(.4, 0, .6, 1); }
+  76%  { transform: translateY(0.035em); animation-timing-function: cubic-bezier(.4, 0, .6, 1); }
+  90%  { transform: translateY(-0.012em); animation-timing-function: cubic-bezier(.4, 0, .6, 1); }
   100% { transform: translateY(0); }
 }
 @media (prefers-reduced-motion: reduce) {
