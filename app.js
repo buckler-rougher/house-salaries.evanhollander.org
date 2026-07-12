@@ -194,6 +194,7 @@ function computeDistributionBuckets(amounts, bucketSize = 10000, maxVal = 250000
 }
 
 let lastDistYStep = null; // previous y-axis step, so tick labels can scroll instead of snap
+let lastDistBarState = null; // previous bars' rendered y/height/fill, so they can morph instead of re-growing
 
 function renderDist() {
   const viewed = viewedQuarter();
@@ -240,17 +241,31 @@ function renderDist() {
   const barW = pw / dist.length;
   const barGap = Math.max(1, barW * 0.12);
 
-  const bars = dist.map((b, i) => {
+  // Whether the previous render had the same bar layout to morph from —
+  // if so we tween each bar's y/height/fill in place instead of replaying
+  // the grow-from-zero entrance, so switching office type just nudges bar
+  // heights rather than re-animating the whole chart.
+  const canMorphBars = lastDistBarState && lastDistBarState.length === dist.length;
+
+  const barTargets = dist.map((b, i) => {
     const bh = (b.count / yMax) * ph;
     const x = pad.l + i * barW + barGap / 2;
     const w = barW - barGap;
     const y = pad.t + ph - bh;
+    return { x, w, y, h: bh, fill: barColors[i] };
+  });
+
+  const bars = dist.map((b, i) => {
+    const t = barTargets[i];
     const label = b.max == null ? `$${b.min/1000}k+` : `$${b.min/1000}k – $${b.max/1000}k`;
-    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${bh.toFixed(1)}"
-      fill="${barColors[i]}" rx="2"
+    const startStyle = canMorphBars
+      ? ""
+      : `style="--i:${i};transform-origin:${(t.x + t.w/2).toFixed(1)}px ${(pad.t + ph).toFixed(1)}px;
+          animation:barGrow 400ms ease-out both;animation-delay:calc(var(--i)*30ms)"`;
+    return `<rect x="${t.x.toFixed(1)}" y="${t.y.toFixed(1)}" width="${t.w.toFixed(1)}" height="${t.h.toFixed(1)}"
+      fill="${t.fill}" rx="2" data-i="${i}"
       data-label="${label}" data-count="${b.count}"
-      style="--i:${i};transform-origin:${(x + w/2).toFixed(1)}px ${(pad.t + ph).toFixed(1)}px;
-        animation:barGrow 400ms ease-out both;animation-delay:calc(var(--i)*30ms)"
+      ${startStyle}
       class="dist-bar"/>`;
   }).join("");
 
@@ -272,10 +287,36 @@ function renderDist() {
   const wrap = $("chart-dist");
   wrap.innerHTML = svg;
 
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  // Morph existing bars into their new heights/colors instead of replaying
+  // the grow-in — e.g. switching office type should just nudge each bar,
+  // not re-animate the whole chart from zero.
+  if (canMorphBars && !reduceMotion) {
+    const barEls = [...wrap.querySelectorAll(".dist-bar")];
+    barEls.forEach((el, i) => {
+      const prev = lastDistBarState[i];
+      el.style.transition = "none";
+      el.setAttribute("y", prev.y.toFixed(1));
+      el.setAttribute("height", prev.h.toFixed(1));
+      el.setAttribute("fill", prev.fill);
+    });
+    void wrap.offsetWidth; // force reflow so the "from" state paints before transitioning
+    requestAnimationFrame(() => {
+      barEls.forEach((el, i) => {
+        const t = barTargets[i];
+        el.style.transition = "height 450ms cubic-bezier(.4,0,.2,1), y 450ms cubic-bezier(.4,0,.2,1), fill 300ms ease";
+        el.setAttribute("y", t.y.toFixed(1));
+        el.setAttribute("height", t.h.toFixed(1));
+        el.setAttribute("fill", t.fill);
+      });
+    });
+  }
+  lastDistBarState = barTargets;
+
   // Scroll the y-axis tick labels from their old values to the new ones,
   // same idea as the hero stats — gridlines sit at fixed positions, only the
   // number at each one changes.
-  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   if (fromYStep != null && fromYStep !== yStep && !reduceMotion) {
     const gen = (parseInt(wrap.dataset.distGen || "0", 10) + 1).toString();
     wrap.dataset.distGen = gen;
