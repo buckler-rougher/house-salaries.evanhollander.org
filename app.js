@@ -649,9 +649,9 @@ function selectTitle(t, el) {
 }
 
 // ── Person modal ──
-function closePersonModal() {
-  const overlay = $("person-modal-overlay");
-  if (overlay) overlay.style.display = "none";
+function closePersonDetail() {
+  const detail = $("emp-detail");
+  if (detail) detail.style.display = "none";
   currentSelection = null;
   setHash({});
 }
@@ -660,10 +660,25 @@ async function showPerson(name, officeName) {
   currentSelection = { type: "person", personName: name, personOffice: officeName };
   setHash({ person: name + "|" + officeName });
 
-  const overlay = $("person-modal-overlay");
-  const body = $("person-modal-body");
-  overlay.style.display = "flex";
-  body.innerHTML = `<div style="padding:24px 0;color:var(--ink3);font-size:.85rem">Loading…</div>`;
+  // Switch to All Staff tab
+  const tabBtn = document.querySelector('.tab-btn[data-tab="table"]');
+  if (tabBtn && !tabBtn.classList.contains("active")) tabBtn.click();
+
+  // Search for the person
+  const searchEl = $("emp-search");
+  if (searchEl) {
+    searchEl.value = name;
+    applyFilters();
+  }
+
+  // Show inline detail
+  await showPersonInline(name, officeName);
+}
+
+async function showPersonInline(name, officeName) {
+  const detail = $("emp-detail");
+  detail.innerHTML = `<div style="padding:24px 0;color:var(--ink3);font-size:.85rem">Loading…</div>`;
+  detail.style.display = "";
 
   await loadPeople();
 
@@ -688,9 +703,9 @@ async function showPerson(name, officeName) {
       summary.quarters.forEach(q => labelMap[q.id] = q.label);
       const sign = diff >= 0 ? "+" : "−";
       const color = diff >= 0 ? "#059669" : "#dc2626";
-      yoyHtml = `<div class="person-modal-yoy">
+      yoyHtml = `<div class="emp-detail-yoy">
         <span style="color:${color};font-weight:700">${sign}${fmtK(Math.abs(diff))} (${sign}${Math.abs(pct)}%)</span>
-        <span class="person-modal-yoy-label">vs. ${labelMap[priorId] || priorId} · same quarter last year</span>
+        <span class="emp-detail-yoy-label">vs. ${labelMap[priorId] || priorId} · same quarter last year</span>
       </div>`;
     }
   }
@@ -707,7 +722,7 @@ async function showPerson(name, officeName) {
         <button class="mini-q" data-q="4">Q4</button>
       </div>
     </div>`;
-    chartHtml = `<div class="person-modal-section">Pay history · annual equivalent</div>${qFilterHtml}<div class="person-modal-chart" id="person-modal-chart"></div>`;
+    chartHtml = `<div class="emp-detail-section">Pay history · annual equivalent</div>${qFilterHtml}<div class="emp-detail-chart" id="emp-detail-chart"></div>`;
   } else {
     chartHtml = `<div style="font-size:.82rem;color:var(--ink3);margin:16px 0">No multi-quarter history — this person may have joined recently or changed offices.</div>`;
   }
@@ -716,20 +731,20 @@ async function showPerson(name, officeName) {
   const allTitles = summary.quarters[summary.quarters.length - 1]?.top_titles || [];
   const compTitle = latestEmp?.title || person?.title || "";
   const compHtml = latestEmp ? `
-    <div class="person-modal-section">
-      Compare to: <span id="pm-comp-title" class="person-comp-title-link">${esc(compTitle)}</span>
+    <div class="emp-detail-section">
+      Compare to: <span id="ed-comp-title" class="emp-comp-title-link">${esc(compTitle)}</span>
     </div>
-    <div class="pm-comp-wrap" id="pm-comp-wrap" style="display:none">
-      <input id="pm-comp-search" class="pm-comp-input" placeholder="Search a title…" autocomplete="off" />
-      <div id="pm-comp-results" class="pm-comp-results"></div>
+    <div class="ed-comp-wrap" id="ed-comp-wrap" style="display:none">
+      <input id="ed-comp-search" class="ed-comp-input" placeholder="Search a title…" autocomplete="off" />
+      <div id="ed-comp-results" class="ed-comp-results"></div>
     </div>
-    <div id="pm-comp-stats"></div>` : "";
+    <div id="ed-comp-stats"></div>` : "";
 
-  body.innerHTML = `
-    <div class="person-modal-name">${esc(name)}</div>
-    <div class="person-modal-meta"><span class="office-link" data-office="${esc(officeName)}">${esc(officeName)}</span>${latestEmp ? ` · ${esc(latestEmp.title)}` : ""}</div>
-    ${latestEmp ? `<div class="person-modal-salary">${over ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(latestEmp.annual_equiv)}</div>
-    <div class="person-modal-salary-sub">est. annual · latest quarter</div>` : ""}
+  detail.innerHTML = `
+    <div class="emp-detail-name">${esc(name)}</div>
+    <div class="emp-detail-meta"><span class="office-link" data-office="${esc(officeName)}">${esc(officeName)}</span>${latestEmp ? ` · ${esc(latestEmp.title)}` : ""}</div>
+    ${latestEmp ? `<div class="emp-detail-salary">${over ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(latestEmp.annual_equiv)}</div>
+    <div class="emp-detail-salary-sub">est. annual · latest quarter</div>` : ""}
     ${yoyHtml}
     ${chartHtml}
     ${compHtml}`;
@@ -743,14 +758,14 @@ async function showPerson(name, officeName) {
       const filtQs = summary.quarters.filter(q => !qf || q.quarter === qf);
       const data = filtQs.map(q => { const h = person.history.find(h => h.quarter === q.id); return h ? h.quarterly_pay * 4 * cpiFactorForQuarter(q) : null; });
       const labels = filtQs.map(q => q.label);
-      const el = $("person-modal-chart");
+      const el = $("emp-detail-chart");
       if (el) el.innerHTML = svgSparkline(data, labels);
     }
     drawPersonChart();
-    document.querySelectorAll("#person-modal-body .mini-q").forEach(b => {
+    document.querySelectorAll("#emp-detail .mini-q").forEach(b => {
       b.addEventListener("click", () => {
         qf = +b.dataset.q;
-        document.querySelectorAll("#person-modal-body .mini-q").forEach(x => x.classList.toggle("active", x === b));
+        document.querySelectorAll("#emp-detail .mini-q").forEach(x => x.classList.toggle("active", x === b));
         drawPersonChart();
       });
     });
@@ -760,16 +775,16 @@ async function showPerson(name, officeName) {
   if (latestEmp) {
     function renderCompStats(titleStr) {
       const ts = allTitles.find(t => t.title === titleStr);
-      const el = $("pm-comp-stats");
+      const el = $("ed-comp-stats");
       if (!el) return;
       if (!ts) { el.innerHTML = `<div style="font-size:.78rem;color:var(--ink3);padding:6px 0">No salary data for this title.</div>`; return; }
       const you = latestEmp.annual_equiv;
       const pctileNum = estimatePercentile(you, ts);
       const pctile = pctileNum != null ? `${ordinal(pctileNum)} percentile` : "";
-      const youRow = `<div class="person-modal-comp-row person-modal-comp-you"><span>${esc(name)} ${pctile ? `<span style="font-weight:400;font-size:.72rem;opacity:.7">${pctile}</span>` : ""}</span><span>${fmtK(you)}</span></div>`;
-      const r25 = `<div class="person-modal-comp-row"><span>25th pct.</span><span>${fmtK(ts.p25)}</span></div>`;
-      const rMed = `<div class="person-modal-comp-row"><span>Median</span><span>${fmtK(ts.median)}</span></div>`;
-      const r75 = `<div class="person-modal-comp-row"><span>75th pct.</span><span>${fmtK(ts.p75)}</span></div>`;
+      const youRow = `<div class="emp-detail-comp-row emp-detail-comp-you"><span>${esc(name)} ${pctile ? `<span style="font-weight:400;font-size:.72rem;opacity:.7">${pctile}</span>` : ""}</span><span>${fmtK(you)}</span></div>`;
+      const r25 = `<div class="emp-detail-comp-row"><span>25th pct.</span><span>${fmtK(ts.p25)}</span></div>`;
+      const rMed = `<div class="emp-detail-comp-row"><span>Median</span><span>${fmtK(ts.median)}</span></div>`;
+      const r75 = `<div class="emp-detail-comp-row"><span>75th pct.</span><span>${fmtK(ts.p75)}</span></div>`;
       const rows = you < ts.p25
         ? [youRow, r25, rMed, r75]
         : you < ts.median
@@ -781,7 +796,7 @@ async function showPerson(name, officeName) {
     }
     renderCompStats(compTitle);
 
-    const titleEl = $("pm-comp-title"), wrap = $("pm-comp-wrap"), searchEl = $("pm-comp-search"), resultsEl = $("pm-comp-results");
+    const titleEl = $("ed-comp-title"), wrap = $("ed-comp-wrap"), searchEl = $("ed-comp-search"), resultsEl = $("ed-comp-results");
     if (titleEl) {
       titleEl.addEventListener("click", () => {
         wrap.style.display = wrap.style.display === "none" ? "block" : "none";
@@ -791,9 +806,9 @@ async function showPerson(name, officeName) {
         const q = searchEl.value.toLowerCase().trim();
         if (!q) { resultsEl.style.display = "none"; return; }
         const hits = allTitles.filter(t => t.title.toLowerCase().includes(q)).slice(0, 10);
-        resultsEl.innerHTML = hits.map(t => `<div class="pm-comp-result" data-title="${esc(t.title)}"><span class="pm-comp-result-title">${esc(t.title)}</span><span class="pm-comp-result-med">${fmtK(t.median)}</span></div>`).join("");
+        resultsEl.innerHTML = hits.map(t => `<div class="ed-comp-result" data-title="${esc(t.title)}"><span class="ed-comp-result-title">${esc(t.title)}</span><span class="ed-comp-result-med">${fmtK(t.median)}</span></div>`).join("");
         resultsEl.style.display = hits.length ? "block" : "none";
-        resultsEl.querySelectorAll(".pm-comp-result").forEach(row => {
+        resultsEl.querySelectorAll(".ed-comp-result").forEach(row => {
           row.addEventListener("click", () => {
             titleEl.textContent = row.dataset.title;
             wrap.style.display = "none"; resultsEl.style.display = "none";
@@ -814,7 +829,7 @@ function clearTitle() {
 }
 
 function clearPerson() {
-  closePersonModal();
+  closePersonDetail();
 }
 
 // ── URL hash state ──
@@ -1835,7 +1850,7 @@ function renderOfficeList() {
 }
 
 function jumpToOffice(officeName) {
-  closePersonModal();
+  closePersonDetail();
   const tabBtn = document.querySelector('.tab-btn[data-tab="type"]');
   if (tabBtn) tabBtn.click();
   const search = $("office-search");
@@ -1997,13 +2012,15 @@ function startPlaceholderCycle() {
 document.addEventListener("DOMContentLoaded", () => {
   const fy = $("footer-year"); if (fy) fy.textContent = new Date().getFullYear();
 
-  // Person modal close
-  $("person-modal-close")?.addEventListener("click", closePersonModal);
-  $("person-modal-overlay")?.addEventListener("click", e => {
-    if (e.target === $("person-modal-overlay")) closePersonModal();
-  });
-  document.addEventListener("keydown", e => {
-    if (e.key === "Escape" && $("person-modal-overlay")?.style.display !== "none") closePersonModal();
+  // Person detail click handler — delegate from table
+  document.addEventListener("click", e => {
+    const link = e.target.closest(".person-link");
+    if (link) {
+      e.preventDefault();
+      const name = link.dataset.name;
+      const office = link.dataset.office;
+      showPerson(name, office);
+    }
   });
   document.querySelectorAll(".tab-btn").forEach(b => b.addEventListener("click", () => {
     const tab = b.dataset.tab;
