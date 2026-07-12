@@ -674,6 +674,25 @@ async function showPerson(name, officeName) {
   await showPersonInline(name, officeName);
 }
 
+// Toggles a person's detail row open/closed directly in place — used when
+// clicking a name that's already visible in the All Staff table, so we don't
+// touch the search box or switch tabs (mirrors how office rows expand).
+function togglePersonInline(name, officeName) {
+  const detailId = `emp-detail-${esc(name).replace(/\s+/g,"-").toLowerCase()}`;
+  const detail = $(detailId);
+  const row = detail ? detail.closest(".emp-detail-row") : null;
+  const wasOpen = row && row.style.display !== "none";
+  document.querySelectorAll(".emp-detail-row").forEach(r => r.style.display = "none");
+  if (wasOpen) {
+    currentSelection = null;
+    setHash({});
+    return;
+  }
+  currentSelection = { type: "person", personName: name, personOffice: officeName };
+  setHash({ person: name + "|" + officeName });
+  showPersonInline(name, officeName);
+}
+
 async function showPersonInline(name, officeName) {
   // Close all other detail rows
   document.querySelectorAll(".emp-detail-row").forEach(row => row.style.display = "none");
@@ -2024,16 +2043,6 @@ function startPlaceholderCycle() {
 document.addEventListener("DOMContentLoaded", () => {
   const fy = $("footer-year"); if (fy) fy.textContent = new Date().getFullYear();
 
-  // Person detail click handler — delegate from table
-  document.addEventListener("click", e => {
-    const link = e.target.closest(".person-link");
-    if (link) {
-      e.preventDefault();
-      const name = link.dataset.name;
-      const office = link.dataset.office;
-      showPerson(name, office);
-    }
-  });
   document.querySelectorAll(".tab-btn").forEach(b => b.addEventListener("click", () => {
     const tab = b.dataset.tab;
     document.querySelectorAll(".tab-btn").forEach(x => x.classList.toggle("active", x===b));
@@ -2089,7 +2098,13 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll("th[data-sort]").forEach(th => th.addEventListener("click", () => setSortKey(th.dataset.sort)));
   document.addEventListener("click", e => {
     const el = e.target.closest(".person-link");
-    if (el) { e.stopPropagation(); showPerson(el.dataset.name, el.dataset.office); return; }
+    if (el) {
+      e.preventDefault(); e.stopPropagation();
+      const inTable = el.closest("#emp-tbody");
+      if (inTable) togglePersonInline(el.dataset.name, el.dataset.office);
+      else showPerson(el.dataset.name, el.dataset.office);
+      return;
+    }
     const off = e.target.closest(".office-link");
     if (off) { e.stopPropagation(); jumpToOffice(off.dataset.office); }
   });

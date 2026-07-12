@@ -606,7 +606,7 @@ tr:hover td { background: var(--bg2); }
 .office-link:hover { text-decoration: underline; text-decoration-style: dotted; text-underline-offset: 2px; }
 
 /* ── Employee detail (inline, in table tab) ── */
-.emp-detail { margin-top: 24px; padding: 20px; border-top: 1px solid var(--line); }
+.emp-detail { background: var(--bg2); border-radius: 8px; margin: 4px 0; padding: 16px 18px; }
 .emp-detail-name { font-size: 1.2rem; font-weight: 800; color: var(--ink); letter-spacing: -.02em; }
 .emp-detail-meta { font-size: .8rem; color: var(--ink3); margin-top: 2px; }
 .emp-detail-salary { font-size: 1.6rem; font-weight: 800; color: var(--ink); letter-spacing: -.03em; margin: 14px 0 2px; }
