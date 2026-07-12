@@ -17,7 +17,7 @@
   <link rel="icon" href="favicon.ico" sizes="any" />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="apple-touch-icon" href="favicon.png" />
-  <link rel="stylesheet" href="styles.css?v=20260713f" />
+  <link rel="stylesheet" href="styles.css?v=20260714a" />
 </head>
 <body>
 
@@ -132,10 +132,9 @@
         <div class="trend-mode-row">
           <button class="trend-mode active" data-mode="overall">Overall</button>
           <button class="trend-mode" data-mode="type">By office type</button>
-          <button class="trend-mode" data-mode="position">By position</button>
         </div>
 
-        <!-- Overall controls -->
+        <!-- Metric controls (Overall + By office type both use these) -->
         <div id="trend-overall-ctrl" class="trend-pills">
           <button class="pill active" data-metric="median">Median</button>
           <button class="pill" data-metric="mean">Average</button>
@@ -154,15 +153,7 @@
         </div>
         <div id="trend-q-note" class="trend-q-note">Q4 (Oct–Dec) often includes year-end bonuses and lump-sum payments that inflate salaries. Comparing Q1–Q3 across years gives a cleaner picture.</div>
 
-        <!-- By position search -->
-        <div id="trend-pos-ctrl" style="display:none;margin-bottom:14px">
-          <input type="search" id="trend-pos-search" class="t-input" placeholder="Search a position, e.g. Chief of Staff…" style="max-width:340px" autocomplete="off" />
-          <div id="trend-pos-results" class="pos-results" style="max-width:340px;background:var(--bg);border:1.5px solid var(--line);border-radius:8px;margin-top:4px;display:none"></div>
-        </div>
-
-        <div id="trend-pos-type-note" class="trend-q-note" style="display:none;margin-bottom:10px">Position trends aren't broken out by office type yet — showing all types.</div>
         <div class="chart-wrap tall"><div id="chart-trend" class="chart-svg-wrap"></div></div>
-        <div id="trend-empty" style="display:none;font-size:.82rem;color:var(--ink3);padding:12px 0">Search a position above to see its salary trend.</div>
       </div>
 
       <div class="tab-pane" id="tab-table">
@@ -272,6 +263,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260713f"></script>
+<script src="app.js?v=20260714a"></script>
 </body>
 </html>

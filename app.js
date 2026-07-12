@@ -6,7 +6,7 @@ const fmtK  = n => n == null ? "—" : "$" + Math.round(n / 1000) + "k";
 const fmtSh = n => { if (n == null) return "—"; return n >= 1000 ? "$" + Math.round(n/1000) + "k" : "$" + Math.round(n); };
 
 let summary = null, employees = [];
-let trendMetric = "median", trendMode = "overall", trendPosTitle = null, trendQFilter = 0;
+let trendMetric = "median", trendMode = "overall", trendQFilter = 0;
 let sortKey = "annual_equiv", sortDir = -1, page = 1, filtered = [];
 let peopleData = null, peopleLoading = false;
 let historicalEmployeesCache = {}; // quarter id -> synthesized employee rows, built from peopleData
@@ -505,7 +505,6 @@ const TYPE_COLORS_TREND = {
 };
 
 function renderTrend() {
-  $("trend-empty").style.display = "none";
   $("chart-trend").style.display = "";
   // Always compute against every quarter so a quarter-filter change can zoom
   // between "all quarters" and "just this subset" instead of a hard cut.
@@ -531,25 +530,7 @@ function renderTrend() {
       color: TYPE_COLORS_TREND[type], fill: false,
     }));
     drawSvgLineChart($("chart-trend"), labels, datasets, { legend: true, ...hlOpts });
-
-  } else if (trendMode === "position") {
-    if (!trendPosTitle) {
-      $("chart-trend").style.display = "none";
-      $("trend-empty").style.display = "";
-      return;
-    }
-    // top_titles isn't broken out by office type, so this trend always covers every type
-    const data = allQs.map(q => {
-      const t = (adjQuarter(q).top_titles || []).find(t => t.title === trendPosTitle);
-      return t ? t[trendMetric] : null;
-    });
-    drawSvgLineChart($("chart-trend"), labels, [{
-      id: "position", label: "", data, color: "#c0392b", fill: true,
-    }], hlOpts);
   }
-
-  const posTypeNote = $("trend-pos-type-note");
-  if (posTypeNote) posTypeNote.style.display = (trendMode === "position" && officeTypeFilter) ? "" : "none";
 }
 
 // ── Position lookup ──
@@ -1036,7 +1017,7 @@ function saveState() {
       type: $("emp-type")?.value || "staff",
       sortKey, sortDir,
     },
-    trend: { mode: trendMode, metric: trendMetric, qFilter: trendQFilter, posTitle: trendPosTitle },
+    trend: { mode: trendMode, metric: trendMetric, qFilter: trendQFilter },
   };
   try { localStorage.setItem(STATE_KEY, JSON.stringify(state)); } catch(e) { /* ignore (private mode, etc.) */ }
 }
@@ -1067,17 +1048,16 @@ async function restoreState() {
     if (typeof state.table.sortDir === "number") sortDir = state.table.sortDir;
   }
   if (state.trend) {
-    trendMode = state.trend.mode || "overall";
+    // "position" mode was removed (redundant with the position lookup sidebar,
+    // which has its own trend chart) — fall back to "overall" for sessions
+    // that saved it before the removal.
+    trendMode = state.trend.mode === "type" ? "type" : "overall";
     trendMetric = state.trend.metric || "median";
     trendQFilter = state.trend.qFilter || 0;
-    trendPosTitle = state.trend.posTitle || null;
     document.querySelectorAll(".trend-mode").forEach(x => x.classList.toggle("active", x.dataset.mode === trendMode));
     document.querySelectorAll(".pill").forEach(x => x.classList.toggle("active", x.dataset.metric === trendMetric));
     document.querySelectorAll(".trend-q").forEach(x => x.classList.toggle("active", +x.dataset.q === trendQFilter));
-    if ($("trend-overall-ctrl")) $("trend-overall-ctrl").style.display = trendMode === "overall" ? "" : "none";
-    if ($("trend-pos-ctrl"))     $("trend-pos-ctrl").style.display = trendMode === "position" ? "" : "none";
-    if ($("trend-q-note"))       $("trend-q-note").style.display = trendQFilter === 0 ? "" : "none";
-    if (trendPosTitle && $("trend-pos-search")) $("trend-pos-search").value = trendPosTitle;
+    if ($("trend-q-note")) $("trend-q-note").style.display = trendQFilter === 0 ? "" : "none";
   }
 
   // Re-render everything that depends on the restored quarter/filters.
@@ -1293,6 +1273,28 @@ function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel, xs = 
     return fills + lines + dots;
   }).join("");
 
+  // Dashed linear-regression trend line per dataset, same idea as the mini
+  // sparkline charts (position card / person pay history) — drawn over
+  // whichever points are currently visible so it tracks a quarter-filter zoom.
+  let soloAnnot = "";
+  const trendEls = datasets.map(ds => {
+    const pts = [];
+    ds.data.forEach((v, i) => { if (v != null && op(i) > 0.5) pts.push([i, v]); });
+    if (pts.length < 3) return "";
+    const { slope, intercept } = linReg(pts.map(p => p[0]), pts.map(p => p[1]));
+    const x0 = pts[0][0], x1 = pts[pts.length - 1][0];
+    const y0 = sy(slope * x0 + intercept), y1 = sy(slope * x1 + intercept);
+    if (datasets.length === 1) {
+      const annualSlope = slope * 4;
+      const sign = annualSlope >= 0 ? "+" : "−";
+      const abs = Math.abs(annualSlope);
+      const label = `${sign}$${abs >= 1000 ? (abs/1000).toFixed(1)+"k" : Math.round(abs)} / yr trend`;
+      soloAnnot = `<text x="${(W - pad.r).toFixed(1)}" y="14" text-anchor="end" font-size="11" fill="#6b7280">${label}</text>`;
+    }
+    return `<line x1="${sx(x0).toFixed(1)}" y1="${y0.toFixed(1)}" x2="${sx(x1).toFixed(1)}" y2="${y1.toFixed(1)}"
+      stroke="${ds.color}" stroke-width="1.2" stroke-dasharray="4 3" opacity=".55" class="trend-regression-line"/>`;
+  }).join("");
+
   const hlIdx = highlightLabel != null ? labels.indexOf(highlightLabel) : -1;
   const hlLine = hlIdx >= 0 ? (() => {
     const x = sx(hlIdx).toFixed(1);
@@ -1300,7 +1302,7 @@ function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel, xs = 
             <text x="${x}" y="${(pad.t - 4).toFixed(1)}" text-anchor="middle" font-size="9" fill="#c0392b" opacity=".8">${labels[hlIdx]}</text>`;
   })() : "";
 
-  return { svgBody: `${yTicks}${hlLine}${pathEls}${xLabels}`, W, H, pad, ph, sx };
+  return { svgBody: `${yTicks}${hlLine}${pathEls}${trendEls}${xLabels}${soloAnnot}`, W, H, pad, ph, sx };
 }
 
 function drawSvgLineChart(containerEl, fullLabels, fullDatasets, opts = {}) {
@@ -2198,8 +2200,6 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".trend-mode").forEach(b => b.addEventListener("click", () => {
     trendMode = b.dataset.mode;
     document.querySelectorAll(".trend-mode").forEach(x => x.classList.toggle("active", x===b));
-    $("trend-overall-ctrl").style.display = trendMode === "overall" ? "" : "none";
-    $("trend-pos-ctrl").style.display = trendMode === "position" ? "" : "none";
     renderTrend();
     saveState();
   }));
@@ -2216,28 +2216,6 @@ document.addEventListener("DOMContentLoaded", () => {
     renderTrend();
     saveState();
   }));
-
-  // Position search for trend tab
-  const trendSearch = $("trend-pos-search");
-  const trendResults = $("trend-pos-results");
-  trendSearch.addEventListener("input", () => {
-    const q = trendSearch.value.toLowerCase().trim();
-    if (!q) { trendResults.style.display = "none"; return; }
-    // Search titles that appear in at least 2 quarters
-    const titleCounts = {};
-    summary.quarters.forEach(qtr => (qtr.top_titles||[]).forEach(t => { titleCounts[t.title] = (titleCounts[t.title]||0)+1; }));
-    const hits = Object.keys(titleCounts).filter(t => t.toLowerCase().includes(q) && titleCounts[t] >= 2).slice(0,8);
-    if (!hits.length) { trendResults.style.display = "none"; return; }
-    trendResults.style.display = "";
-    trendResults.innerHTML = hits.map(t => `<div class="pos-row" data-title="${esc(t)}">${esc(t)}</div>`).join("");
-    trendResults.querySelectorAll(".pos-row").forEach(row => row.addEventListener("click", () => {
-      trendPosTitle = row.dataset.title;
-      trendSearch.value = trendPosTitle;
-      trendResults.style.display = "none";
-      renderTrend();
-      saveState();
-    }));
-  });
   document.querySelectorAll("th[data-sort]").forEach(th => th.addEventListener("click", () => setSortKey(th.dataset.sort)));
   document.addEventListener("click", e => {
     const off = e.target.closest(".office-link");
