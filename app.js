@@ -650,8 +650,7 @@ function selectTitle(t, el) {
 
 // ── Person modal ──
 function closePersonDetail() {
-  const detail = $("emp-detail");
-  if (detail) detail.style.display = "none";
+  document.querySelectorAll(".emp-detail-row").forEach(row => row.style.display = "none");
   currentSelection = null;
   setHash({});
 }
@@ -676,9 +675,19 @@ async function showPerson(name, officeName) {
 }
 
 async function showPersonInline(name, officeName) {
-  const detail = $("emp-detail");
+  // Close all other detail rows
+  document.querySelectorAll(".emp-detail-row").forEach(row => row.style.display = "none");
+
+  // Find the detail row for this person
+  const detailId = `emp-detail-${esc(name).replace(/\s+/g,"-").toLowerCase()}`;
+  const detail = $(detailId);
+  if (!detail) {
+    console.warn(`Detail container not found: ${detailId}`);
+    return;
+  }
+
   detail.innerHTML = `<div style="padding:24px 0;color:var(--ink3);font-size:.85rem">Loading…</div>`;
-  detail.style.display = "";
+  detail.parentElement.parentElement.style.display = "";
 
   await loadPeople();
 
@@ -758,14 +767,14 @@ async function showPersonInline(name, officeName) {
       const filtQs = summary.quarters.filter(q => !qf || q.quarter === qf);
       const data = filtQs.map(q => { const h = person.history.find(h => h.quarter === q.id); return h ? h.quarterly_pay * 4 * cpiFactorForQuarter(q) : null; });
       const labels = filtQs.map(q => q.label);
-      const el = $("emp-detail-chart");
+      const el = detail.querySelector(".emp-detail-chart");
       if (el) el.innerHTML = svgSparkline(data, labels);
     }
     drawPersonChart();
-    document.querySelectorAll("#emp-detail .mini-q").forEach(b => {
+    detail.querySelectorAll(".mini-q").forEach(b => {
       b.addEventListener("click", () => {
         qf = +b.dataset.q;
-        document.querySelectorAll("#emp-detail .mini-q").forEach(x => x.classList.toggle("active", x === b));
+        detail.querySelectorAll(".mini-q").forEach(x => x.classList.toggle("active", x === b));
         drawPersonChart();
       });
     });
@@ -775,7 +784,7 @@ async function showPersonInline(name, officeName) {
   if (latestEmp) {
     function renderCompStats(titleStr) {
       const ts = allTitles.find(t => t.title === titleStr);
-      const el = $("ed-comp-stats");
+      const el = detail.querySelector("#ed-comp-stats");
       if (!el) return;
       if (!ts) { el.innerHTML = `<div style="font-size:.78rem;color:var(--ink3);padding:6px 0">No salary data for this title.</div>`; return; }
       const you = latestEmp.annual_equiv;
@@ -796,7 +805,7 @@ async function showPersonInline(name, officeName) {
     }
     renderCompStats(compTitle);
 
-    const titleEl = $("ed-comp-title"), wrap = $("ed-comp-wrap"), searchEl = $("ed-comp-search"), resultsEl = $("ed-comp-results");
+    const titleEl = detail.querySelector("#ed-comp-title"), wrap = detail.querySelector("#ed-comp-wrap"), searchEl = detail.querySelector("#ed-comp-search"), resultsEl = detail.querySelector("#ed-comp-results");
     if (titleEl) {
       titleEl.addEventListener("click", () => {
         wrap.style.display = wrap.style.display === "none" ? "block" : "none";
@@ -1916,13 +1925,16 @@ function renderTable() {
   const totalPages = Math.max(1, Math.ceil(filtered.length/PAGE));
   $("emp-tbody").innerHTML = slice.map(e => {
     const overCap = e.annual_equiv > SALARY_CAP;
-    return `<tr>
+    return `<tr data-person-row="${esc(e.name)}|${esc(cleanOrg(e.office))}">
       <td class="td-name"><span class="person-link" data-name="${esc(e.name)}" data-office="${esc(cleanOrg(e.office))}">${esc(e.name)}</span></td>
       <td class="td-office" title="${esc(e.office)}"><span class="office-link" data-office="${esc(cleanOrg(e.office))}">${esc(cleanOrg(e.office))}</span></td>
       <td class="td-title">${esc(e.title)}</td>
       <td><span class="badge badge-${e.intern?"intern":e.shared?"shared":e.type}">${e.intern?"Intern":e.shared?"Shared":(TYPE_LABELS[e.type]||e.type)}</span></td>
       <td class="td-amt-q">${fmt(e.quarterly_pay)}</td>
       <td class="td-amt">${overCap ? `<span class="cap-warn" title="Exceeds $228k staff salary cap — may include a bonus or lump-sum payment">⚠</span> ` : ""}${fmt(e.annual_equiv)}</td>
+    </tr>
+    <tr class="emp-detail-row" style="display:none">
+      <td colspan="6"><div class="emp-detail" id="emp-detail-${esc(e.name).replace(/\s+/g,"-").toLowerCase()}"></div></td>
     </tr>`;
   }).join("");
   $("table-info").textContent = `${filtered.length.toLocaleString()} employees`;
