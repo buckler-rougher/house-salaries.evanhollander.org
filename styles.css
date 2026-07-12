@@ -85,6 +85,40 @@ body {
   margin-bottom: 12px;
 }
 .hero-title span { color: var(--accent); }
+
+/* Logo mark: the same favicon.svg glyph, framed like the favicon itself
+   (not cropped in tight). On load it slides up into view from behind the
+   1em x 1em window like a card sliding out from under a slit, with a
+   little spring overshoot. The image sits inset with an 10% margin so the
+   overshoot has room to move into without clipping the top of the glyph.
+   Kept inline (not flex) so "House Staff Salaries" still wraps normally
+   as text on narrow screens instead of breaking apart into flex items. */
+.logo-mark {
+  display: inline-block;
+  width: 1em;
+  height: 1em;
+  overflow: hidden;
+  position: relative;
+  vertical-align: -0.15em;
+  margin-right: .16em;
+}
+.logo-mark-img {
+  position: absolute;
+  width: 80%;
+  height: 80%;
+  left: 10%;
+  top: 10%;
+  animation: logoRevealUp 750ms cubic-bezier(.3, 0, .2, 1) 200ms both;
+}
+@keyframes logoRevealUp {
+  0%   { transform: translateY(140%); }
+  65%  { transform: translateY(-8%); }
+  82%  { transform: translateY(3%); }
+  100% { transform: translateY(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .logo-mark-img { animation: none; transform: translateY(0); }
+}
 .hero-stats {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
