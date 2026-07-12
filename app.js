@@ -50,7 +50,20 @@ async function loadData() {
     await restoreState();
     restoreHash();
   } catch(e) {
-    $("loading").innerHTML = `<div class="error-msg">${e.message}</div>`;
+    // render() removes #loading as its first step, so if anything after that
+    // point throws (restoreState, restoreHash, ...) #loading is already gone
+    // — falling back to a fresh error banner instead of crashing on a null
+    // lookup, which was masking the real error above.
+    console.error("loadData failed:", e);
+    const loading = $("loading");
+    if (loading) {
+      loading.innerHTML = `<div class="error-msg">${e.message}</div>`;
+    } else {
+      const banner = document.createElement("div");
+      banner.className = "error-msg";
+      banner.textContent = e.message;
+      document.body.prepend(banner);
+    }
   }
 }
 
@@ -207,7 +220,9 @@ async function navigateQuarter(dir) {
   if (currentSelection) {
     if (currentSelection.type === "title") {
       const t = titles.find(x => x.title === currentSelection.titleName);
-      const activeRow = document.querySelector(`.pos-row.active`);
+      // renderPosResults() just rebuilt the row list, so ".pos-row.active" no
+      // longer exists — find the new row for this title by name instead.
+      const activeRow = [...document.querySelectorAll(".pos-row")].find(r => r.querySelector(".pos-row-name")?.textContent === currentSelection.titleName);
       if (t) selectTitle(t, activeRow);
     } else if (currentSelection.type === "person") {
       showPerson(currentSelection.personName, currentSelection.personOffice);
@@ -235,7 +250,9 @@ async function setOfficeTypeFilter(type) {
   if (currentSelection) {
     if (currentSelection.type === "title") {
       const t = titles.find(x => x.title === currentSelection.titleName);
-      const activeRow = document.querySelector(`.pos-row.active`);
+      // renderPosResults() just rebuilt the row list, so ".pos-row.active" no
+      // longer exists — find the new row for this title by name instead.
+      const activeRow = [...document.querySelectorAll(".pos-row")].find(r => r.querySelector(".pos-row-name")?.textContent === currentSelection.titleName);
       if (t) selectTitle(t, activeRow); else clearTitle();
     } else if (currentSelection.type === "person") {
       showPerson(currentSelection.personName, currentSelection.personOffice);
@@ -264,7 +281,9 @@ async function setInflationOn(on) {
   if (currentSelection) {
     if (currentSelection.type === "title") {
       const t = titles.find(x => x.title === currentSelection.titleName);
-      const activeRow = document.querySelector(`.pos-row.active`);
+      // renderPosResults() just rebuilt the row list, so ".pos-row.active" no
+      // longer exists — find the new row for this title by name instead.
+      const activeRow = [...document.querySelectorAll(".pos-row")].find(r => r.querySelector(".pos-row-name")?.textContent === currentSelection.titleName);
       if (t) selectTitle(t, activeRow); else clearTitle();
     } else if (currentSelection.type === "person") {
       showPerson(currentSelection.personName, currentSelection.personOffice);
@@ -594,8 +613,10 @@ function parseShortMoney(str) {
 // new number, formatting each frame with fmtFn. fromVal must be captured
 // from the DOM *before* it's overwritten with the new value — by the time
 // this runs, el already shows toVal (it was just rendered from a template),
-// so we can't read the "from" state off the element itself.
-function animateNumberText(el, fromVal, toVal, fmtFn, duration = 450) {
+// so we can't read the "from" state off the element itself (unlike the
+// hero-stats animateNumberText() above, which animates in place without a
+// template swap and so can read its own "from" value).
+function animatePositionNumberText(el, fromVal, toVal, fmtFn, duration = 450) {
   if (!el) return;
   if (fromVal == null || toVal == null) { el.textContent = fmtFn(toVal); return; }
   el.textContent = fmtFn(fromVal);
@@ -725,12 +746,12 @@ function selectTitle(t, el) {
   // snapping — mirrors the y-axis tick animation in renderDist().
   if (priorNums) {
     const trioEls = posView.querySelectorAll(".range-trio-val");
-    animateNumberText(trioEls[0], priorNums.p25, t.p25, fmtSh);
-    animateNumberText(trioEls[1], priorNums.median, t.median, fmtSh);
-    animateNumberText(trioEls[2], priorNums.p75, t.p75, fmtSh);
+    animatePositionNumberText(trioEls[0], priorNums.p25, t.p25, fmtSh);
+    animatePositionNumberText(trioEls[1], priorNums.median, t.median, fmtSh);
+    animatePositionNumberText(trioEls[2], priorNums.p75, t.p75, fmtSh);
     const minMaxEls = posView.querySelectorAll(".range-min-max span");
-    animateNumberText(minMaxEls[0], priorNums.min, t.min, v => `Min: ${fmtSh(v)}`);
-    animateNumberText(minMaxEls[1], priorNums.max, t.max, v => `Max: ${fmtSh(v)}`);
+    animatePositionNumberText(minMaxEls[0], priorNums.min, t.min, v => `Min: ${fmtSh(v)}`);
+    animatePositionNumberText(minMaxEls[1], priorNums.max, t.max, v => `Max: ${fmtSh(v)}`);
   }
 
   if (hasTrend) {
@@ -2152,6 +2173,16 @@ function startPlaceholderCycle() {
 
 document.addEventListener("DOMContentLoaded", () => {
   const fy = $("footer-year"); if (fy) fy.textContent = new Date().getFullYear();
+
+  // The office-type row is sticky; give it a shadow/border once it's actually
+  // pinned to the top, using a 1px sentinel just above it as the trigger.
+  const stickySentinel = $("type-filter-sentinel");
+  const stickyRow = $("type-filter-row");
+  if (stickySentinel && stickyRow) {
+    new IntersectionObserver(([entry]) => {
+      stickyRow.classList.toggle("is-stuck", !entry.isIntersecting);
+    }).observe(stickySentinel);
+  }
 
   document.querySelectorAll(".tab-btn").forEach(b => b.addEventListener("click", () => {
     const tab = b.dataset.tab;

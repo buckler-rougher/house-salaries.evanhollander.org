@@ -344,7 +344,11 @@ body {
 .q4-notice { font-size: .78rem; color: #92400e; background: #fef3c7; padding: 10px 40px; line-height: 1.5; border-top: 1px solid #fde68a; }
 
 /* ── Global office-type filter ── */
-.type-filter-row { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 12px 40px; border-top: 1px solid var(--line); }
+.type-filter-row {
+  display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 12px 40px; border-top: 1px solid var(--line);
+  position: sticky; top: 0; z-index: 20; background: var(--bg);
+}
+.type-filter-row.is-stuck { border-bottom: 1px solid var(--line); box-shadow: 0 2px 8px rgba(0,0,0,.06); }
 .type-filter-label { font-size: .72rem; font-weight: 700; color: var(--ink3); margin-right: 2px; text-transform: uppercase; letter-spacing: .04em; }
 .type-filter-btn {
   padding: 5px 14px;

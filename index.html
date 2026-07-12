@@ -17,7 +17,7 @@
   <link rel="icon" href="favicon.ico" sizes="any" />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="apple-touch-icon" href="favicon.png" />
-  <link rel="stylesheet" href="styles.css?v=20260713c" />
+  <link rel="stylesheet" href="styles.css?v=20260713e" />
 </head>
 <body>
 
@@ -57,18 +57,20 @@
         <div class="hero-stat-sub">updated <span id="stat-updated">—</span></div>
       </div>
     </div>
-    <div class="type-filter-row" id="type-filter-row">
-      <span class="type-filter-label">Office type:</span>
-      <button class="type-filter-btn active" data-type="">All</button>
-      <button class="type-filter-btn" data-type="member">Member</button>
-      <button class="type-filter-btn" data-type="committee">Committee</button>
-      <button class="type-filter-btn" data-type="leadership">Leadership</button>
-      <button class="type-filter-btn" data-type="administrative">Admin</button>
-      <span class="filter-row-divider" aria-hidden="true"></span>
-      <button class="type-filter-btn" id="inflation-toggle" type="button" aria-pressed="false">Adjust for inflation</button>
-      <span class="inflation-note" id="inflation-note"></span>
-    </div>
     <div id="q4-notice" style="display:none" class="q4-notice"></div>
+  </div>
+
+  <div id="type-filter-sentinel" style="height:1px"></div>
+  <div class="type-filter-row" id="type-filter-row">
+    <span class="type-filter-label">Office type:</span>
+    <button class="type-filter-btn active" data-type="">All</button>
+    <button class="type-filter-btn" data-type="member">Member</button>
+    <button class="type-filter-btn" data-type="committee">Committee</button>
+    <button class="type-filter-btn" data-type="leadership">Leadership</button>
+    <button class="type-filter-btn" data-type="administrative">Admin</button>
+    <span class="filter-row-divider" aria-hidden="true"></span>
+    <button class="type-filter-btn" id="inflation-toggle" type="button" aria-pressed="false">Adjust for inflation</button>
+    <span class="inflation-note" id="inflation-note"></span>
   </div>
 
   <div class="body-grid">
@@ -269,6 +271,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260713c"></script>
+<script src="app.js?v=20260713e"></script>
 </body>
 </html>
