@@ -186,10 +186,14 @@ function computeDistributionBuckets(amounts, bucketSize = 10000, maxVal = 250000
     const hi = lo + bucketSize;
     buckets.push({ min: lo, max: hi, count: amounts.filter(a => a >= lo && a < hi).length });
   }
-  const overflow = amounts.filter(a => a >= maxVal).length;
-  if (overflow) buckets.push({ min: maxVal, max: null, count: overflow });
+  // Always include the overflow bucket, even at 0, so the bar count/width and
+  // x-axis stay the same shape across office types (some, like Leadership,
+  // have nobody above $250k, which used to shift their whole axis).
+  buckets.push({ min: maxVal, max: null, count: amounts.filter(a => a >= maxVal).length });
   return buckets;
 }
+
+let lastDistYStep = null; // previous y-axis step, so tick labels can scroll instead of snap
 
 function renderDist() {
   const viewed = viewedQuarter();
@@ -224,11 +228,13 @@ function renderDist() {
   const yStep = Math.ceil(maxCount / 5 / 10) * 10 || 1;
   const yMax = yStep * 5;
   const sy = v => pad.t + ph - (v / yMax) * ph;
+  const fromYStep = lastDistYStep;
+  lastDistYStep = yStep;
 
   const yTicks = Array.from({ length: 6 }, (_, i) => {
     const v = i * yStep, y = sy(v);
     return `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#eeece8" stroke-width="1"/>
-            <text x="${(pad.l - 6).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#888">${v.toLocaleString()}</text>`;
+            <text class="dist-ytick" data-i="${i}" x="${(pad.l - 6).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#888">${v.toLocaleString()}</text>`;
   }).join("");
 
   const barW = pw / dist.length;
@@ -266,6 +272,31 @@ function renderDist() {
   const wrap = $("chart-dist");
   wrap.innerHTML = svg;
 
+  // Scroll the y-axis tick labels from their old values to the new ones,
+  // same idea as the hero stats — gridlines sit at fixed positions, only the
+  // number at each one changes.
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (fromYStep != null && fromYStep !== yStep && !reduceMotion) {
+    const gen = (parseInt(wrap.dataset.distGen || "0", 10) + 1).toString();
+    wrap.dataset.distGen = gen;
+    const tickEls = [...wrap.querySelectorAll(".dist-ytick")];
+    const duration = 500;
+    const start = performance.now();
+    const easeCubic = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    const step = now => {
+      if (wrap.dataset.distGen !== gen) return;
+      const t = Math.min(1, (now - start) / duration);
+      const e = easeCubic(t);
+      tickEls.forEach(el => {
+        const i = +el.dataset.i;
+        const fromV = i * fromYStep, toV = i * yStep;
+        el.textContent = Math.round(fromV + (toV - fromV) * e).toLocaleString();
+      });
+      if (t < 1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }
+
   // Tooltip
   ensureTooltip();
   wrap.querySelectorAll(".dist-bar").forEach(rect => {
@@ -285,7 +316,10 @@ function renderTypeBars() {
   if (!q) return;
   const max = 220000, pct = v => Math.min(100, v/max*100);
   const c = $("type-bars"); c.innerHTML = "";
-  ["member","committee","leadership","administrative"].filter(t => !officeTypeFilter || t === officeTypeFilter).forEach(type => {
+  // This tab is for comparing types against each other, so it ignores the
+  // global office-type filter on purpose — filtering it down to one type
+  // would defeat the point.
+  ["member","committee","leadership","administrative"].forEach(type => {
     const s = q.by_type[type]; if (!s || !s.count) return;
     const col = TYPE_COLORS[type];
     const row = document.createElement("div"); row.className = "type-row";
@@ -327,11 +361,12 @@ function renderTrend() {
     }], hlOpts);
 
   } else if (trendMode === "type") {
-    const types = ["member","committee","leadership","administrative"].filter(t => !officeTypeFilter || t === officeTypeFilter);
-    const datasets = types.map(type => ({
+    // Comparing types against each other on purpose, so this ignores the
+    // global office-type filter — same reasoning as the By Type tab.
+    const datasets = ["member","committee","leadership","administrative"].map(type => ({
       id: type, label: TYPE_LABELS[type],
       data: allQs.map(q => q.by_type[type]?.[trendMetric] ?? null),
-      color: TYPE_COLORS_TREND[type], fill: types.length === 1,
+      color: TYPE_COLORS_TREND[type], fill: false,
     }));
     drawSvgLineChart($("chart-trend"), labels, datasets, { legend: true, ...hlOpts });
 

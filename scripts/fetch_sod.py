@@ -141,9 +141,10 @@ def distribution_buckets(amounts, bucket_size=10000, max_val=250000):
         hi = lo + bucket_size
         count = sum(1 for a in amounts if lo <= a < hi)
         buckets.append({"min": lo, "max": hi, "count": count})
+    # Always include the overflow bucket, even at 0, so bucket count/width stays
+    # consistent across quarters/subsets that happen to have nobody above max_val.
     overflow = sum(1 for a in amounts if a >= max_val)
-    if overflow:
-        buckets.append({"min": max_val, "max": None, "count": overflow})
+    buckets.append({"min": max_val, "max": None, "count": overflow})
     return buckets
 
 def fetch_quarter(q):
