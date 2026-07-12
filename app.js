@@ -2081,10 +2081,11 @@ function renderTable() {
       <td class="td-title">${esc(e.title)}</td>
       <td><span class="badge badge-${e.intern?"intern":e.shared?"shared":e.type}">${e.intern?"Intern":e.shared?"Shared":(TYPE_LABELS[e.type]||e.type)}</span></td>
       <td class="td-amt-q">${fmt(e.quarterly_pay)}</td>
-      <td class="td-amt">${overCap ? `<span class="cap-warn" title="Exceeds $228k staff salary cap — may include a bonus or lump-sum payment">⚠</span> ` : ""}${fmt(e.annual_equiv)}<span class="emp-row-chevron">›</span></td>
+      <td class="td-amt">${overCap ? `<span class="cap-warn" title="Exceeds $228k staff salary cap — may include a bonus or lump-sum payment">⚠</span> ` : ""}${fmt(e.annual_equiv)}</td>
+      <td class="td-chevron"><span class="emp-row-chevron">›</span></td>
     </tr>
     <tr class="emp-detail-row" style="display:none">
-      <td colspan="6"><div class="emp-detail" id="emp-detail-${esc(e.name).replace(/\s+/g,"-").toLowerCase()}"></div></td>
+      <td colspan="7"><div class="emp-detail" id="emp-detail-${esc(e.name).replace(/\s+/g,"-").toLowerCase()}"></div></td>
     </tr>`;
   }).join("");
   $("table-info").textContent = `${filtered.length.toLocaleString()} employees`;

@@ -524,7 +524,8 @@ tr:last-child td { border-bottom: none; }
 tr:hover td { background: var(--bg2); }
 .td-name { font-weight: 700; color: var(--ink); }
 .emp-row { cursor: pointer; }
-.emp-row-chevron { display: inline-block; font-size: 1rem; color: var(--ink3); transition: transform .15s; margin-left: 8px; }
+.th-chevron, .td-chevron { width: 16px; padding-left: 0; padding-right: 12px; }
+.emp-row-chevron { display: inline-block; font-size: 1rem; color: var(--ink3); transition: transform .15s; }
 .emp-row-chevron.open { transform: rotate(90deg); }
 .emp-detail-row { cursor: default; }
 .emp-detail-row:hover td { background: none; }
