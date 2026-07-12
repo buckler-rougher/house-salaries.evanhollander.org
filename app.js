@@ -578,11 +578,69 @@ function renderPosResults(query) {
 }
 
 let preTitleTab = null; // tab that was active before a position replaced it, so clearTitle() can restore it
+let lastPositionTrend = null; // trend controller for the currently-shown position card, so the next selectTitle() can seed its chart from this one's last view instead of resetting
+
+// Parses "$75k" / "$4.3k" / "$900" (from fmtSh) back into a raw number so we
+// can tween between an old and new displayed value.
+function parseShortMoney(str) {
+  if (!str) return null;
+  const m = String(str).match(/\$([\d.]+)(k)?/);
+  if (!m) return null;
+  const n = parseFloat(m[1]);
+  return m[2] ? n * 1000 : n;
+}
+
+// Animates a value-carrying element's text from an explicit old value to a
+// new number, formatting each frame with fmtFn. fromVal must be captured
+// from the DOM *before* it's overwritten with the new value — by the time
+// this runs, el already shows toVal (it was just rendered from a template),
+// so we can't read the "from" state off the element itself.
+function animateNumberText(el, fromVal, toVal, fmtFn, duration = 450) {
+  if (!el) return;
+  if (fromVal == null || toVal == null) { el.textContent = fmtFn(toVal); return; }
+  el.textContent = fmtFn(fromVal);
+  const start = performance.now();
+  const step = now => {
+    const t = Math.min(1, (now - start) / duration);
+    const e = MINI_EASE_CUBIC(t);
+    el.textContent = fmtFn(fromVal + (toVal - fromVal) * e);
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
 
 function selectTitle(t, el) {
   if (currentSelection?.type !== "title") {
     preTitleTab = document.querySelector(".tab-btn.active")?.dataset.tab || "dist";
   }
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const posView = $("position-view");
+  const isUpdate = !reduceMotion && !!posView.querySelector(".range-card");
+
+  // Capture the currently-rendered bar/needle position and numbers before we
+  // overwrite the DOM, so the new card can transition/tween from them instead
+  // of popping straight to the new state.
+  let priorBar = null, priorNums = null;
+  if (isUpdate) {
+    const fillEl = posView.querySelector(".range-bar-fill");
+    const needleEl = posView.querySelector(".range-bar-needle");
+    if (fillEl && needleEl) {
+      priorBar = { left: fillEl.style.left, width: fillEl.style.width, needleLeft: needleEl.style.left };
+    }
+    const trioEls = posView.querySelectorAll(".range-trio-val");
+    const minMaxEls = posView.querySelectorAll(".range-min-max span");
+    if (trioEls.length === 3 && minMaxEls.length === 2) {
+      priorNums = {
+        p25: parseShortMoney(trioEls[0].textContent),
+        median: parseShortMoney(trioEls[1].textContent),
+        p75: parseShortMoney(trioEls[2].textContent),
+        min: parseShortMoney(minMaxEls[0].textContent),
+        max: parseShortMoney(minMaxEls[1].textContent),
+      };
+    }
+  }
+  const seedTrend = isUpdate ? lastPositionTrend?.getPrev() : null;
+
   currentSelection = { type: "title", titleName: t.title };
   document.querySelectorAll(".pos-row").forEach(r => r.classList.remove("active"));
   el?.classList.add("active");
@@ -617,7 +675,7 @@ function selectTitle(t, el) {
       ${staff.length>30?`<div class="range-staff-more">+${staff.length-30} more</div>`:""}
     </div>` : "";
 
-  $("position-view").innerHTML = `
+  posView.innerHTML = `
     <div class="range-card">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div>
@@ -642,14 +700,49 @@ function selectTitle(t, el) {
     ${hasTrend ? miniTrendHtml("mini-pos-trend-wrap", "Salary trend") : ""}
     ${staffHtml}
     </div>`;
+
+  // Transform the range bar in from its previous position/width instead of
+  // popping to the new one, when we're updating an already-open card.
+  const fillEl = posView.querySelector(".range-bar-fill");
+  const needleEl = posView.querySelector(".range-bar-needle");
+  if (priorBar && fillEl && needleEl) {
+    fillEl.style.transition = "none";
+    needleEl.style.transition = "none";
+    fillEl.style.left = priorBar.left;
+    fillEl.style.width = priorBar.width;
+    needleEl.style.left = priorBar.needleLeft;
+    void posView.offsetWidth; // force reflow so the "from" state paints before transitioning
+    requestAnimationFrame(() => {
+      fillEl.style.transition = "left 450ms cubic-bezier(.4,0,.2,1), width 450ms cubic-bezier(.4,0,.2,1)";
+      needleEl.style.transition = "left 450ms cubic-bezier(.4,0,.2,1)";
+      fillEl.style.left = `${pct(t.p10)}%`;
+      fillEl.style.width = `${pct(t.p90)-pct(t.p10)}%`;
+      needleEl.style.left = `${pct(t.median)}%`;
+    });
+  }
+
+  // Scroll the trio/min/max numbers from their previous values instead of
+  // snapping — mirrors the y-axis tick animation in renderDist().
+  if (priorNums) {
+    const trioEls = posView.querySelectorAll(".range-trio-val");
+    animateNumberText(trioEls[0], priorNums.p25, t.p25, fmtSh);
+    animateNumberText(trioEls[1], priorNums.median, t.median, fmtSh);
+    animateNumberText(trioEls[2], priorNums.p75, t.p75, fmtSh);
+    const minMaxEls = posView.querySelectorAll(".range-min-max span");
+    animateNumberText(minMaxEls[0], priorNums.min, t.min, v => `Min: ${fmtSh(v)}`);
+    animateNumberText(minMaxEls[1], priorNums.max, t.max, v => `Max: ${fmtSh(v)}`);
+  }
+
   if (hasTrend) {
     const wrap = document.getElementById("mini-pos-trend-wrap");
-    if (wrap) makeMiniTrend(wrap, (metric, qf) => {
+    lastPositionTrend = wrap ? makeMiniTrend(wrap, (metric, qf) => {
       return filteredQuarters(qf).map(q => {
         const found = (adjQuarter(q).top_titles || []).find(x => x.title === t.title);
         return found ? found[metric] : null;
       });
-    });
+    }, seedTrend) : null;
+  } else {
+    lastPositionTrend = null;
   }
   if (window.innerWidth <= 900) {
     $("tab-position").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -862,6 +955,7 @@ async function showPersonInline(name, officeName) {
 
 function clearTitle() {
   currentSelection = null;
+  lastPositionTrend = null;
   setHash({});
   document.querySelectorAll(".pos-row").forEach(r => r.classList.remove("active"));
 
@@ -1621,10 +1715,10 @@ function buildSparklineFrame(fullLabels, fullData, xs, opacities) {
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">${yTicks}${fills}${lines}${dots}</svg>`;
 }
 
-function makeMiniTrend(wrapEl, getDataFn) {
+function makeMiniTrend(wrapEl, getDataFn, seedView) {
   let metric = "median", qf = 0;
   const chartWrap = wrapEl.querySelector(".mini-chart-wrap");
-  let prev = null; // { fullLabels, fullData, visible, data, labels }
+  let prev = seedView || null; // { fullLabels, fullData, visible, data, labels }
   let gen = 0;
 
   function computeView() {
@@ -1759,6 +1853,7 @@ function makeMiniTrend(wrapEl, getDataFn) {
   });
 
   render();
+  return { getPrev: () => prev };
 }
 
 function renderOfficeDetail(officeName, el) {
