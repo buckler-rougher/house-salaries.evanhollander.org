@@ -577,12 +577,18 @@ function renderPosResults(query) {
   });
 }
 
+let preTitleTab = null; // tab that was active before a position replaced it, so clearTitle() can restore it
+
 function selectTitle(t, el) {
+  if (currentSelection?.type !== "title") {
+    preTitleTab = document.querySelector(".tab-btn.active")?.dataset.tab || "dist";
+  }
   currentSelection = { type: "title", titleName: t.title };
   document.querySelectorAll(".pos-row").forEach(r => r.classList.remove("active"));
   el?.classList.add("active");
-  $("lookup-hint").style.display = "none";
-  $("range-card-wrap").style.display = "";
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
+  document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
+  $("tab-position").classList.add("active");
   setHash({ pos: t.title });
   const max = Math.max(t.max||0, 220000), pct = v => Math.min(100, v/max*100);
 
@@ -611,7 +617,8 @@ function selectTitle(t, el) {
       ${staff.length>30?`<div class="range-staff-more">+${staff.length-30} more</div>`:""}
     </div>` : "";
 
-  $("range-card").innerHTML = `
+  $("position-view").innerHTML = `
+    <div class="range-card">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div>
         <div class="range-card-title">${esc(t.title)}</div>
@@ -633,7 +640,8 @@ function selectTitle(t, el) {
     </div>
     <div class="range-min-max"><span>Min: ${fmtSh(t.min)}</span><span>Max: ${fmtSh(t.max)}</span></div>
     ${hasTrend ? miniTrendHtml("mini-pos-trend-wrap", "Salary trend") : ""}
-    ${staffHtml}`;
+    ${staffHtml}
+    </div>`;
   if (hasTrend) {
     const wrap = document.getElementById("mini-pos-trend-wrap");
     if (wrap) makeMiniTrend(wrap, (metric, qf) => {
@@ -644,7 +652,7 @@ function selectTitle(t, el) {
     });
   }
   if (window.innerWidth <= 900) {
-    $("range-card-wrap").scrollIntoView({ behavior: "smooth", block: "start" });
+    $("tab-position").scrollIntoView({ behavior: "smooth", block: "start" });
   }
 }
 
@@ -855,9 +863,12 @@ async function showPersonInline(name, officeName) {
 function clearTitle() {
   currentSelection = null;
   setHash({});
-  $("range-card-wrap").style.display = "none";
-  $("lookup-hint").style.display = "";
   document.querySelectorAll(".pos-row").forEach(r => r.classList.remove("active"));
+
+  const restoreTab = preTitleTab || "dist";
+  preTitleTab = null;
+  document.querySelectorAll(".tab-btn").forEach(b => b.classList.toggle("active", b.dataset.tab === restoreTab));
+  document.querySelectorAll(".tab-pane").forEach(p => p.classList.toggle("active", p.id === "tab-" + restoreTab));
 }
 
 function clearPerson() {
@@ -2049,6 +2060,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
   document.querySelectorAll(".tab-btn").forEach(b => b.addEventListener("click", () => {
     const tab = b.dataset.tab;
+    if (currentSelection?.type === "title") clearTitle();
     document.querySelectorAll(".tab-btn").forEach(x => x.classList.toggle("active", x===b));
     document.querySelectorAll(".tab-pane").forEach(p => p.classList.toggle("active", p.id==="tab-"+tab));
     if (tab==="type" && !$("office-list").children.length) renderOfficeList();
