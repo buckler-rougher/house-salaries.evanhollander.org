@@ -25,6 +25,23 @@ async function loadData() {
     if (!sr.ok) throw new Error("Run scripts/fetch_sod.py to generate data.");
     summary = await sr.json();
     if (er.ok) { const d = await er.json(); employees = d.employees || []; }
+
+    // Apply the persisted quarter/office-type filter before the very first
+    // render, not after — otherwise render() draws the "All types" chart,
+    // restoreState() immediately re-renders with the real filter, and every
+    // chart's first-load entrance gets replaced by a morph from a state the
+    // user never actually saw.
+    try {
+      const saved = JSON.parse(localStorage.getItem(STATE_KEY) || "null");
+      if (saved) {
+        if (typeof saved.viewQIdx === "number" && saved.viewQIdx >= 0 && saved.viewQIdx < summary.quarters.length - 1) {
+          viewQIdx = saved.viewQIdx;
+        }
+        officeTypeFilter = saved.officeTypeFilter || "";
+        document.querySelectorAll(".type-filter-btn").forEach(b => b.classList.toggle("active", (b.dataset.type || "") === officeTypeFilter));
+      }
+    } catch(e) { /* ignore */ }
+
     render();
     await restoreState();
     restoreHash();
