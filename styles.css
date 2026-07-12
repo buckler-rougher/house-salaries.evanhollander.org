@@ -359,6 +359,9 @@ body {
 }
 .type-filter-btn.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .type-filter-btn:not(.active):hover { border-color: var(--ink); color: var(--ink); }
+.type-filter-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
+.filter-row-divider { width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
+.inflation-note { font-size: .72rem; color: var(--ink3); font-style: italic; }
 
 .range-staff-list { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
 .range-staff-heading { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); margin-bottom: 8px; }

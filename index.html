@@ -17,7 +17,7 @@
   <link rel="icon" href="favicon.ico" sizes="any" />
   <link rel="icon" type="image/svg+xml" href="favicon.svg" />
   <link rel="apple-touch-icon" href="favicon.png" />
-  <link rel="stylesheet" href="styles.css?v=20260712p" />
+  <link rel="stylesheet" href="styles.css?v=20260712r" />
 </head>
 <body>
 
@@ -64,6 +64,9 @@
       <button class="type-filter-btn" data-type="committee">Committee</button>
       <button class="type-filter-btn" data-type="leadership">Leadership</button>
       <button class="type-filter-btn" data-type="administrative">Admin</button>
+      <span class="filter-row-divider" aria-hidden="true"></span>
+      <button class="type-filter-btn" id="inflation-toggle" type="button" aria-pressed="false">Adjust for inflation</button>
+      <span class="inflation-note" id="inflation-note"></span>
     </div>
     <div id="q4-notice" style="display:none" class="q4-notice"></div>
   </div>
@@ -274,6 +277,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260712p"></script>
+<script src="app.js?v=20260712r"></script>
 </body>
 </html>

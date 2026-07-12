@@ -304,6 +304,40 @@ def process_all(quarters_to_process=None):
 
     return quarter_summaries, all_employees_latest, latest_id, people_list
 
+def fetch_cpi_index(start_year, end_year):
+    """Fetch BLS CPI-U (U.S. city average, all items, not seasonally adjusted —
+    series CUUR0000SA0) and return {(year, quarter): avg_cpi_that_quarter}.
+    Uses the public API (no key needed for a handful of years); a missing
+    month (e.g. a data-collection gap) is just skipped from that quarter's
+    average rather than failing the whole fetch."""
+    url = (f"https://api.bls.gov/publicAPI/v2/timeseries/data/CUUR0000SA0"
+           f"?startyear={start_year}&endyear={end_year}")
+    req = urllib.request.Request(url, headers={"Accept": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=20) as r:
+            payload = json.loads(r.read())
+    except Exception as e:
+        print(f"  ! CPI fetch failed ({e}) — inflation adjustment will be unavailable", flush=True)
+        return {}
+
+    by_ym = {}
+    for series in payload.get("Results", {}).get("series", []):
+        for row in series.get("data", []):
+            v = row.get("value")
+            if v in (None, "-"): continue
+            period = row.get("period", "")
+            if not period.startswith("M"): continue  # skip annual-average pseudo-rows
+            by_ym[(int(row["year"]), int(period[1:]))] = float(v)
+
+    quarter_months = {1: (1,2,3), 2: (4,5,6), 3: (7,8,9), 4: (10,11,12)}
+    cpi_by_q = {}
+    for year in range(start_year, end_year + 1):
+        for q, months in quarter_months.items():
+            vals = [by_ym[(year, m)] for m in months if (year, m) in by_ym]
+            if vals:
+                cpi_by_q[(year, q)] = round(sum(vals) / len(vals), 3)
+    return cpi_by_q
+
 def main():
     os.makedirs("data", exist_ok=True)
 
@@ -311,6 +345,13 @@ def main():
     quarter_summaries, latest_employees, latest_id, people_list = process_all()
 
     quarter_summaries.sort(key=lambda q: (q["year"], q["quarter"]))
+
+    if quarter_summaries:
+        years = [q["year"] for q in quarter_summaries]
+        print("Fetching CPI (BLS CUUR0000SA0) for inflation adjustment...", flush=True)
+        cpi_by_q = fetch_cpi_index(min(years), max(years))
+        for q in quarter_summaries:
+            q["cpi"] = cpi_by_q.get((q["year"], q["quarter"]))
 
     summary = {
         "updated": __import__("datetime").date.today().isoformat(),

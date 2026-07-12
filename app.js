@@ -12,6 +12,7 @@ let peopleData = null, peopleLoading = false;
 let historicalEmployeesCache = {}; // quarter id -> synthesized employee rows, built from peopleData
 let viewQIdx = -1; // index into summary.quarters; -1 = latest
 let officeTypeFilter = ""; // "" = all types, else "member"|"committee"|"leadership"|"administrative"
+let inflationOn = false; // when true, historical dollar figures are scaled to the latest quarter's dollars
 let currentSelection = null; // { type: "title"|"person", titleName, personName, personOffice }
 const PAGE = 25;
 
@@ -21,7 +22,7 @@ const TYPE_COLORS = { member:"#2563eb", committee:"#059669", leadership:"#b45309
 
 async function loadData() {
   try {
-    const [sr, er] = await Promise.all([fetch("data/summary.json"), fetch("data/employees.json")]);
+    const [sr, er] = await Promise.all([fetch("data/summary.json", { cache: "no-cache" }), fetch("data/employees.json", { cache: "no-cache" })]);
     if (!sr.ok) throw new Error("Run scripts/fetch_sod.py to generate data.");
     summary = await sr.json();
     if (er.ok) { const d = await er.json(); employees = d.employees || []; }
@@ -39,10 +40,13 @@ async function loadData() {
         }
         officeTypeFilter = saved.officeTypeFilter || "";
         document.querySelectorAll(".type-filter-btn").forEach(b => b.classList.toggle("active", (b.dataset.type || "") === officeTypeFilter));
+        inflationOn = !!saved.inflationOn;
+        $("inflation-toggle")?.setAttribute("aria-pressed", inflationOn ? "true" : "false");
       }
     } catch(e) { /* ignore */ }
 
     render();
+    updateInflationNote();
     await restoreState();
     restoreHash();
   } catch(e) {
@@ -66,7 +70,50 @@ function viewedQuarter() {
 }
 
 function statsFor(q) {
-  return officeTypeFilter ? (q.by_type[officeTypeFilter] || { median: null, mean: null, count: 0 }) : q.overall;
+  const aq = adjQuarter(q);
+  return officeTypeFilter ? (aq.by_type[officeTypeFilter] || { median: null, mean: null, count: 0 }) : aq.overall;
+}
+
+// CPI ratio to scale a quarter's nominal dollars into the latest quarter's
+// dollars — always 1 for the latest quarter itself (the base), and 1
+// whenever the toggle is off or CPI data is missing for either quarter.
+function cpiFactorForQuarter(q) {
+  if (!inflationOn || !q) return 1;
+  const latest = summary.quarters[summary.quarters.length - 1];
+  if (!q.cpi || !latest.cpi) return 1;
+  return latest.cpi / q.cpi;
+}
+function cpiFactorForId(qId) {
+  return cpiFactorForQuarter(summary.quarters.find(q => q.id === qId));
+}
+
+const MONEY_FIELDS = ["median","mean","p10","p25","p75","p90","min","max","total_quarterly_pay"];
+function scaleAgg(obj, f) {
+  if (!obj || f === 1) return obj;
+  const out = { ...obj };
+  MONEY_FIELDS.forEach(k => { if (out[k] != null) out[k] = out[k] * f; });
+  return out;
+}
+
+// Returns a quarter object with every pre-aggregated monetary field (overall,
+// by_type, top_offices, top_titles, distribution bucket edges) scaled to the
+// latest quarter's dollars when the inflation toggle is on. Bucket *counts*
+// are untouched — we don't have raw per-employee data for historical
+// quarters to re-bin people, so we relabel the bucket edges instead, which
+// is exactly equivalent (these are still the same people, just described in
+// today's dollars). Raw per-employee arrays (only ever used for the latest
+// quarter, whose factor is always 1) are left alone.
+function adjQuarter(q) {
+  const f = cpiFactorForQuarter(q);
+  if (f === 1) return q;
+  return {
+    ...q,
+    overall: scaleAgg(q.overall, f),
+    by_type: q.by_type ? Object.fromEntries(Object.entries(q.by_type).map(([k, v]) => [k, scaleAgg(v, f)])) : q.by_type,
+    top_offices: (q.top_offices || []).map(o => scaleAgg(o, f)),
+    top_titles: (q.top_titles || []).map(t => scaleAgg(t, f)),
+    distribution: (q.distribution || []).map(b => ({ ...b, min: b.min * f, max: b.max != null ? b.max * f : null })),
+  };
 }
 
 // Scrolls a number element's displayed text from its current value to `to`,
@@ -197,6 +244,43 @@ async function setOfficeTypeFilter(type) {
   saveState();
 }
 
+async function setInflationOn(on) {
+  inflationOn = on;
+  const btn = $("inflation-toggle");
+  if (btn) btn.setAttribute("aria-pressed", on ? "true" : "false");
+  updateInflationNote();
+
+  renderStats();
+  renderDist();
+  buildTitles();
+  renderPosResults($("pos-search")?.value || "");
+  buildOfficeData();
+  renderOfficeList();
+  if (!isLatestQuarter()) await loadPeople();
+  applyFilters();
+  renderTrend();
+
+  // Re-render whatever is open in the left panel
+  if (currentSelection) {
+    if (currentSelection.type === "title") {
+      const t = titles.find(x => x.title === currentSelection.titleName);
+      const activeRow = document.querySelector(`.pos-row.active`);
+      if (t) selectTitle(t, activeRow); else clearTitle();
+    } else if (currentSelection.type === "person") {
+      showPerson(currentSelection.personName, currentSelection.personOffice);
+    }
+  }
+  saveState();
+}
+
+function updateInflationNote() {
+  const note = $("inflation-note");
+  if (!note) return;
+  if (!inflationOn) { note.textContent = ""; return; }
+  const latest = summary.quarters[summary.quarters.length - 1];
+  note.textContent = `in ${latest.label} dollars`;
+}
+
 function computeDistributionBuckets(amounts, bucketSize = 10000, maxVal = 250000) {
   const buckets = [];
   for (let lo = 0; lo < maxVal; lo += bucketSize) {
@@ -214,7 +298,7 @@ let lastDistYStep = null; // previous y-axis step, so tick labels can scroll ins
 let lastDistBarState = null; // previous bars' rendered y/height/fill, so they can morph instead of re-growing
 
 function renderDist() {
-  const viewed = viewedQuarter();
+  const viewed = adjQuarter(viewedQuarter());
   if (!viewed) return;
   const q = viewed;
   const distLabel = $("dist-pane-label");
@@ -274,7 +358,7 @@ function renderDist() {
 
   const bars = dist.map((b, i) => {
     const t = barTargets[i];
-    const label = b.max == null ? `$${b.min/1000}k+` : `$${b.min/1000}k – $${b.max/1000}k`;
+    const label = b.max == null ? `$${Math.round(b.min/1000)}k+` : `$${Math.round(b.min/1000)}k – $${Math.round(b.max/1000)}k`;
     const startStyle = canMorphBars
       ? ""
       : `style="--i:${i};transform-origin:${(t.x + t.w/2).toFixed(1)}px ${(pad.t + ph).toFixed(1)}px;
@@ -290,7 +374,7 @@ function renderDist() {
   const tight = dist.length > 10;
   const xLabels = dist.map((b, i) => {
     if (tight && i % 2 !== 0) return "";
-    const lbl = b.max == null ? `$${b.min/1000}k+` : `$${b.min/1000}k`;
+    const lbl = b.max == null ? `$${Math.round(b.min/1000)}k+` : `$${Math.round(b.min/1000)}k`;
     const cx = pad.l + (i + 0.5) * barW;
     const ty = pad.t + ph + 6; // just below the plot area
     return `<text text-anchor="end" font-size="10" fill="#888"
@@ -415,12 +499,13 @@ function renderTrend() {
   if (trendMode === "overall") {
     drawSvgLineChart($("chart-trend"), labels, [{
       id: "overall", label: METRIC_LABELS[trendMetric], color: "#c0392b", fill: true,
-      data: allQs.map(q => officeTypeFilter ? (q.by_type[officeTypeFilter]?.[trendMetric] ?? null) : q.overall[trendMetric]),
+      data: allQs.map(q => { const aq = adjQuarter(q); return officeTypeFilter ? (aq.by_type[officeTypeFilter]?.[trendMetric] ?? null) : aq.overall[trendMetric]; }),
     }], hlOpts);
 
   } else if (trendMode === "type") {
     // Comparing types against each other on purpose, so this ignores the
-    // global office-type filter — same reasoning as the By Type tab.
+    // global office-type filter and inflation adjustment — same reasoning
+    // as the By Type tab (both are comparison views, not point-in-time reads).
     const datasets = ["member","committee","leadership","administrative"].map(type => ({
       id: type, label: TYPE_LABELS[type],
       data: allQs.map(q => q.by_type[type]?.[trendMetric] ?? null),
@@ -436,7 +521,7 @@ function renderTrend() {
     }
     // top_titles isn't broken out by office type, so this trend always covers every type
     const data = allQs.map(q => {
-      const t = (q.top_titles || []).find(t => t.title === trendPosTitle);
+      const t = (adjQuarter(q).top_titles || []).find(t => t.title === trendPosTitle);
       return t ? t[trendMetric] : null;
     });
     drawSvgLineChart($("chart-trend"), labels, [{
@@ -470,7 +555,7 @@ function buildTitles() {
   } else {
     // Use pre-aggregated top_titles from that quarter's summary — not broken out
     // by office type, so a type filter can't narrow these down (yet).
-    titles = (viewedQuarter().top_titles || []).slice();
+    titles = (adjQuarter(viewedQuarter()).top_titles || []).slice();
   }
   const posTypeNote = $("pos-type-note");
   if (posTypeNote) posTypeNote.style.display = (officeTypeFilter && !isLatestQuarter()) ? "" : "none";
@@ -507,7 +592,7 @@ function selectTitle(t, el) {
 
   const trendLabels = summary.quarters.map(q => q.label);
   const trendData = summary.quarters.map(q => {
-    const found = (q.top_titles || []).find(x => x.title === t.title);
+    const found = (adjQuarter(q).top_titles || []).find(x => x.title === t.title);
     return found ? found.median : null;
   });
   const hasTrend = trendData.filter(v => v != null).length >= 2;
@@ -553,7 +638,7 @@ function selectTitle(t, el) {
     const wrap = document.getElementById("mini-pos-trend-wrap");
     if (wrap) makeMiniTrend(wrap, (metric, qf) => {
       return filteredQuarters(qf).map(q => {
-        const found = (q.top_titles || []).find(x => x.title === t.title);
+        const found = (adjQuarter(q).top_titles || []).find(x => x.title === t.title);
         return found ? found[metric] : null;
       });
     });
@@ -596,7 +681,7 @@ async function showPerson(name, officeName) {
     const priorId = `${+latestYear - 1}Q${latestQ}`;
     const prior = hist.find(h => h.quarter === priorId);
     if (prior) {
-      const latestAnn = latest.quarterly_pay * 4, priorAnn = prior.quarterly_pay * 4;
+      const latestAnn = latest.quarterly_pay * 4 * cpiFactorForId(latest.quarter), priorAnn = prior.quarterly_pay * 4 * cpiFactorForId(prior.quarter);
       const diff = latestAnn - priorAnn;
       const pct = Math.round((diff / priorAnn) * 100);
       const labelMap = {};
@@ -656,7 +741,7 @@ async function showPerson(name, officeName) {
     let qf = 0;
     function drawPersonChart() {
       const filtQs = summary.quarters.filter(q => !qf || q.quarter === qf);
-      const data = filtQs.map(q => { const h = person.history.find(h => h.quarter === q.id); return h ? h.quarterly_pay * 4 : null; });
+      const data = filtQs.map(q => { const h = person.history.find(h => h.quarter === q.id); return h ? h.quarterly_pay * 4 * cpiFactorForQuarter(q) : null; });
       const labels = filtQs.map(q => q.label);
       const el = $("person-modal-chart");
       if (el) el.innerHTML = svgSparkline(data, labels);
@@ -768,6 +853,7 @@ function saveState() {
     tab: document.querySelector(".tab-btn.active")?.dataset.tab || "dist",
     viewQIdx,
     officeTypeFilter,
+    inflationOn,
     office: {
       search: $("office-search")?.value || "",
       sort: $("office-sort")?.value || "max",
@@ -793,6 +879,9 @@ async function restoreState() {
 
   officeTypeFilter = state.officeTypeFilter || "";
   document.querySelectorAll(".type-filter-btn").forEach(b => b.classList.toggle("active", (b.dataset.type || "") === officeTypeFilter));
+  inflationOn = !!state.inflationOn;
+  $("inflation-toggle")?.setAttribute("aria-pressed", inflationOn ? "true" : "false");
+  updateInflationNote();
 
   if (state.office) {
     if ($("office-search"))       $("office-search").value = state.office.search || "";
@@ -859,7 +948,7 @@ function buildOfficeData() {
     });
   } else {
     // Use pre-aggregated top_offices from that quarter's summary
-    officeData = (viewedQuarter().top_offices || [])
+    officeData = (adjQuarter(viewedQuarter()).top_offices || [])
       .filter(o => !officeTypeFilter || o.type === officeTypeFilter)
       .map(o => ({
         name: o.name, type: o.type, count: o.count,
@@ -1643,7 +1732,7 @@ function renderOfficeDetail(officeName, el) {
       }).join("")}</div>`;
   } else {
     // Historical quarter: use top_offices aggregate stats, no individual staff list
-    const qData = viewedQuarter();
+    const qData = adjQuarter(viewedQuarter());
     const o = (qData.top_offices || []).find(o => o.name === officeName);
     if (!o) { el.innerHTML = `<div class="office-detail-empty">No data for this quarter.</div>`; return; }
     el.innerHTML = `
@@ -1660,7 +1749,7 @@ function renderOfficeDetail(officeName, el) {
     const wrap = document.getElementById(trendWrapId);
     if (wrap) makeMiniTrend(wrap, (metric, qf) => {
       return filteredQuarters(qf).map(q => {
-        const o = (q.top_offices || []).find(o => o.name === officeName);
+        const o = (adjQuarter(q).top_offices || []).find(o => o.name === officeName);
         return o ? o[metric] : null;
       });
     });
@@ -1781,7 +1870,15 @@ function buildHistoricalEmployees(qId) {
 }
 
 function currentEmployeeSource() {
-  return isLatestQuarter() ? employees : buildHistoricalEmployees(viewedQuarter().id);
+  if (isLatestQuarter()) return employees; // the base quarter — factor is always 1
+  const q = viewedQuarter();
+  const rows = buildHistoricalEmployees(q.id);
+  const f = cpiFactorForQuarter(q);
+  if (f === 1) return rows;
+  // buildHistoricalEmployees() caches raw nominal figures (keyed only by
+  // quarter id) so the cache stays valid regardless of the inflation
+  // toggle — scale a fresh copy here instead of baking it into the cache.
+  return rows.map(e => ({ ...e, quarterly_pay: e.quarterly_pay * f, annual_equiv: Math.round(e.annual_equiv * f) }));
 }
 
 function applyFilters() {
@@ -1975,6 +2072,7 @@ document.addEventListener("DOMContentLoaded", () => {
   document.querySelectorAll(".type-filter-btn").forEach(btn => {
     btn.addEventListener("click", () => setOfficeTypeFilter(btn.dataset.type || ""));
   });
+  $("inflation-toggle")?.addEventListener("click", () => setInflationOn(!inflationOn));
 
   // Suggestion drawer
   const drawer = $("suggest-drawer");
