@@ -39,7 +39,7 @@ async function loadData() {
           viewQIdx = saved.viewQIdx;
         }
         officeTypeFilter = saved.officeTypeFilter || "";
-        document.querySelectorAll(".type-filter-btn").forEach(b => b.classList.toggle("active", (b.dataset.type || "") === officeTypeFilter));
+        document.querySelectorAll(".type-filter-btn[data-type]").forEach(b => b.classList.toggle("active", (b.dataset.type || "") === officeTypeFilter));
         inflationOn = !!saved.inflationOn;
         $("inflation-toggle")?.setAttribute("aria-pressed", inflationOn ? "true" : "false");
       }
@@ -218,7 +218,7 @@ async function navigateQuarter(dir) {
 
 async function setOfficeTypeFilter(type) {
   officeTypeFilter = type;
-  document.querySelectorAll(".type-filter-btn").forEach(b => b.classList.toggle("active", (b.dataset.type || "") === type));
+  document.querySelectorAll(".type-filter-btn[data-type]").forEach(b => b.classList.toggle("active", (b.dataset.type || "") === type));
 
   renderStats();
   renderDist();
@@ -878,7 +878,7 @@ async function restoreState() {
   }
 
   officeTypeFilter = state.officeTypeFilter || "";
-  document.querySelectorAll(".type-filter-btn").forEach(b => b.classList.toggle("active", (b.dataset.type || "") === officeTypeFilter));
+  document.querySelectorAll(".type-filter-btn[data-type]").forEach(b => b.classList.toggle("active", (b.dataset.type || "") === officeTypeFilter));
   inflationOn = !!state.inflationOn;
   $("inflation-toggle")?.setAttribute("aria-pressed", inflationOn ? "true" : "false");
   updateInflationNote();
@@ -2069,7 +2069,7 @@ document.addEventListener("DOMContentLoaded", () => {
   $("pos-search").addEventListener("input", e => renderPosResults(e.target.value));
   $("emp-search").addEventListener("input", () => { applyFilters(); saveState(); });
   $("emp-type").addEventListener("change", () => { applyFilters(); saveState(); });
-  document.querySelectorAll(".type-filter-btn").forEach(btn => {
+  document.querySelectorAll(".type-filter-btn[data-type]").forEach(btn => {
     btn.addEventListener("click", () => setOfficeTypeFilter(btn.dataset.type || ""));
   });
   $("inflation-toggle")?.addEventListener("click", () => setInflationOn(!inflationOn));
