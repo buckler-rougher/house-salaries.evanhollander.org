@@ -104,17 +104,17 @@ body {
 .logo-mark {
   display: inline-block;
   width: 1.3em;
-  height: 2em;
+  height: 1.85em;
   overflow: hidden;
   position: relative;
-  vertical-align: -0.55em;
-  margin-right: .2em;
+  vertical-align: -0.4em;
+  margin-right: .35em;
 }
 .logo-mark-img {
   position: absolute;
-  width: 1.3em;
+  width: 1.34em;
   height: 2.476em;
-  left: 0;
+  left: -0.02em;
   top: 0.12em;
   animation: logoRevealUp 750ms cubic-bezier(.3, 0, .2, 1) 200ms both;
 }
