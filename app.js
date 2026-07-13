@@ -521,13 +521,14 @@ function renderTrend() {
     }], hlOpts);
 
   } else if (trendMode === "type") {
-    // Comparing types against each other on purpose, so this ignores the
-    // global office-type filter and inflation adjustment — same reasoning
-    // as the By Type tab (both are comparison views, not point-in-time reads).
-    const datasets = ["member","committee","leadership","administrative"].map(type => ({
+    // With no global office-type filter, compare all four side by side. Once
+    // one is selected up top, narrow to just that type's line — otherwise
+    // picking "Member" up there had no visible effect on this chart at all.
+    const types = officeTypeFilter ? [officeTypeFilter] : ["member","committee","leadership","administrative"];
+    const datasets = types.map(type => ({
       id: type, label: TYPE_LABELS[type],
-      data: allQs.map(q => q.by_type[type]?.[trendMetric] ?? null),
-      color: TYPE_COLORS_TREND[type], fill: false,
+      data: allQs.map(q => adjQuarter(q).by_type[type]?.[trendMetric] ?? null),
+      color: TYPE_COLORS_TREND[type], fill: types.length === 1,
     }));
     drawSvgLineChart($("chart-trend"), labels, datasets, { legend: true, ...hlOpts });
   }
@@ -707,7 +708,7 @@ function selectTitle(t, el) {
       <div class="range-trio-cell"><div class="range-trio-val">${fmtSh(t.p75)}</div><div class="range-trio-key">75th pct.</div></div>
     </div>
     <div class="range-min-max"><span>Min: ${fmtSh(t.min)}</span><span>Max: ${fmtSh(t.max)}</span></div>
-    ${hasTrend ? miniTrendHtml("mini-pos-trend-wrap", "Salary trend") : ""}
+    ${hasTrend ? miniTrendHtml("mini-pos-trend-wrap", "Salary trend", priorTrendUI) : ""}
     ${staffHtml}
     </div>`;
 
@@ -750,7 +751,7 @@ function selectTitle(t, el) {
         const found = (adjQuarter(q).top_titles || []).find(x => x.title === t.title);
         return found ? found[metric] : null;
       });
-    }, seedTrend, priorTrendUI) : null;
+    }, seedTrend) : null;
   } else {
     lastPositionTrend = null;
   }
@@ -1122,22 +1123,24 @@ function buildOfficeData() {
 
 const METRIC_LABELS = { median:"Median", mean:"Average", p25:"25th pct.", p75:"75th pct." };
 
-function miniTrendHtml(wrapId, heading) {
+function miniTrendHtml(wrapId, heading, initial) {
+  const metric = initial?.metric || "median", qf = initial?.qf || 0;
+  const activeIf = cond => cond ? " active" : "";
   return `<div class="mini-trend-wrap" id="${wrapId}">
     <div class="mini-trend-heading">${heading}</div>
     <div class="mini-ctrl-row">
       <div class="mini-pills">
-        <button class="mini-pill active" data-metric="median">Median</button>
-        <button class="mini-pill" data-metric="mean">Avg</button>
-        <button class="mini-pill" data-metric="p25">P25</button>
-        <button class="mini-pill" data-metric="p75">P75</button>
+        <button class="mini-pill${activeIf(metric==="median")}" data-metric="median">Median</button>
+        <button class="mini-pill${activeIf(metric==="mean")}" data-metric="mean">Avg</button>
+        <button class="mini-pill${activeIf(metric==="p25")}" data-metric="p25">P25</button>
+        <button class="mini-pill${activeIf(metric==="p75")}" data-metric="p75">P75</button>
       </div>
       <div class="mini-pills">
-        <button class="mini-q active" data-q="0">All</button>
-        <button class="mini-q" data-q="1">Q1</button>
-        <button class="mini-q" data-q="2">Q2</button>
-        <button class="mini-q" data-q="3">Q3</button>
-        <button class="mini-q" data-q="4">Q4</button>
+        <button class="mini-q${activeIf(qf===0)}" data-q="0">All</button>
+        <button class="mini-q${activeIf(qf===1)}" data-q="1">Q1</button>
+        <button class="mini-q${activeIf(qf===2)}" data-q="2">Q2</button>
+        <button class="mini-q${activeIf(qf===3)}" data-q="3">Q3</button>
+        <button class="mini-q${activeIf(qf===4)}" data-q="4">Q4</button>
       </div>
     </div>
     <div class="mini-chart-wrap"></div>
@@ -1746,20 +1749,16 @@ function buildSparklineFrame(fullLabels, fullData, xs, opacities) {
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">${yTicks}${fills}${lines}${dots}</svg>`;
 }
 
-function makeMiniTrend(wrapEl, getDataFn, seedView, initial) {
-  let metric = initial?.metric || "median", qf = initial?.qf || 0;
+function makeMiniTrend(wrapEl, getDataFn, seedView) {
+  // miniTrendHtml() already rendered the pills with the right "active" class
+  // for `initial` — reading it back off the DOM (rather than trusting
+  // `initial` directly) keeps this in sync even if the template and this
+  // function's defaults ever drift.
+  let metric = wrapEl.querySelector(".mini-pill.active")?.dataset.metric || "median";
+  let qf = +(wrapEl.querySelector(".mini-q.active")?.dataset.q || 0);
   const chartWrap = wrapEl.querySelector(".mini-chart-wrap");
   let prev = seedView || null; // { fullLabels, fullData, visible, data, labels }
   let gen = 0;
-
-  // The template always marks Median/All active — if we were seeded with a
-  // different metric/quarter (card re-rendered while one was selected), sync
-  // the pill highlighting to match instead of visually snapping back to
-  // defaults while the chart itself keeps the restored selection.
-  if (initial) {
-    wrapEl.querySelectorAll(".mini-pill[data-metric]").forEach(p => p.classList.toggle("active", p.dataset.metric === metric));
-    wrapEl.querySelectorAll(".mini-q[data-q]").forEach(b => b.classList.toggle("active", +b.dataset.q === qf));
-  }
 
   function computeView() {
     const allQs = summary.quarters;
