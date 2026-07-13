@@ -974,7 +974,7 @@ async function showPersonInline(name, officeName) {
       const data = filtQs.map(q => { const h = person.history.find(h => h.quarter === q.id); return h ? h.quarterly_pay * 4 * cpiFactorForQuarter(q) : null; });
       const labels = filtQs.map(q => q.label);
       const el = detail.querySelector(".emp-detail-chart");
-      if (el) el.innerHTML = svgSparkline(data, labels);
+      if (el) el.innerHTML = svgSparkline(data, labels, qf ? 1 : 4);
     }
     drawPersonChart();
     detail.querySelectorAll(".mini-q").forEach(b => {
@@ -1284,7 +1284,7 @@ const trendChartCache = new WeakMap(); // containerEl -> { datasetSig, yMin, yMa
 
 // xs/opacities let a zoom animation override each point's pixel position and
 // visibility independently of its index — everything else derives from them.
-function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel, xs = null, opacities = null) {
+function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel, xs = null, opacities = null, annualMultiplier = 4) {
   const W = 680, H = 300;
   const pad = { t: 16, r: 16, b: 52, l: 58 };
   const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
@@ -1374,7 +1374,7 @@ function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel, xs = 
     const x0 = pts[0][0], x1 = pts[pts.length - 1][0];
     const y0 = sy(slope * x0 + intercept), y1 = sy(slope * x1 + intercept);
     if (datasets.length === 1) {
-      const annualSlope = slope * 4;
+      const annualSlope = slope * annualMultiplier;
       const sign = annualSlope >= 0 ? "+" : "−";
       const abs = Math.abs(annualSlope);
       const label = `${sign}$${abs >= 1000 ? (abs/1000).toFixed(1)+"k" : Math.round(abs)} / yr trend`;
@@ -1402,6 +1402,12 @@ function drawSvgLineChart(containerEl, fullLabels, fullDatasets, opts = {}) {
   for (let i = 0; i < fullLabels.length; i++) if (visible[i]) visIdx.push(i);
   const labels = visIdx.map(i => fullLabels[i]);
   const datasets = fullDatasets.map(d => ({ ...d, data: visIdx.map(i => d.data[i]) }));
+  // Once compacted down to a single calendar quarter's occurrences (e.g. "Q1"
+  // across every year), consecutive points are a year apart, not a quarter —
+  // the trend annotation's annualizing multiplier needs to reflect that or
+  // it comes out 4x too large. Full-timeline renders (with fading via
+  // xs/opacities, below) keep genuinely quarterly spacing, so they stay at 4.
+  const filteredMultiplier = labels.length === fullLabels.length ? 4 : 1;
 
   const allVals = datasets.flatMap(ds => ds.data.filter(v => v != null));
   if (!allVals.length) { containerEl.innerHTML = `<p style="padding:20px;color:#888;font-size:.85rem">No data.</p>`; return; }
@@ -1479,7 +1485,7 @@ function drawSvgLineChart(containerEl, fullLabels, fullDatasets, opts = {}) {
   };
 
   const renderStatic = (animateIn) => {
-    const { svgBody, W, H } = buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel);
+    const { svgBody, W, H } = buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel, null, null, filteredMultiplier);
     containerEl.innerHTML = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">${svgBody}</svg>`;
     finish(animateIn);
   };
@@ -1546,7 +1552,7 @@ function drawSvgLineChart(containerEl, fullLabels, fullDatasets, opts = {}) {
           return fv + (v - fv) * e;
         }),
       }));
-      const { svgBody, W, H } = buildTrendChartBody(labels, iDatasets, iYMin, iYMax, highlightLabel);
+      const { svgBody, W, H } = buildTrendChartBody(labels, iDatasets, iYMin, iYMax, highlightLabel, null, null, filteredMultiplier);
       containerEl.innerHTML = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">${svgBody}</svg>`;
       if (t < 1) {
         requestAnimationFrame(step);
@@ -1694,7 +1700,12 @@ function linReg(xs, ys) {
   return { slope, intercept };
 }
 
-function svgSparkline(data, labels) {
+// annualMultiplier converts "value change per index step" into "value change
+// per year": 4 when consecutive points are one quarter apart (the default,
+// full timeline), but 1 when the caller has filtered down to a single
+// calendar quarter (e.g. "Q1"), since then consecutive points are already a
+// full year apart and multiplying by 4 would inflate the trend 4x.
+function svgSparkline(data, labels, annualMultiplier = 4) {
   const W = 560, H = 200;
   const pad = { t: 22, r: 16, b: 48, l: 54 };
   const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
@@ -1760,8 +1771,7 @@ function svgSparkline(data, labels) {
     const ty0 = sy(slope * x0 + intercept), ty1 = sy(slope * x1 + intercept);
     trendEl = `<line x1="${sx(x0).toFixed(1)}" y1="${ty0.toFixed(1)}" x2="${sx(x1).toFixed(1)}" y2="${ty1.toFixed(1)}"
       stroke="#6b7280" stroke-width="1.2" stroke-dasharray="4 3" opacity=".7"/>`;
-    // slope is per quarter index step; annualise × 4
-    const annualSlope = slope * 4;
+    const annualSlope = slope * annualMultiplier;
     const sign = annualSlope >= 0 ? "+" : "−";
     const abs = Math.abs(annualSlope);
     const label = `${sign}$${abs >= 1000 ? (abs/1000).toFixed(1)+"k" : Math.round(abs)} / yr trend`;
@@ -1853,7 +1863,7 @@ function makeMiniTrend(wrapEl, getDataFn, seedView) {
   }
 
   function renderStatic(view) {
-    if (chartWrap) chartWrap.innerHTML = svgSparkline(view.data, view.labels);
+    if (chartWrap) chartWrap.innerHTML = svgSparkline(view.data, view.labels, qf ? 1 : 4);
   }
 
   function render() {
@@ -1886,7 +1896,7 @@ function makeMiniTrend(wrapEl, getDataFn, seedView) {
           if (v == null || fv == null) return t < 1 ? (t < .5 ? fv : v) : v;
           return fv + (v - fv) * e;
         });
-        chartWrap.innerHTML = svgSparkline(iData, view.labels);
+        chartWrap.innerHTML = svgSparkline(iData, view.labels, qf ? 1 : 4);
         if (t < 1) requestAnimationFrame(step);
       };
       requestAnimationFrame(step);
