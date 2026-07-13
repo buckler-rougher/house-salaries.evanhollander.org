@@ -252,6 +252,11 @@ async function navigateQuarter(dir) {
       // renderPosResults() just rebuilt the row list, so ".pos-row.active" no
       // longer exists — find the new row for this title by name instead.
       const activeRow = [...document.querySelectorAll(".pos-row")].find(r => r.querySelector(".pos-row-name")?.textContent === currentSelection.titleName);
+      // The position trend needs peopleData once a type filter is active —
+      // load it *before* re-rendering so selectTitle() doesn't have to hide
+      // the trend chart and re-add it a moment later (which was causing the
+      // staff list to visibly jump up and the chart to flash on/off).
+      if (officeTypeFilter) await loadPeople();
       if (t) selectTitle(t, activeRow);
     } else if (currentSelection.type === "person") {
       showPerson(currentSelection.personName, currentSelection.personOffice);
@@ -282,6 +287,11 @@ async function setOfficeTypeFilter(type) {
       // renderPosResults() just rebuilt the row list, so ".pos-row.active" no
       // longer exists — find the new row for this title by name instead.
       const activeRow = [...document.querySelectorAll(".pos-row")].find(r => r.querySelector(".pos-row-name")?.textContent === currentSelection.titleName);
+      // The position trend needs peopleData once a type filter is active —
+      // load it *before* re-rendering so selectTitle() doesn't have to hide
+      // the trend chart and re-add it a moment later (which was causing the
+      // staff list to visibly jump up and the chart to flash on/off).
+      if (officeTypeFilter) await loadPeople();
       if (t) selectTitle(t, activeRow); else clearTitle();
     } else if (currentSelection.type === "person") {
       showPerson(currentSelection.personName, currentSelection.personOffice);
@@ -313,6 +323,11 @@ async function setInflationOn(on) {
       // renderPosResults() just rebuilt the row list, so ".pos-row.active" no
       // longer exists — find the new row for this title by name instead.
       const activeRow = [...document.querySelectorAll(".pos-row")].find(r => r.querySelector(".pos-row-name")?.textContent === currentSelection.titleName);
+      // The position trend needs peopleData once a type filter is active —
+      // load it *before* re-rendering so selectTitle() doesn't have to hide
+      // the trend chart and re-add it a moment later (which was causing the
+      // staff list to visibly jump up and the chart to flash on/off).
+      if (officeTypeFilter) await loadPeople();
       if (t) selectTitle(t, activeRow); else clearTitle();
     } else if (currentSelection.type === "person") {
       showPerson(currentSelection.personName, currentSelection.personOffice);
@@ -601,7 +616,10 @@ function renderPosResults(query) {
   hits.forEach(t => {
     const el = document.createElement("div"); el.className = "pos-row";
     el.innerHTML = `<span class="pos-row-name">${esc(t.title)}</span><span class="pos-row-count">${t.count.toLocaleString()} staff</span><span class="pos-row-median">${fmtK(t.median)}</span>`;
-    el.addEventListener("click", () => selectTitle(t, el));
+    el.addEventListener("click", async () => {
+      if (officeTypeFilter) await loadPeople();
+      selectTitle(t, el);
+    });
     c.appendChild(el);
   });
 }
@@ -640,7 +658,7 @@ function animatePositionNumberText(el, fromVal, toVal, fmtFn, duration = 450) {
   requestAnimationFrame(step);
 }
 
-function selectTitle(t, el) {
+function selectTitle(t, el, forcedTrendUI) {
   if (currentSelection?.type !== "title") {
     preTitleTab = document.querySelector(".tab-btn.active")?.dataset.tab || "dist";
   }
@@ -674,11 +692,13 @@ function selectTitle(t, el) {
   // Preserve the mini trend chart's own metric/quarter-filter selection across
   // a re-render — office-type/quarter/inflation changes (and switching to a
   // different position) rebuild this card from scratch, which was silently
-  // snapping an active "Q1" selection back to "All" every time.
-  const priorTrendUI = isUpdate ? {
+  // snapping an active "Q1" selection back to "All" every time. On a fresh
+  // page load there's no prior DOM to read this from, so restoreHash() passes
+  // whatever was saved in the URL instead.
+  const priorTrendUI = forcedTrendUI || (isUpdate ? {
     metric: posView.querySelector(".mini-pill.active")?.dataset.metric || "median",
     qf: +(posView.querySelector(".mini-q.active")?.dataset.q || 0),
-  } : null;
+  } : null);
 
   currentSelection = { type: "title", titleName: t.title };
   document.querySelectorAll(".pos-row").forEach(r => r.classList.remove("active"));
@@ -686,7 +706,7 @@ function selectTitle(t, el) {
   document.querySelectorAll(".tab-btn").forEach(b => b.classList.remove("active"));
   document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
   $("tab-position").classList.add("active");
-  setHash({ pos: t.title });
+  setHash({ pos: t.title, pmetric: priorTrendUI?.metric, pq: priorTrendUI?.qf });
   const max = Math.max(t.max||0, 220000), pct = v => Math.min(100, v/max*100);
 
   const staff = employees
@@ -1029,10 +1049,15 @@ function setHash(state) {
   const parts = [];
   if (state.pos)    parts.push("pos=" + encodeURIComponent(state.pos));
   if (state.person) parts.push("person=" + encodeURIComponent(state.person));
+  // Position card's own mini trend-chart selection — persisted alongside the
+  // position so reloading with e.g. Q1 selected doesn't silently snap it
+  // back to "All".
+  if (state.pmetric && state.pmetric !== "median") parts.push("pmetric=" + state.pmetric);
+  if (state.pq) parts.push("pq=" + state.pq);
   history.replaceState(null, "", parts.length ? "#" + parts.join("&") : location.pathname);
 }
 
-function restoreHash() {
+async function restoreHash() {
   if (!location.hash) return;
   const params = {};
   location.hash.slice(1).split("&").forEach(p => {
@@ -1043,7 +1068,9 @@ function restoreHash() {
     const t = titles.find(t => t.title === params.pos);
     if (t) {
       const row = [...document.querySelectorAll(".pos-row")].find(r => r.querySelector(".pos-row-name")?.textContent === t.title);
-      selectTitle(t, row);
+      if (officeTypeFilter) await loadPeople();
+      const forcedTrendUI = (params.pmetric || params.pq) ? { metric: params.pmetric || "median", qf: +(params.pq || 0) } : null;
+      selectTitle(t, row, forcedTrendUI);
     }
   }
   if (params.person) {
@@ -1920,11 +1947,20 @@ function makeMiniTrend(wrapEl, getDataFn, seedView) {
     prev = view;
   }
 
+  // Position card only: keep the URL in sync as the user clicks these pills
+  // directly, not just when something else triggers a full re-render — a
+  // reload right after picking "Q1" needs pq=1 already in the hash, since
+  // selectTitle() itself won't run again until the next filter change.
+  const syncHash = wrapEl.id === "mini-pos-trend-wrap" && currentSelection?.type === "title"
+    ? () => setHash({ pos: currentSelection.titleName, pmetric: metric, pq: qf })
+    : () => {};
+
   wrapEl.querySelectorAll(".mini-pill[data-metric]").forEach(pill => {
     pill.addEventListener("click", () => {
       metric = pill.dataset.metric;
       wrapEl.querySelectorAll(".mini-pill[data-metric]").forEach(p => p.classList.toggle("active", p === pill));
       render();
+      syncHash();
     });
   });
   wrapEl.querySelectorAll(".mini-q[data-q]").forEach(btn => {
@@ -1932,6 +1968,7 @@ function makeMiniTrend(wrapEl, getDataFn, seedView) {
       qf = +btn.dataset.q;
       wrapEl.querySelectorAll(".mini-q").forEach(b => b.classList.toggle("active", b === btn));
       render();
+      syncHash();
     });
   });
 
