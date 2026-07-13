@@ -77,6 +77,35 @@ async function loadPeople() {
   peopleLoading = false;
 }
 
+// Median/mean/p25/p75 from a raw array of amounts — same percentile math as
+// buildTitles(), pulled out so the position trend chart can reuse it when
+// deriving type-filtered historical values from peopleData (summary.json's
+// pre-aggregated top_titles isn't broken out by office type).
+function metricFromAmounts(amounts, metric) {
+  if (!amounts.length) return null;
+  const s = amounts.slice().sort((a,b) => a-b);
+  if (metric === "mean") return s.reduce((a,b) => a+b, 0) / s.length;
+  const pctOf = pct => { const i=(s.length-1)*pct/100, lo=Math.floor(i), hi=Math.min(lo+1,s.length-1); return s[lo]+(s[hi]-s[lo])*(i-lo); };
+  return pctOf({ median: 50, p25: 25, p75: 75 }[metric] ?? 50);
+}
+
+// Per-quarter median/mean/p25/p75 for a title, filtered to one office type,
+// derived from each person's own quarterly history — the only way to get a
+// type-broken-out historical trend, since top_titles is all-types-combined.
+// Returns null if peopleData isn't loaded yet or no one matches.
+function positionTrendByType(title, type) {
+  if (!peopleData) return null;
+  const matches = peopleData.filter(p => p.title === title && (!type || p.type === type));
+  if (!matches.length) return null;
+  return (metric, qf) => filteredQuarters(qf).map(q => {
+    const amounts = matches
+      .map(p => p.history.find(h => h.quarter === q.id))
+      .filter(Boolean)
+      .map(h => h.quarterly_pay * 4 * cpiFactorForQuarter(q));
+    return metricFromAmounts(amounts, metric);
+  });
+}
+
 function viewedQuarter() {
   const qs = summary.quarters;
   return viewQIdx < 0 ? qs[qs.length - 1] : qs[viewQIdx];
@@ -521,14 +550,13 @@ function renderTrend() {
     }], hlOpts);
 
   } else if (trendMode === "type") {
-    // With no global office-type filter, compare all four side by side. Once
-    // one is selected up top, narrow to just that type's line — otherwise
-    // picking "Member" up there had no visible effect on this chart at all.
-    const types = officeTypeFilter ? [officeTypeFilter] : ["member","committee","leadership","administrative"];
-    const datasets = types.map(type => ({
+    // Always compares all four types against each other regardless of the
+    // global office-type filter — that's the point of this view, and
+    // narrowing it to one line would just duplicate the Overall chart.
+    const datasets = ["member","committee","leadership","administrative"].map(type => ({
       id: type, label: TYPE_LABELS[type],
-      data: allQs.map(q => adjQuarter(q).by_type[type]?.[trendMetric] ?? null),
-      color: TYPE_COLORS_TREND[type], fill: types.length === 1,
+      data: allQs.map(q => q.by_type[type]?.[trendMetric] ?? null),
+      color: TYPE_COLORS_TREND[type], fill: false,
     }));
     drawSvgLineChart($("chart-trend"), labels, datasets, { legend: true, ...hlOpts });
   }
@@ -665,11 +693,32 @@ function selectTitle(t, el) {
     .filter(e => !e.intern && !e.shared && e.title === t.title && (!officeTypeFilter || e.type === officeTypeFilter))
     .sort((a,b) => b.annual_equiv - a.annual_equiv);
 
-  const trendLabels = summary.quarters.map(q => q.label);
-  const trendData = summary.quarters.map(q => {
+  // top_titles (the fast path) is never broken out by office type, so once a
+  // type is selected up top we need per-person history instead. If that
+  // hasn't loaded yet, kick it off and re-run selectTitle() once it's ready —
+  // showing the all-types trend in the meantime would just be wrong data.
+  let trendGetDataFn = (metric, qf) => filteredQuarters(qf).map(q => {
     const found = (adjQuarter(q).top_titles || []).find(x => x.title === t.title);
-    return found ? found.median : null;
+    return found ? found[metric] : null;
   });
+  let trendData = trendGetDataFn("median", 0);
+
+  if (officeTypeFilter) {
+    const typeTrendFn = positionTrendByType(t.title, officeTypeFilter);
+    if (typeTrendFn) {
+      trendGetDataFn = typeTrendFn;
+      trendData = typeTrendFn("median", 0);
+    } else if (!peopleData) {
+      trendData = [];
+      loadPeople().then(() => {
+        if (currentSelection?.type === "title" && currentSelection.titleName === t.title) {
+          selectTitle(t, document.querySelector(".pos-row.active"));
+        }
+      });
+    } else {
+      trendData = []; // peopleData loaded but nobody with this title+type has 3+ quarters of history
+    }
+  }
   const hasTrend = trendData.filter(v => v != null).length >= 2;
 
   const staffHtml = staff.length ? `
@@ -746,12 +795,7 @@ function selectTitle(t, el) {
 
   if (hasTrend) {
     const wrap = document.getElementById("mini-pos-trend-wrap");
-    lastPositionTrend = wrap ? makeMiniTrend(wrap, (metric, qf) => {
-      return filteredQuarters(qf).map(q => {
-        const found = (adjQuarter(q).top_titles || []).find(x => x.title === t.title);
-        return found ? found[metric] : null;
-      });
-    }, seedTrend) : null;
+    lastPositionTrend = wrap ? makeMiniTrend(wrap, trendGetDataFn, seedTrend) : null;
   } else {
     lastPositionTrend = null;
   }
