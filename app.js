@@ -71,7 +71,7 @@ async function loadPeople() {
   if (peopleData || peopleLoading) return;
   peopleLoading = true;
   try {
-    const r = await fetch("data/people.json");
+    const r = await fetch("data/people.json", { cache: "no-cache" });
     if (r.ok) { const d = await r.json(); peopleData = d.people || []; }
   } catch(e) { /* non-fatal */ }
   peopleLoading = false;
@@ -104,6 +104,41 @@ function positionTrendByType(title, type) {
       .map(h => h.quarterly_pay * 4 * cpiFactorForQuarter(q));
     return metricFromAmounts(amounts, metric);
   });
+}
+
+// Full min/p10/p25/median/p75/p90/max/mean/count from a raw amounts array —
+// same shape as buildTitles()'s per-title stats, so the position card's own
+// header (bar/trio/min-max/count) can be built from this instead when a
+// tenure-filtered peopleData slice is available for it.
+function fullStatsFromAmounts(amounts) {
+  if (!amounts.length) return null;
+  const s = amounts.slice().sort((a,b) => a-b);
+  const pctOf = pct => { const i=(s.length-1)*pct/100, lo=Math.floor(i), hi=Math.min(lo+1,s.length-1); return s[lo]+(s[hi]-s[lo])*(i-lo); };
+  return {
+    count: s.length, min: s[0], max: s[s.length-1],
+    median: pctOf(50), p10: pctOf(10), p25: pctOf(25), p75: pctOf(75), p90: pctOf(90),
+    mean: s.reduce((a,b) => a+b, 0) / s.length,
+  };
+}
+
+// The header stats (bar/trio/min-max/count) for a position card, preferring
+// the same tenure-filtered peopleData cohort the trend chart uses — that
+// excludes each quarter's brand-new hires, which is a *more* accurate read of
+// "what does this role pay" than the raw roster snapshot t (from
+// buildTitles()/top_titles, no tenure requirement) otherwise gives us. Keyed
+// off whatever quarter is currently being viewed, not just the latest one, so
+// browsing history stays consistent too. Falls back to t when peopleData
+// isn't loaded yet or nobody qualifies.
+function positionHeaderStats(t, type) {
+  if (!peopleData) return t;
+  const matches = peopleData.filter(p => p.title === t.title && (!type || p.type === type));
+  if (!matches.length) return t;
+  const qId = viewedQuarter().id;
+  const amounts = matches
+    .map(p => p.history.find(h => h.quarter === qId))
+    .filter(Boolean)
+    .map(h => h.quarterly_pay * 4 * cpiFactorForId(qId));
+  return fullStatsFromAmounts(amounts) || t;
 }
 
 function viewedQuarter() {
@@ -713,7 +748,14 @@ function selectTitle(t, el, forcedTrendUI) {
   document.querySelectorAll(".tab-pane").forEach(p => p.classList.remove("active"));
   $("tab-position").classList.add("active");
   setHash({ pos: t.title, pmetric: priorTrendUI?.metric, pq: priorTrendUI?.qf });
-  const max = Math.max(t.max||0, 220000), pct = v => Math.min(100, v/max*100);
+  // Bar/trio/min-max/count read from hs, not t directly — see
+  // positionHeaderStats()'s comment for why the tenure-filtered peopleData
+  // cohort is preferred over the raw current-roster snapshot when available.
+  // (Requires data/people.json's title/type/office fields to reflect each
+  // person's current role, not their oldest — see fetch_sod.py's
+  // strip_org_prefix()/people_index comments; regenerated as of this fix.)
+  const hs = positionHeaderStats(t, officeTypeFilter);
+  const max = Math.max(hs.max||0, 220000), pct = v => Math.min(100, v/max*100);
 
   // `employees` only ever holds the latest quarter's roster — for a historical
   // quarter this staff list would silently show today's people standing next
@@ -741,22 +783,14 @@ function selectTitle(t, el, forcedTrendUI) {
 
   const typeTrendFn = positionTrendByType(t.title, officeTypeFilter || null);
   if (typeTrendFn) {
-    // peopleData only tracks people with 3+ quarters of tenure, so even its
-    // "latest quarter" point is a smaller, longer-tenured slice than the full
-    // current roster t itself was built from (buildTitles(), no tenure
-    // filter) — the two could disagree even though they describe the exact
-    // same quarter. t is already correct and already on screen in the
-    // trio/bar above, so pin the chart's latest-quarter point to it instead
-    // of letting the chart quietly show a different number for "now."
-    const latestQId = summary.quarters[summary.quarters.length - 1].id;
-    trendGetDataFn = (metric, qf) => {
-      const qs = filteredQuarters(qf);
-      const data = typeTrendFn(metric, qf);
-      const latestIdx = qs.findIndex(q => q.id === latestQId);
-      if (latestIdx !== -1 && t[metric] != null) data[latestIdx] = t[metric];
-      return data;
-    };
-    trendData = trendGetDataFn("median", 0);
+    // This deliberately does NOT match t (the header trio/bar, built from
+    // the full current roster with no tenure requirement) — a trend needs a
+    // consistent cohort over time, and peopleData's 3+-quarter tenure filter
+    // is what makes that possible: it tracks the same people release to
+    // release instead of diluting "how has pay changed" with this quarter's
+    // brand-new hires, who have no history to show a trend with anyway.
+    trendGetDataFn = typeTrendFn;
+    trendData = typeTrendFn("median", 0);
   } else if (!peopleData) {
     loadPeople().then(() => {
       if (currentSelection?.type === "title" && currentSelection.titleName === t.title) {
@@ -787,23 +821,23 @@ function selectTitle(t, el, forcedTrendUI) {
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div>
         <div class="range-card-title">${esc(t.title)}</div>
-        <div class="range-card-sub">${t.count.toLocaleString()} employees${(officeTypeFilter && isLatestQuarter()) ? ` · ${TYPE_LABELS[officeTypeFilter]} offices` : ""} · ${isLatestQuarter() ? "latest quarter" : esc(viewedQuarter().label)} · annual equivalent</div>
+        <div class="range-card-sub">${hs.count.toLocaleString()} employees${(officeTypeFilter && isLatestQuarter()) ? ` · ${TYPE_LABELS[officeTypeFilter]} offices` : ""} · ${isLatestQuarter() ? "latest quarter" : esc(viewedQuarter().label)} · annual equivalent</div>
       </div>
       <button onclick="clearTitle()" style="background:none;border:none;cursor:pointer;color:var(--ink3);font-size:1.1rem;line-height:1;padding:2px;flex-shrink:0;margin-top:2px">&times;</button>
     </div>
     <div class="range-bar-wrap">
       <div class="range-bar-track">
-        <div class="range-bar-fill" style="left:${pct(t.p10)}%;width:${pct(t.p90)-pct(t.p10)}%"></div>
-        <div class="range-bar-needle" style="left:${pct(t.median)}%"></div>
+        <div class="range-bar-fill" style="left:${pct(hs.p10)}%;width:${pct(hs.p90)-pct(hs.p10)}%"></div>
+        <div class="range-bar-needle" style="left:${pct(hs.median)}%"></div>
       </div>
-      <div class="range-bar-labels"><span>${fmtSh(t.p10)} (P10)</span><span>${fmtSh(t.p90)} (P90)</span></div>
+      <div class="range-bar-labels"><span>${fmtSh(hs.p10)} (P10)</span><span>${fmtSh(hs.p90)} (P90)</span></div>
     </div>
     <div class="range-trio">
-      <div class="range-trio-cell"><div class="range-trio-val">${fmtSh(t.p25)}</div><div class="range-trio-key">25th pct.</div></div>
-      <div class="range-trio-cell"><div class="range-trio-val">${fmtSh(t.median)}</div><div class="range-trio-key">Median</div></div>
-      <div class="range-trio-cell"><div class="range-trio-val">${fmtSh(t.p75)}</div><div class="range-trio-key">75th pct.</div></div>
+      <div class="range-trio-cell"><div class="range-trio-val">${fmtSh(hs.p25)}</div><div class="range-trio-key">25th pct.</div></div>
+      <div class="range-trio-cell"><div class="range-trio-val">${fmtSh(hs.median)}</div><div class="range-trio-key">Median</div></div>
+      <div class="range-trio-cell"><div class="range-trio-val">${fmtSh(hs.p75)}</div><div class="range-trio-key">75th pct.</div></div>
     </div>
-    <div class="range-min-max"><span>Min: ${fmtSh(t.min)}</span><span>Max: ${fmtSh(t.max)}</span></div>
+    <div class="range-min-max"><span>Min: ${fmtSh(hs.min)}</span><span>Max: ${fmtSh(hs.max)}</span></div>
     ${hasTrend ? miniTrendHtml("mini-pos-trend-wrap", "Salary trend", priorTrendUI) : ""}
     ${staffHtml}
     </div>`;
@@ -822,9 +856,9 @@ function selectTitle(t, el, forcedTrendUI) {
     requestAnimationFrame(() => {
       fillEl.style.transition = "left 450ms cubic-bezier(.4,0,.2,1), width 450ms cubic-bezier(.4,0,.2,1)";
       needleEl.style.transition = "left 450ms cubic-bezier(.4,0,.2,1)";
-      fillEl.style.left = `${pct(t.p10)}%`;
-      fillEl.style.width = `${pct(t.p90)-pct(t.p10)}%`;
-      needleEl.style.left = `${pct(t.median)}%`;
+      fillEl.style.left = `${pct(hs.p10)}%`;
+      fillEl.style.width = `${pct(hs.p90)-pct(hs.p10)}%`;
+      needleEl.style.left = `${pct(hs.median)}%`;
     });
   }
 
@@ -832,12 +866,12 @@ function selectTitle(t, el, forcedTrendUI) {
   // snapping — mirrors the y-axis tick animation in renderDist().
   if (priorNums) {
     const trioEls = posView.querySelectorAll(".range-trio-val");
-    animatePositionNumberText(trioEls[0], priorNums.p25, t.p25, fmtSh);
-    animatePositionNumberText(trioEls[1], priorNums.median, t.median, fmtSh);
-    animatePositionNumberText(trioEls[2], priorNums.p75, t.p75, fmtSh);
+    animatePositionNumberText(trioEls[0], priorNums.p25, hs.p25, fmtSh);
+    animatePositionNumberText(trioEls[1], priorNums.median, hs.median, fmtSh);
+    animatePositionNumberText(trioEls[2], priorNums.p75, hs.p75, fmtSh);
     const minMaxEls = posView.querySelectorAll(".range-min-max span");
-    animatePositionNumberText(minMaxEls[0], priorNums.min, t.min, v => `Min: ${fmtSh(v)}`);
-    animatePositionNumberText(minMaxEls[1], priorNums.max, t.max, v => `Max: ${fmtSh(v)}`);
+    animatePositionNumberText(minMaxEls[0], priorNums.min, hs.min, v => `Min: ${fmtSh(v)}`);
+    animatePositionNumberText(minMaxEls[1], priorNums.max, hs.max, v => `Max: ${fmtSh(v)}`);
   }
 
   if (hasTrend) {

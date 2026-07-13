@@ -43,7 +43,21 @@ HOUSE_MIN_QUARTERLY = HOUSE_MIN_ANNUAL / 4  # ~$11,250
 
 def is_intern(title):
     t = title.upper()
-    return "INTERN" in t
+    # Bare substring match false-positives on "Internet Systems Specialist"
+    # ($172k) and "International Trade Policy Adv..." ($154k) — real staff,
+    # not interns. Word-boundary avoids that.
+    if not re.search(r"\bINTERN\b|\bINTERNSHIP\b", t):
+        return False
+    # A handful of real, well-paid staff titles describe managing/coordinating
+    # the internship program rather than being an intern themselves — e.g.
+    # "Manager, House Intern Resource" ($116k/yr) or "Policy Aide/Intern
+    # Coordinator" ($75k/yr). DESCRIPTION gets truncated by the source CSV
+    # (e.g. "Staff Assistant/Intern Coordin"), so match on a safe prefix
+    # rather than the full word. (Deliberately not excluding "OFFICE" — that
+    # collides with genuine intern titles like "District Office Paid Intern".)
+    if re.search(r"\bCOORDIN|\bMANAGER\b|\bRESOURCE", t):
+        return False
+    return True
 
 def classify_office(org):
     s = re.sub(r"^\d{4}\s+", "", org.upper())
@@ -110,6 +124,15 @@ def title_case(s):
 def normalize_title(desc):
     """Normalize job title for grouping."""
     return desc.strip().upper()
+
+def strip_org_prefix(org):
+    """ORGANIZATION values carry a leading year stamp that varies in form —
+    sometimes a bare "NNNN ", sometimes "FISCAL YEAR NNNN " — even for the
+    same office within the same quarter. Every place that groups by office
+    must strip both forms the same way, or the same real office silently
+    fragments into two keys (and, worse, a person paid under both variants
+    gets flagged as a "shared" employee and excluded from every stat)."""
+    return re.sub(r"^FISCAL YEAR \d{4}\s*", "", re.sub(r"^\d{4}\s+", "", org)).strip()
 
 def percentile(data, p):
     if not data:
@@ -182,7 +205,7 @@ def fetch_quarter(q):
         if not vendor or not org:
             continue
         # Normalize org: strip leading year so "2025 HON. X" and "2026 HON. X" merge
-        org_key = re.sub(r"^\d{4}\s+", "", org).upper().strip()
+        org_key = strip_org_prefix(org).upper()
         key = (vendor, org_key)
         payments[key]["amount"] += amount
         payments[key]["org"] = org  # keep most recent raw name for display
@@ -248,11 +271,11 @@ def process_all(quarters_to_process=None):
         # Top offices by staff count (for trend charts)
         by_office = defaultdict(list)
         for e in staff:
-            key = re.sub(r"^FISCAL YEAR \d{4}\s*", "", re.sub(r"^\d{4}\s+", "", e["office"])).strip()
+            key = strip_org_prefix(e["office"])
             by_office[key].append(e["annual_equiv"])
         by_office_pay = defaultdict(float)
         for e in staff:
-            key = re.sub(r"^FISCAL YEAR \d{4}\s*", "", re.sub(r"^\d{4}\s+", "", e["office"])).strip()
+            key = strip_org_prefix(e["office"])
             by_office_pay[key] += e["quarterly_pay"]
         top_offices = sorted(
             [{"name": name, "type": classify_office(name),
@@ -276,17 +299,23 @@ def process_all(quarters_to_process=None):
         }
         quarter_summaries.append(summary)
 
-        # Build people history index (non-intern, non-shared only)
+        # Build people history index (non-intern, non-shared only). QUARTERS
+        # is newest-first, so the first time we see a given (name, org_key)
+        # pair is their *most recent* quarter — only snapshot title/type
+        # then, so someone who's since changed titles is filed under their
+        # current one, not whatever they held furthest back in history.
+        # history still accumulates every quarter regardless of title.
         for e in employees:
             if e["intern"] or e["shared"]:
                 continue
-            org_key = re.sub(r"^FISCAL YEAR \d{4}\s*", "", re.sub(r"^\d{4}\s+", "", e["office"])).strip()
+            org_key = strip_org_prefix(e["office"])
             pk = (e["name"], org_key)
             p = people_index[pk]
-            p["name"] = e["name"]
-            p["office"] = org_key
-            p["title"] = e["title"]
-            p["type"] = e["type"]
+            if not p["history"]:
+                p["name"] = e["name"]
+                p["office"] = org_key
+                p["title"] = e["title"]
+                p["type"] = e["type"]
             p["history"].append({"quarter": q["id"], "quarterly_pay": e["quarterly_pay"]})
 
         if all_employees_latest is None:
