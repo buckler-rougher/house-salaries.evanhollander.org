@@ -642,6 +642,14 @@ function selectTitle(t, el) {
     }
   }
   const seedTrend = isUpdate ? lastPositionTrend?.getPrev() : null;
+  // Preserve the mini trend chart's own metric/quarter-filter selection across
+  // a re-render — office-type/quarter/inflation changes (and switching to a
+  // different position) rebuild this card from scratch, which was silently
+  // snapping an active "Q1" selection back to "All" every time.
+  const priorTrendUI = isUpdate ? {
+    metric: posView.querySelector(".mini-pill.active")?.dataset.metric || "median",
+    qf: +(posView.querySelector(".mini-q.active")?.dataset.q || 0),
+  } : null;
 
   currentSelection = { type: "title", titleName: t.title };
   document.querySelectorAll(".pos-row").forEach(r => r.classList.remove("active"));
@@ -742,7 +750,7 @@ function selectTitle(t, el) {
         const found = (adjQuarter(q).top_titles || []).find(x => x.title === t.title);
         return found ? found[metric] : null;
       });
-    }, seedTrend) : null;
+    }, seedTrend, priorTrendUI) : null;
   } else {
     lastPositionTrend = null;
   }
@@ -1738,11 +1746,20 @@ function buildSparklineFrame(fullLabels, fullData, xs, opacities) {
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">${yTicks}${fills}${lines}${dots}</svg>`;
 }
 
-function makeMiniTrend(wrapEl, getDataFn, seedView) {
-  let metric = "median", qf = 0;
+function makeMiniTrend(wrapEl, getDataFn, seedView, initial) {
+  let metric = initial?.metric || "median", qf = initial?.qf || 0;
   const chartWrap = wrapEl.querySelector(".mini-chart-wrap");
   let prev = seedView || null; // { fullLabels, fullData, visible, data, labels }
   let gen = 0;
+
+  // The template always marks Median/All active — if we were seeded with a
+  // different metric/quarter (card re-rendered while one was selected), sync
+  // the pill highlighting to match instead of visually snapping back to
+  // defaults while the chart itself keeps the restored selection.
+  if (initial) {
+    wrapEl.querySelectorAll(".mini-pill[data-metric]").forEach(p => p.classList.toggle("active", p.dataset.metric === metric));
+    wrapEl.querySelectorAll(".mini-q[data-q]").forEach(b => b.classList.toggle("active", +b.dataset.q === qf));
+  }
 
   function computeView() {
     const allQs = summary.quarters;
