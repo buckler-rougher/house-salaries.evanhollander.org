@@ -312,6 +312,7 @@ async function setInflationOn(on) {
   renderPosResults($("pos-search")?.value || "");
   buildOfficeData();
   renderOfficeList();
+  $("type-bars").innerHTML = ""; renderTypeBars();
   if (!isLatestQuarter()) await loadPeople();
   applyFilters();
   renderTrend();
@@ -517,13 +518,14 @@ function renderDist() {
 }
 
 function renderTypeBars() {
-  const q = viewedQuarter();
+  const q = adjQuarter(viewedQuarter());
   if (!q) return;
   const max = 220000, pct = v => Math.min(100, v/max*100);
   const c = $("type-bars"); c.innerHTML = "";
   // This tab is for comparing types against each other, so it ignores the
   // global office-type filter on purpose — filtering it down to one type
-  // would defeat the point.
+  // would defeat the point. Inflation adjustment still applies, though —
+  // unlike the type filter, that's not something this comparison should skip.
   ["member","committee","leadership","administrative"].forEach(type => {
     const s = q.by_type[type]; if (!s || !s.count) return;
     const col = TYPE_COLORS[type];
@@ -713,9 +715,13 @@ function selectTitle(t, el, forcedTrendUI) {
   setHash({ pos: t.title, pmetric: priorTrendUI?.metric, pq: priorTrendUI?.qf });
   const max = Math.max(t.max||0, 220000), pct = v => Math.min(100, v/max*100);
 
-  const staff = employees
+  // `employees` only ever holds the latest quarter's roster — for a historical
+  // quarter this staff list would silently show today's people standing next
+  // to that older quarter's percentiles, so it's gated to isLatestQuarter()
+  // below instead of rendering a mismatched list.
+  const staff = isLatestQuarter() ? employees
     .filter(e => !e.intern && !e.shared && e.title === t.title && (!officeTypeFilter || e.type === officeTypeFilter))
-    .sort((a,b) => b.annual_equiv - a.annual_equiv);
+    .sort((a,b) => b.annual_equiv - a.annual_equiv) : [];
 
   // top_titles (the fast synchronous path, available before peopleData loads)
   // is a full per-quarter population snapshot with no tenure requirement and
@@ -760,14 +766,14 @@ function selectTitle(t, el, forcedTrendUI) {
         </div>`;
       }).join("")}
       ${staff.length>30?`<div class="range-staff-more">+${staff.length-30} more</div>`:""}
-    </div>` : "";
+    </div>` : (isLatestQuarter() ? "" : `<div class="office-detail-empty" style="font-size:.75rem;margin-top:12px">Individual staff data only available for the latest quarter.</div>`);
 
   posView.innerHTML = `
     <div class="range-card">
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div>
         <div class="range-card-title">${esc(t.title)}</div>
-        <div class="range-card-sub">${t.count.toLocaleString()} employees${(officeTypeFilter && isLatestQuarter()) ? ` · ${TYPE_LABELS[officeTypeFilter]} offices` : ""} · latest quarter · annual equivalent</div>
+        <div class="range-card-sub">${t.count.toLocaleString()} employees${(officeTypeFilter && isLatestQuarter()) ? ` · ${TYPE_LABELS[officeTypeFilter]} offices` : ""} · ${isLatestQuarter() ? "latest quarter" : esc(viewedQuarter().label)} · annual equivalent</div>
       </div>
       <button onclick="clearTitle()" style="background:none;border:none;cursor:pointer;color:var(--ink3);font-size:1.1rem;line-height:1;padding:2px;flex-shrink:0;margin-top:2px">&times;</button>
     </div>
@@ -1998,7 +2004,11 @@ function renderOfficeDetail(officeName, el) {
   const hasTrend = summary.quarters.some(q => (q.top_offices || []).find(o => o.name === officeName));
 
   if (isLatestQuarter()) {
-    const staff = employees.filter(e => !e.intern && cleanOrg(e.office) === officeName)
+    // Every other stats computation (office list, distribution, title/position
+    // stats) excludes shared employees — this one didn't, so an office's own
+    // detail panel could show a different median/total/count than its own row
+    // in the office list just above it.
+    const staff = employees.filter(e => !e.intern && !e.shared && cleanOrg(e.office) === officeName)
       .sort((a,b) => b.annual_equiv - a.annual_equiv);
     if (!staff.length) { el.innerHTML = `<div class="office-detail-empty">No staff data.</div>`; return; }
     const amts = staff.map(e => e.annual_equiv).sort((a,b)=>a-b);
