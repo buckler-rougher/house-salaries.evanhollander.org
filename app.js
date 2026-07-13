@@ -252,11 +252,11 @@ async function navigateQuarter(dir) {
       // renderPosResults() just rebuilt the row list, so ".pos-row.active" no
       // longer exists — find the new row for this title by name instead.
       const activeRow = [...document.querySelectorAll(".pos-row")].find(r => r.querySelector(".pos-row-name")?.textContent === currentSelection.titleName);
-      // The position trend needs peopleData once a type filter is active —
-      // load it *before* re-rendering so selectTitle() doesn't have to hide
-      // the trend chart and re-add it a moment later (which was causing the
-      // staff list to visibly jump up and the chart to flash on/off).
-      if (officeTypeFilter) await loadPeople();
+      // selectTitle() now always prefers peopleData for the trend chart (see
+      // its comment) — load it *before* re-rendering so it doesn't have to
+      // hide the trend chart and re-add it a moment later (which was causing
+      // the staff list to visibly jump up and the chart to flash on/off).
+      await loadPeople();
       if (t) selectTitle(t, activeRow);
     } else if (currentSelection.type === "person") {
       showPerson(currentSelection.personName, currentSelection.personOffice);
@@ -287,11 +287,11 @@ async function setOfficeTypeFilter(type) {
       // renderPosResults() just rebuilt the row list, so ".pos-row.active" no
       // longer exists — find the new row for this title by name instead.
       const activeRow = [...document.querySelectorAll(".pos-row")].find(r => r.querySelector(".pos-row-name")?.textContent === currentSelection.titleName);
-      // The position trend needs peopleData once a type filter is active —
-      // load it *before* re-rendering so selectTitle() doesn't have to hide
-      // the trend chart and re-add it a moment later (which was causing the
-      // staff list to visibly jump up and the chart to flash on/off).
-      if (officeTypeFilter) await loadPeople();
+      // selectTitle() now always prefers peopleData for the trend chart (see
+      // its comment) — load it *before* re-rendering so it doesn't have to
+      // hide the trend chart and re-add it a moment later (which was causing
+      // the staff list to visibly jump up and the chart to flash on/off).
+      await loadPeople();
       if (t) selectTitle(t, activeRow); else clearTitle();
     } else if (currentSelection.type === "person") {
       showPerson(currentSelection.personName, currentSelection.personOffice);
@@ -323,11 +323,11 @@ async function setInflationOn(on) {
       // renderPosResults() just rebuilt the row list, so ".pos-row.active" no
       // longer exists — find the new row for this title by name instead.
       const activeRow = [...document.querySelectorAll(".pos-row")].find(r => r.querySelector(".pos-row-name")?.textContent === currentSelection.titleName);
-      // The position trend needs peopleData once a type filter is active —
-      // load it *before* re-rendering so selectTitle() doesn't have to hide
-      // the trend chart and re-add it a moment later (which was causing the
-      // staff list to visibly jump up and the chart to flash on/off).
-      if (officeTypeFilter) await loadPeople();
+      // selectTitle() now always prefers peopleData for the trend chart (see
+      // its comment) — load it *before* re-rendering so it doesn't have to
+      // hide the trend chart and re-add it a moment later (which was causing
+      // the staff list to visibly jump up and the chart to flash on/off).
+      await loadPeople();
       if (t) selectTitle(t, activeRow); else clearTitle();
     } else if (currentSelection.type === "person") {
       showPerson(currentSelection.personName, currentSelection.personOffice);
@@ -617,7 +617,11 @@ function renderPosResults(query) {
     const el = document.createElement("div"); el.className = "pos-row";
     el.innerHTML = `<span class="pos-row-name">${esc(t.title)}</span><span class="pos-row-count">${t.count.toLocaleString()} staff</span><span class="pos-row-median">${fmtK(t.median)}</span>`;
     el.addEventListener("click", async () => {
-      if (officeTypeFilter) await loadPeople();
+      // selectTitle() always prefers peopleData for the trend chart now, so
+      // load it first rather than opening with the top_titles fallback and
+      // having the trend numbers visibly tween to different values a moment
+      // later once peopleData arrives.
+      await loadPeople();
       selectTitle(t, el);
     });
     c.appendChild(el);
@@ -713,31 +717,34 @@ function selectTitle(t, el, forcedTrendUI) {
     .filter(e => !e.intern && !e.shared && e.title === t.title && (!officeTypeFilter || e.type === officeTypeFilter))
     .sort((a,b) => b.annual_equiv - a.annual_equiv);
 
-  // top_titles (the fast path) is never broken out by office type, so once a
-  // type is selected up top we need per-person history instead. If that
-  // hasn't loaded yet, kick it off and re-run selectTitle() once it's ready —
-  // showing the all-types trend in the meantime would just be wrong data.
+  // top_titles (the fast synchronous path, available before peopleData loads)
+  // is a full per-quarter population snapshot with no tenure requirement and
+  // is never broken out by office type. peopleData is longitudinal — only
+  // people with 3+ quarters of tenure — which gives a very different slope
+  // even for "All types" (survivorship bias skews it upward). Mixing the two
+  // depending on whether a type filter happened to be set made the trend look
+  // internally inconsistent (an "All" figure that couldn't be reconciled with
+  // its own type breakdown), so once peopleData is available this always
+  // switches to it — for every type, including "All" — so the whole chart is
+  // drawn from one consistent population.
   let trendGetDataFn = (metric, qf) => filteredQuarters(qf).map(q => {
     const found = (adjQuarter(q).top_titles || []).find(x => x.title === t.title);
     return found ? found[metric] : null;
   });
   let trendData = trendGetDataFn("median", 0);
 
-  if (officeTypeFilter) {
-    const typeTrendFn = positionTrendByType(t.title, officeTypeFilter);
-    if (typeTrendFn) {
-      trendGetDataFn = typeTrendFn;
-      trendData = typeTrendFn("median", 0);
-    } else if (!peopleData) {
-      trendData = [];
-      loadPeople().then(() => {
-        if (currentSelection?.type === "title" && currentSelection.titleName === t.title) {
-          selectTitle(t, document.querySelector(".pos-row.active"));
-        }
-      });
-    } else {
-      trendData = []; // peopleData loaded but nobody with this title+type has 3+ quarters of history
-    }
+  const typeTrendFn = positionTrendByType(t.title, officeTypeFilter || null);
+  if (typeTrendFn) {
+    trendGetDataFn = typeTrendFn;
+    trendData = typeTrendFn("median", 0);
+  } else if (!peopleData) {
+    loadPeople().then(() => {
+      if (currentSelection?.type === "title" && currentSelection.titleName === t.title) {
+        selectTitle(t, document.querySelector(".pos-row.active"));
+      }
+    });
+  } else if (officeTypeFilter) {
+    trendData = []; // peopleData loaded but nobody with this title+type has 3+ quarters of history
   }
   const hasTrend = trendData.filter(v => v != null).length >= 2;
 
@@ -1068,7 +1075,7 @@ async function restoreHash() {
     const t = titles.find(t => t.title === params.pos);
     if (t) {
       const row = [...document.querySelectorAll(".pos-row")].find(r => r.querySelector(".pos-row-name")?.textContent === t.title);
-      if (officeTypeFilter) await loadPeople();
+      await loadPeople();
       const forcedTrendUI = (params.pmetric || params.pq) ? { metric: params.pmetric || "median", qf: +(params.pq || 0) } : null;
       selectTitle(t, row, forcedTrendUI);
     }
