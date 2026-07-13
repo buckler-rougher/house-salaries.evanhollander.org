@@ -741,8 +741,22 @@ function selectTitle(t, el, forcedTrendUI) {
 
   const typeTrendFn = positionTrendByType(t.title, officeTypeFilter || null);
   if (typeTrendFn) {
-    trendGetDataFn = typeTrendFn;
-    trendData = typeTrendFn("median", 0);
+    // peopleData only tracks people with 3+ quarters of tenure, so even its
+    // "latest quarter" point is a smaller, longer-tenured slice than the full
+    // current roster t itself was built from (buildTitles(), no tenure
+    // filter) — the two could disagree even though they describe the exact
+    // same quarter. t is already correct and already on screen in the
+    // trio/bar above, so pin the chart's latest-quarter point to it instead
+    // of letting the chart quietly show a different number for "now."
+    const latestQId = summary.quarters[summary.quarters.length - 1].id;
+    trendGetDataFn = (metric, qf) => {
+      const qs = filteredQuarters(qf);
+      const data = typeTrendFn(metric, qf);
+      const latestIdx = qs.findIndex(q => q.id === latestQId);
+      if (latestIdx !== -1 && t[metric] != null) data[latestIdx] = t[metric];
+      return data;
+    };
+    trendData = trendGetDataFn("median", 0);
   } else if (!peopleData) {
     loadPeople().then(() => {
       if (currentSelection?.type === "title" && currentSelection.titleName === t.title) {
