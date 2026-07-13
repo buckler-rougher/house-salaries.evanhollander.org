@@ -1458,7 +1458,7 @@ function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel, xs = 
   // Extra left padding — same fix as svgSparkline: the first rotated x-axis
   // label is anchored (text-anchor="end") right at pad.l and tilts up-left
   // from there, so too little padding here clips its leading character.
-  const pad = { t: 16, r: 16, b: 52, l: 68 };
+  const pad = { t: 16, r: 16, b: 52, l: 96 };
   const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
   const n = labels.length;
   const vRange = yMax - yMin || 1;
@@ -1883,7 +1883,7 @@ function svgSparkline(data, labels, annualMultiplier = 4) {
   // from there, so the first tick's label — anchored right at pad.l — was
   // getting its leading character clipped by the viewBox edge. Extra left
   // padding only when there's actually a rotated label to make room for.
-  const pad = { t: 22, r: 16, b: 48, l: labels.length > 4 ? 66 : 54 };
+  const pad = { t: 22, r: 16, b: 48, l: labels.length > 4 ? 92 : 54 };
   const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
 
   const valid = data.map((v, i) => ({ v, i })).filter(d => d.v != null);
