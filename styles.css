@@ -225,6 +225,8 @@ body {
 }
 .pos-row:hover { background: var(--bg2); }
 .pos-row.active { background: var(--accent2); }
+.pos-row.pos-row-in { animation: staffRowIn 260ms ease-out both; }
+@media (prefers-reduced-motion: reduce) { .pos-row.pos-row-in { animation: none; } }
 .pos-row-name { font-size: .88rem; font-weight: 600; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pos-row-count { font-size: .75rem; color: var(--ink3); white-space: nowrap; text-align: right; }
 .pos-row-median { font-size: .88rem; font-weight: 800; color: var(--accent); white-space: nowrap; text-align: right; }

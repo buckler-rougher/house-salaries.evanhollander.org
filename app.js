@@ -653,7 +653,24 @@ function buildTitles() {
 function renderPosResults(query) {
   const q = query.toLowerCase().trim();
   const hits = q ? titles.filter(t => t.title.toLowerCase().includes(q)).slice(0,8) : titles.slice(0,8);
-  const c = $("pos-results"); c.innerHTML = "";
+  const c = $("pos-results");
+
+  // Keyed by title so a re-render (search narrowing, filter/quarter change,
+  // or peopleData arriving in the background) can tell which rows are the
+  // same position — tween their count/median and slide to their new rank —
+  // vs. genuinely new, instead of the whole list popping to a new state.
+  const priorRects = new Map(), priorVals = new Map();
+  c.querySelectorAll(".pos-row").forEach(row => {
+    const key = row.dataset.key;
+    if (!key) return;
+    priorRects.set(key, row.getBoundingClientRect());
+    priorVals.set(key, {
+      count: parseInt(row.querySelector(".pos-row-count")?.textContent.replace(/[^\d]/g, ""), 10) || null,
+      median: parseShortMoney(row.querySelector(".pos-row-median")?.textContent),
+    });
+  });
+
+  c.innerHTML = "";
   if (!hits.length) {
     c.innerHTML = `<div style="padding:10px 12px;font-size:.82rem;color:#888">No matches.</div>`;
     return;
@@ -663,7 +680,8 @@ function renderPosResults(query) {
     // positionHeaderStats()) — otherwise this preview number and the card's
     // own trio disagree the moment you click through.
     const hs = positionHeaderStats(t, officeTypeFilter);
-    const el = document.createElement("div"); el.className = "pos-row";
+    const key = esc(t.title);
+    const el = document.createElement("div"); el.className = "pos-row pos-row-in"; el.dataset.key = key;
     el.innerHTML = `<span class="pos-row-name">${esc(t.title)}</span><span class="pos-row-count">${t.count.toLocaleString()} staff</span><span class="pos-row-median" title="Median annual equivalent · full-time staff">${fmtK(hs.median)}</span>`;
     el.addEventListener("click", async () => {
       // selectTitle() always prefers peopleData for the trend chart now, so
@@ -675,6 +693,19 @@ function renderPosResults(query) {
     });
     c.appendChild(el);
   });
+
+  if (priorRects.size) {
+    morphKeyedRows(c, ".pos-row", priorRects);
+    c.querySelectorAll(".pos-row").forEach(row => {
+      const prior = priorVals.get(row.dataset.key);
+      if (!prior) return;
+      const t = hits.find(x => esc(x.title) === row.dataset.key);
+      if (!t) return;
+      const hs = positionHeaderStats(t, officeTypeFilter);
+      animatePositionNumberText(row.querySelector(".pos-row-count"), prior.count, t.count, v => `${Math.round(v).toLocaleString()} staff`);
+      animatePositionNumberText(row.querySelector(".pos-row-median"), prior.median, hs.median, fmtK);
+    });
+  }
 }
 
 let preTitleTab = null; // tab that was active before a position replaced it, so clearTitle() can restore it
@@ -688,6 +719,43 @@ function parseShortMoney(str) {
   if (!m) return null;
   const n = parseFloat(m[1]);
   return m[2] ? n * 1000 : n;
+}
+
+// Parses "$358,273" (from fmt(), full precision — used by the staff list, not
+// the shorthand fmtSh/fmtK the trio/sidebar use) back into a raw number.
+// Matches just the $-prefixed digit group so a leading cap-warn icon's text
+// in the same element doesn't confuse it.
+function parseFullMoney(str) {
+  if (!str) return null;
+  const m = String(str).match(/\$([\d,]+)/);
+  return m ? parseInt(m[1].replace(/,/g, ""), 10) : null;
+}
+
+// FLIP-moves each row in newContainer that has a match in priorRects (keyed
+// by data-key) from its old screen position to its new one, and fades/rises
+// in any row with no prior match — used so a keyed list re-render reads as
+// "these items moved/updated" instead of the whole list popping to a new
+// state. priorRects: Map<key, DOMRect>. rowSelector's elements must each
+// carry a data-key attribute.
+function morphKeyedRows(newContainer, rowSelector, priorRects) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+  const rows = newContainer.querySelectorAll(rowSelector);
+  rows.forEach(row => {
+    const key = row.dataset.key;
+    const priorRect = key && priorRects.get(key);
+    if (!priorRect) return; // no match — template's own fade/rise-in animation (if any) plays instead
+    row.classList.remove("range-staff-row-in", "pos-row-in");
+    const newRect = row.getBoundingClientRect();
+    const dy = priorRect.top - newRect.top;
+    if (Math.abs(dy) < 1) return;
+    row.style.transition = "none";
+    row.style.transform = `translateY(${dy}px)`;
+    void row.offsetWidth; // force reflow so the "from" position paints before transitioning
+    requestAnimationFrame(() => {
+      row.style.transition = "transform 380ms cubic-bezier(.4,0,.2,1)";
+      row.style.transform = "";
+    });
+  });
 }
 
 // Animates a value-carrying element's text from an explicit old value to a
@@ -746,6 +814,18 @@ function selectTitle(t, el, forcedTrendUI) {
         p90: p90El ? parseShortMoney(p90El.textContent) : null,
       };
     }
+  }
+  // Keyed by "name|office" so the new staff list can tell which rows are the
+  // same person (tween their $ amount, slide to their new rank) vs. genuinely
+  // new/removed (fade in/skip) — see morphKeyedRows().
+  const priorStaffRects = new Map(), priorStaffAmounts = new Map();
+  if (isUpdate) {
+    posView.querySelectorAll(".range-staff-row").forEach(row => {
+      const key = row.dataset.key;
+      if (!key) return;
+      priorStaffRects.set(key, row.getBoundingClientRect());
+      priorStaffAmounts.set(key, parseFullMoney(row.querySelector(".range-staff-amt")?.textContent));
+    });
   }
   const seedTrend = isUpdate ? lastPositionTrend?.getPrev() : null;
   // Preserve the mini trend chart's own metric/quarter-filter selection across
@@ -825,10 +905,11 @@ function selectTitle(t, el, forcedTrendUI) {
       <div class="range-staff-heading">Staff with this title</div>
       ${staff.slice(0,30).map((e, i) => {
         const over = e.annual_equiv > SALARY_CAP;
-        return `<div class="range-staff-row range-staff-row-in" style="--i:${i}">
+        const key = `${esc(e.name)}|${esc(cleanOrg(e.office))}`;
+        return `<div class="range-staff-row range-staff-row-in" style="--i:${i}" data-key="${key}">
           <span class="range-staff-name person-link" data-name="${esc(e.name)}" data-office="${esc(cleanOrg(e.office))}">${esc(e.name)}</span>
           <span class="range-staff-office office-link" data-office="${esc(cleanOrg(e.office))}">${esc(cleanOrg(e.office))}</span>
-          <span class="range-staff-amt">${over?`<span class="cap-warn" title="May include bonus/lump sum">⚠</span> `:""}${fmt(e.annual_equiv)}</span>
+          <span class="range-staff-amt">${over?`<span class="cap-warn" title="May include bonus/lump sum">⚠</span> `:""}<span class="range-staff-amt-val">${fmt(e.annual_equiv)}</span></span>
         </div>`;
       }).join("")}
       ${staff.length>30?`<div class="range-staff-more">+${staff.length-30} more</div>`:""}
@@ -894,6 +975,18 @@ function selectTitle(t, el, forcedTrendUI) {
     const labelValEls = posView.querySelectorAll(".range-bar-label-val");
     animatePositionNumberText(labelValEls[0], priorNums.p10, hs.p10, fmtSh);
     animatePositionNumberText(labelValEls[1], priorNums.p90, hs.p90, fmtSh);
+  }
+
+  // Staff list: rows for the same person slide to their new rank and tween
+  // their $ amount instead of the whole list popping to a new state; rows
+  // with no prior match keep the template's fade/rise-in.
+  if (priorStaffRects.size) {
+    morphKeyedRows(posView, ".range-staff-row", priorStaffRects);
+    posView.querySelectorAll(".range-staff-row").forEach(row => {
+      const key = row.dataset.key;
+      if (!priorStaffRects.has(key)) return;
+      animatePositionNumberText(row.querySelector(".range-staff-amt-val"), priorStaffAmounts.get(key), staff.find(e => `${esc(e.name)}|${esc(cleanOrg(e.office))}` === key)?.annual_equiv, fmt);
+    });
   }
 
   if (hasTrend) {
