@@ -49,6 +49,14 @@ async function loadData() {
     updateInflationNote();
     await restoreState();
     restoreHash();
+
+    // people.json is large (~11MB), so it's not fetched up front — but kick
+    // it off now in the background rather than waiting for something to
+    // need it. Once it lands, refresh the position search results so their
+    // preview numbers match what the card actually shows once you click
+    // in (positionHeaderStats() prefers this tenure-filtered data over the
+    // raw roster snapshot the moment it's available).
+    loadPeople().then(() => renderPosResults($("pos-search")?.value || ""));
   } catch(e) {
     // render() removes #loading as its first step, so if anything after that
     // point throws (restoreState, restoreHash, ...) #loading is already gone
@@ -651,8 +659,12 @@ function renderPosResults(query) {
     return;
   }
   hits.forEach(t => {
+    // Same tenure-filtered stats as the card this row opens into (see
+    // positionHeaderStats()) — otherwise this preview number and the card's
+    // own trio disagree the moment you click through.
+    const hs = positionHeaderStats(t, officeTypeFilter);
     const el = document.createElement("div"); el.className = "pos-row";
-    el.innerHTML = `<span class="pos-row-name">${esc(t.title)}</span><span class="pos-row-count">${t.count.toLocaleString()} staff</span><span class="pos-row-median">${fmtK(t.median)}</span>`;
+    el.innerHTML = `<span class="pos-row-name">${esc(t.title)}</span><span class="pos-row-count">${t.count.toLocaleString()} staff</span><span class="pos-row-median" title="Median annual equivalent · full-time staff">${fmtK(hs.median)}</span>`;
     el.addEventListener("click", async () => {
       // selectTitle() always prefers peopleData for the trend chart now, so
       // load it first rather than opening with the top_titles fallback and
