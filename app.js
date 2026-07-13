@@ -1455,7 +1455,10 @@ const trendChartCache = new WeakMap(); // containerEl -> { datasetSig, yMin, yMa
 // visibility independently of its index — everything else derives from them.
 function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel, xs = null, opacities = null, annualMultiplier = 4) {
   const W = 680, H = 300;
-  const pad = { t: 16, r: 16, b: 52, l: 58 };
+  // Extra left padding — same fix as svgSparkline: the first rotated x-axis
+  // label is anchored (text-anchor="end") right at pad.l and tilts up-left
+  // from there, so too little padding here clips its leading character.
+  const pad = { t: 16, r: 16, b: 52, l: 68 };
   const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
   const n = labels.length;
   const vRange = yMax - yMin || 1;
@@ -1876,7 +1879,11 @@ function linReg(xs, ys) {
 // full year apart and multiplying by 4 would inflate the trend 4x.
 function svgSparkline(data, labels, annualMultiplier = 4) {
   const W = 560, H = 200;
-  const pad = { t: 22, r: 16, b: 48, l: 54 };
+  // Rotated x-axis labels (below) are anchored at their end and tilt up-left
+  // from there, so the first tick's label — anchored right at pad.l — was
+  // getting its leading character clipped by the viewBox edge. Extra left
+  // padding only when there's actually a rotated label to make room for.
+  const pad = { t: 22, r: 16, b: 48, l: labels.length > 4 ? 66 : 54 };
   const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
 
   const valid = data.map((v, i) => ({ v, i })).filter(d => d.v != null);
