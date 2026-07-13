@@ -731,6 +731,9 @@ function selectTitle(t, el, forcedTrendUI) {
     }
     const trioEls = posView.querySelectorAll(".range-trio-val");
     const minMaxEls = posView.querySelectorAll(".range-min-max span");
+    const countEl = posView.querySelector(".range-card-count");
+    const p10El = posView.querySelector(".range-bar-labels span:first-child .range-bar-label-val");
+    const p90El = posView.querySelector(".range-bar-labels span:last-child .range-bar-label-val");
     if (trioEls.length === 3 && minMaxEls.length === 2) {
       priorNums = {
         p25: parseShortMoney(trioEls[0].textContent),
@@ -738,6 +741,9 @@ function selectTitle(t, el, forcedTrendUI) {
         p75: parseShortMoney(trioEls[2].textContent),
         min: parseShortMoney(minMaxEls[0].textContent),
         max: parseShortMoney(minMaxEls[1].textContent),
+        count: countEl ? parseInt(countEl.textContent.replace(/,/g, ""), 10) : null,
+        p10: p10El ? parseShortMoney(p10El.textContent) : null,
+        p90: p90El ? parseShortMoney(p90El.textContent) : null,
       };
     }
   }
@@ -817,9 +823,9 @@ function selectTitle(t, el, forcedTrendUI) {
   const staffHtml = staff.length ? `
     <div class="range-staff-list">
       <div class="range-staff-heading">Staff with this title</div>
-      ${staff.slice(0,30).map(e => {
+      ${staff.slice(0,30).map((e, i) => {
         const over = e.annual_equiv > SALARY_CAP;
-        return `<div class="range-staff-row">
+        return `<div class="range-staff-row range-staff-row-in" style="--i:${i}">
           <span class="range-staff-name person-link" data-name="${esc(e.name)}" data-office="${esc(cleanOrg(e.office))}">${esc(e.name)}</span>
           <span class="range-staff-office office-link" data-office="${esc(cleanOrg(e.office))}">${esc(cleanOrg(e.office))}</span>
           <span class="range-staff-amt">${over?`<span class="cap-warn" title="May include bonus/lump sum">⚠</span> `:""}${fmt(e.annual_equiv)}</span>
@@ -833,7 +839,7 @@ function selectTitle(t, el, forcedTrendUI) {
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div>
         <div class="range-card-title">${esc(t.title)}</div>
-        <div class="range-card-sub">${hs.count.toLocaleString()} employees${(officeTypeFilter && isLatestQuarter()) ? ` · ${TYPE_LABELS[officeTypeFilter]} offices` : ""} · ${isLatestQuarter() ? "latest quarter" : esc(viewedQuarter().label)} · annual equivalent</div>
+        <div class="range-card-sub"><span class="range-card-count">${hs.count.toLocaleString()}</span> employees${(officeTypeFilter && isLatestQuarter()) ? ` · ${TYPE_LABELS[officeTypeFilter]} offices` : ""} · ${isLatestQuarter() ? "latest quarter" : esc(viewedQuarter().label)} · annual equivalent</div>
       </div>
       <button onclick="clearTitle()" style="background:none;border:none;cursor:pointer;color:var(--ink3);font-size:1.1rem;line-height:1;padding:2px;flex-shrink:0;margin-top:2px">&times;</button>
     </div>
@@ -842,7 +848,7 @@ function selectTitle(t, el, forcedTrendUI) {
         <div class="range-bar-fill" style="left:${pct(hs.p10)}%;width:${pct(hs.p90)-pct(hs.p10)}%"></div>
         <div class="range-bar-needle" style="left:${pct(hs.median)}%"></div>
       </div>
-      <div class="range-bar-labels"><span>${fmtSh(hs.p10)} (P10)</span><span>${fmtSh(hs.p90)} (P90)</span></div>
+      <div class="range-bar-labels"><span><span class="range-bar-label-val">${fmtSh(hs.p10)}</span> (P10)</span><span><span class="range-bar-label-val">${fmtSh(hs.p90)}</span> (P90)</span></div>
     </div>
     <div class="range-trio">
       <div class="range-trio-cell"><div class="range-trio-val">${fmtSh(hs.p25)}</div><div class="range-trio-key">25th pct.</div></div>
@@ -884,6 +890,10 @@ function selectTitle(t, el, forcedTrendUI) {
     const minMaxEls = posView.querySelectorAll(".range-min-max span");
     animatePositionNumberText(minMaxEls[0], priorNums.min, hs.min, v => `Min: ${fmtSh(v)}`);
     animatePositionNumberText(minMaxEls[1], priorNums.max, hs.max, v => `Max: ${fmtSh(v)}`);
+    animatePositionNumberText(posView.querySelector(".range-card-count"), priorNums.count, hs.count, v => Math.round(v).toLocaleString());
+    const labelValEls = posView.querySelectorAll(".range-bar-label-val");
+    animatePositionNumberText(labelValEls[0], priorNums.p10, hs.p10, fmtSh);
+    animatePositionNumberText(labelValEls[1], priorNums.p90, hs.p90, fmtSh);
   }
 
   if (hasTrend) {

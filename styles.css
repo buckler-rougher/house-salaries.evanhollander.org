@@ -371,6 +371,9 @@ body {
 .range-staff-list { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 14px; }
 .range-staff-heading { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); margin-bottom: 8px; }
 .range-staff-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 6px; align-items: baseline; padding: 6px 0; border-bottom: 1px solid var(--line); font-size: .78rem; }
+.range-staff-row.range-staff-row-in { animation: staffRowIn 320ms ease-out both; animation-delay: calc(var(--i) * 18ms); }
+@keyframes staffRowIn { from { opacity: 0; transform: translateY(4px); } to { opacity: 1; transform: translateY(0); } }
+@media (prefers-reduced-motion: reduce) { .range-staff-row.range-staff-row-in { animation: none; } }
 .range-staff-row:last-of-type { border-bottom: none; }
 .range-staff-name { font-weight: 700; color: var(--ink); }
 .range-staff-office { color: var(--ink3); font-size: .72rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
