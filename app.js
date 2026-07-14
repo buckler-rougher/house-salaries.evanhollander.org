@@ -1494,7 +1494,7 @@ function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel, xs = 
     if (rotateX) {
       const ty = pad.t + ph + 6;
       return `<text text-anchor="end" font-size="10" fill="#888"
-        transform="translate(${x.toFixed(1)},${ty.toFixed(1)}) rotate(-45)">${lb}</text>`;
+        transform="translate(${x.toFixed(1)},${ty.toFixed(1)}) rotate(-45)">${shortAxisLabel(lb)}</text>`;
     }
     return `<text x="${x.toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="#888">${lb}</text>`;
   }).join("");
@@ -1872,6 +1872,14 @@ function linReg(xs, ys) {
   return { slope, intercept };
 }
 
+// Full labels like "Jan–Mar 2021" are too wide to rotate -45deg without
+// running into the left edge — shorten to "Jan '21" for the tilted x-axis
+// ticks (tooltips/other UI still use the full label).
+function shortAxisLabel(lb) {
+  const m = /^([A-Za-z]+)[–-][A-Za-z]+ (\d{4})$/.exec(lb);
+  return m ? `${m[1]} '${m[2].slice(2)}` : lb;
+}
+
 // annualMultiplier converts "value change per index step" into "value change
 // per year": 4 when consecutive points are one quarter apart (the default,
 // full timeline), but 1 when the caller has filtered down to a single
@@ -1910,7 +1918,7 @@ function svgSparkline(data, labels, annualMultiplier = 4) {
     if (rotateX) {
       const ty = pad.t + ph + 6;
       return `<text text-anchor="end" font-size="10" fill="#888"
-        transform="translate(${sx(i).toFixed(1)},${ty.toFixed(1)}) rotate(-45)">${lb}</text>`;
+        transform="translate(${sx(i).toFixed(1)},${ty.toFixed(1)}) rotate(-45)">${shortAxisLabel(lb)}</text>`;
     }
     return `<text x="${sx(i).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="#888">${lb}</text>`;
   }).join("");
