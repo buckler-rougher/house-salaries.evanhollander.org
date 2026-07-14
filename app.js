@@ -21,6 +21,7 @@ const TYPE_LABELS = { member:"Member", committee:"Committee", leadership:"Leader
 const TYPE_COLORS = { member:"#2563eb", committee:"#059669", leadership:"#b45309", administrative:"#6b7280" };
 
 async function loadData() {
+  setupSparklineTooltips();
   try {
     const [sr, er] = await Promise.all([fetch("data/summary.json", { cache: "no-cache" }), fetch("data/employees.json", { cache: "no-cache" })]);
     if (!sr.ok) throw new Error("Run scripts/fetch_sod.py to generate data.");
@@ -1418,6 +1419,31 @@ function positionTooltip(e) {
   tt.style.top = y + "px";
 }
 
+// svgSparkline's markup gets replaced wholesale on every re-render (including
+// mid-animation), so rather than re-wiring listeners after each innerHTML
+// write, one delegated listener on the document handles every sparkline dot
+// for the lifetime of the page — instant tooltip, no native-title hover delay.
+let sparklineTooltipsReady = false;
+function setupSparklineTooltips() {
+  if (sparklineTooltipsReady) return;
+  sparklineTooltipsReady = true;
+  ensureTooltip();
+  document.addEventListener("mouseover", e => {
+    const hit = e.target.closest?.(".spark-hit");
+    if (!hit) return;
+    const tt = $("chart-tooltip");
+    tt.innerHTML = `<strong>${hit.dataset.label}</strong><br>${hit.dataset.value}`;
+    tt.style.display = "block";
+    positionTooltip(e);
+  });
+  document.addEventListener("mousemove", e => {
+    if (e.target.closest?.(".spark-hit")) positionTooltip(e);
+  });
+  document.addEventListener("mouseout", e => {
+    if (e.target.closest?.(".spark-hit")) $("chart-tooltip").style.display = "none";
+  });
+}
+
 // Where point i would sit if it were on the straight line between its nearest
 // selected (visible) neighbors — used so points being hidden/revealed during a
 // quarter-filter zoom collapse onto (or peel off) that line instead of just
@@ -1943,8 +1969,14 @@ function svgSparkline(data, labels, annualMultiplier = 4) {
     return `<path d="${d}" fill="none" stroke="#c0392b" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>`;
   }).join("");
 
+  // Dots are small, so their hover hit-area is a separate wider invisible
+  // circle — a native <title> tooltip has a hover delay, so instead these
+  // carry data-* attributes read by the delegated instant tooltip (see
+  // setupSparklineTooltips) shared with the rest of the chart tooltips.
   const dots = valid.map(({ v, i }) =>
-    `<circle cx="${sx(i).toFixed(1)}" cy="${sy(v).toFixed(1)}" r="4" fill="white" stroke="#c0392b" stroke-width="2"><title>${labels[i]}: $${Math.round(v).toLocaleString()}</title></circle>`
+    `<circle cx="${sx(i).toFixed(1)}" cy="${sy(v).toFixed(1)}" r="4" fill="white" stroke="#c0392b" stroke-width="2"/>
+     <circle class="spark-hit" cx="${sx(i).toFixed(1)}" cy="${sy(v).toFixed(1)}" r="10" fill="transparent"
+       style="cursor:crosshair" data-label="${labels[i]}" data-value="$${Math.round(v).toLocaleString()}"/>`
   ).join("");
 
   // Trend line + annotation (need ≥3 valid points)
