@@ -1969,13 +1969,15 @@ function svgSparkline(data, labels, annualMultiplier = 4) {
     return `<path d="${d}" fill="none" stroke="#c0392b" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>`;
   }).join("");
 
-  // Dots are small, so their hover hit-area is a separate wider invisible
-  // circle — a native <title> tooltip has a hover delay, so instead these
-  // carry data-* attributes read by the delegated instant tooltip (see
-  // setupSparklineTooltips) shared with the rest of the chart tooltips.
+  // Hover hit-area is a full-height vertical band around each point, not just
+  // a small circle on the dot itself — much easier to land on, same idea as
+  // the hoverRect columns in buildTrendChartBody. A native <title> tooltip
+  // has a hover delay, so these carry data-* read by the delegated instant
+  // tooltip (see setupSparklineTooltips) shared with the rest of the charts.
+  const bandW = Math.max(16, Math.min(40, pw / Math.max(data.length - 1, 1)));
   const dots = valid.map(({ v, i }) =>
     `<circle cx="${sx(i).toFixed(1)}" cy="${sy(v).toFixed(1)}" r="4" fill="white" stroke="#c0392b" stroke-width="2"/>
-     <circle class="spark-hit" cx="${sx(i).toFixed(1)}" cy="${sy(v).toFixed(1)}" r="10" fill="transparent"
+     <rect class="spark-hit" x="${(sx(i) - bandW / 2).toFixed(1)}" y="${pad.t}" width="${bandW.toFixed(1)}" height="${ph}" fill="transparent"
        style="cursor:crosshair" data-label="${labels[i]}" data-value="$${Math.round(v).toLocaleString()}"/>`
   ).join("");
 
