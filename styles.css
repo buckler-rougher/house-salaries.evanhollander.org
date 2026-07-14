@@ -325,6 +325,8 @@ body {
 .mini-pill.active, .mini-q.active { background: var(--accent); border-color: var(--accent); color: #fff; }
 .mini-pill:not(.active):hover, .mini-q:not(.active):hover { border-color: var(--ink); color: var(--ink); }
 .mini-chart-wrap { position: relative; height: 200px; }
+.spark-dot { transition: fill 100ms ease, r 100ms ease; }
+.spark-dot.spark-dot-active { fill: #c0392b; r: 5; }
 
 /* ── Main trend quarter filter ── */
 .trend-q-row { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }

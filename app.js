@@ -1435,12 +1435,16 @@ function setupSparklineTooltips() {
     tt.innerHTML = `<strong>${hit.dataset.label}</strong><br>${hit.dataset.value}`;
     tt.style.display = "block";
     positionTooltip(e);
+    hit.previousElementSibling?.classList.add("spark-dot-active");
   });
   document.addEventListener("mousemove", e => {
     if (e.target.closest?.(".spark-hit")) positionTooltip(e);
   });
   document.addEventListener("mouseout", e => {
-    if (e.target.closest?.(".spark-hit")) $("chart-tooltip").style.display = "none";
+    const hit = e.target.closest?.(".spark-hit");
+    if (!hit) return;
+    $("chart-tooltip").style.display = "none";
+    hit.previousElementSibling?.classList.remove("spark-dot-active");
   });
 }
 
@@ -1976,7 +1980,7 @@ function svgSparkline(data, labels, annualMultiplier = 4) {
   // tooltip (see setupSparklineTooltips) shared with the rest of the charts.
   const bandW = Math.max(16, Math.min(40, pw / Math.max(data.length - 1, 1)));
   const dots = valid.map(({ v, i }) =>
-    `<circle cx="${sx(i).toFixed(1)}" cy="${sy(v).toFixed(1)}" r="4" fill="white" stroke="#c0392b" stroke-width="2"/>
+    `<circle class="spark-dot" cx="${sx(i).toFixed(1)}" cy="${sy(v).toFixed(1)}" r="4" fill="white" stroke="#c0392b" stroke-width="2"/>
      <rect class="spark-hit" x="${(sx(i) - bandW / 2).toFixed(1)}" y="${pad.t}" width="${bandW.toFixed(1)}" height="${ph}" fill="transparent"
        style="cursor:crosshair" data-label="${labels[i]}" data-value="$${Math.round(v).toLocaleString()}"/>`
   ).join("");
