@@ -1127,10 +1127,10 @@ async function showPersonInline(name, officeName) {
 
   const salaryBlockHtml = latestEmp ? `
     <div class="emp-detail-salary-row">
-      <button class="emp-detail-salary" id="ed-salary-val" type="button" title="Click to try a different salary">${over ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(latestEmp.annual_equiv)}<span class="ed-salary-pencil">✎</span></button>
+      <button class="emp-detail-salary" id="ed-salary-val" type="button" title="Click to try a different salary"><span class="ed-salary-pencil">✎</span>${over ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(latestEmp.annual_equiv)}</button>
       <span class="ed-salary-pill" id="ed-salary-pill" style="display:none">Testing <span class="ed-salary-reset" id="ed-salary-reset">✕</span></span>
     </div>
-    <div class="emp-detail-salary-sub">est. annual · latest quarter — <span class="ed-salary-hint">click to test a different salary</span></div>` : "";
+    <div class="emp-detail-salary-sub">est. annual · latest quarter</div>` : "";
 
   detail.innerHTML = `
     <div class="emp-detail-name">${esc(name)}</div>
@@ -1215,7 +1215,7 @@ async function showPersonInline(name, officeName) {
       btn.id = "ed-salary-val";
       btn.type = "button";
       btn.title = "Click to try a different salary";
-      btn.innerHTML = `${overNow ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(v)}<span class="ed-salary-pencil">✎</span>`;
+      btn.innerHTML = `<span class="ed-salary-pencil">✎</span>${overNow ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(v)}`;
       btn.addEventListener("click", startSalaryEdit);
       detail.querySelector("#ed-salary-val").replaceWith(btn);
     }
@@ -1237,12 +1237,28 @@ async function showPersonInline(name, officeName) {
       input.focus();
       input.select();
       input.addEventListener("input", () => {
+        // Reformatting to "$X,XXX" changes the string length, so naively
+        // resetting the caret (or letting the browser default to the very
+        // end) fights typing anywhere but the tail end. Instead, count how
+        // many digits sit before the caret pre-format, then place the caret
+        // after that same count of digits in the reformatted string.
+        const digitsBeforeCaret = input.value.slice(0, input.selectionStart).replace(/[^\d]/g, "").length;
         const digits = input.value.replace(/[^\d]/g, "");
         const n = digits ? parseInt(digits, 10) : null;
         input.value = n != null ? fmt(n) : "";
         salaryOverride = n > 0 ? n : null;
         salaryPillEl.style.display = salaryOverride != null ? "" : "none";
         renderCompStats(currentCompTitle);
+        let seen = 0, pos = input.value.length;
+        if (digitsBeforeCaret === 0) {
+          pos = 1; // right after the "$"
+        } else {
+          for (let i = 0; i < input.value.length; i++) {
+            if (/\d/.test(input.value[i])) seen++;
+            if (seen === digitsBeforeCaret) { pos = i + 1; break; }
+          }
+        }
+        input.setSelectionRange(pos, pos);
       });
       const stop = () => { editing = false; renderSalaryDisplay(); };
       input.addEventListener("blur", stop);
