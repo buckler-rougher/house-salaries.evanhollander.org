@@ -1125,11 +1125,17 @@ async function showPersonInline(name, officeName) {
     </div>
     <div id="ed-comp-stats"></div>` : "";
 
+  const salaryBlockHtml = latestEmp ? `
+    <div class="emp-detail-salary-row">
+      <div class="emp-detail-salary" id="ed-salary-val">${over ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(latestEmp.annual_equiv)}</div>
+      <button class="emp-salary-edit-btn" id="ed-salary-edit-btn" type="button">Test a salary</button>
+    </div>
+    <div class="emp-detail-salary-sub" id="ed-salary-sub">est. annual · latest quarter</div>` : "";
+
   detail.innerHTML = `
     <div class="emp-detail-name">${esc(name)}</div>
     <div class="emp-detail-meta"><span class="office-link" data-office="${esc(officeName)}">${esc(officeName)}</span>${latestEmp ? ` · ${esc(latestEmp.title)}` : ""}</div>
-    ${latestEmp ? `<div class="emp-detail-salary">${over ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(latestEmp.annual_equiv)}</div>
-    <div class="emp-detail-salary-sub">est. annual · latest quarter</div>` : ""}
+    ${salaryBlockHtml}
     ${yoyHtml}
     ${chartHtml}
     ${compHtml}`;
@@ -1158,15 +1164,24 @@ async function showPersonInline(name, officeName) {
 
   // Wire comparison
   if (latestEmp) {
+    // A hypothetical salary the user is trying on — null means "use the real,
+    // reported figure". Never written back to latestEmp/data, purely a local
+    // what-if so someone can test a raise or sanity-check a correction before
+    // it's real.
+    let salaryOverride = null;
+    let currentCompTitle = compTitle;
+
     function renderCompStats(titleStr) {
+      currentCompTitle = titleStr;
       const ts = allTitles.find(t => t.title === titleStr);
       const el = detail.querySelector("#ed-comp-stats");
       if (!el) return;
       if (!ts) { el.innerHTML = `<div style="font-size:.78rem;color:var(--ink3);padding:6px 0">No salary data for this title.</div>`; return; }
-      const you = latestEmp.annual_equiv;
+      const you = salaryOverride != null ? salaryOverride : latestEmp.annual_equiv;
       const pctileNum = estimatePercentile(you, ts);
       const pctile = pctileNum != null ? `${ordinal(pctileNum)} percentile` : "";
-      const youRow = `<div class="emp-detail-comp-row emp-detail-comp-you"><span>${esc(name)} ${pctile ? `<span style="font-weight:400;font-size:.72rem;opacity:.7">${pctile}</span>` : ""}</span><span>${fmtK(you)}</span></div>`;
+      const whoLabel = salaryOverride != null ? "Hypothetical" : esc(name);
+      const youRow = `<div class="emp-detail-comp-row emp-detail-comp-you${salaryOverride != null ? " emp-detail-comp-you-hypo" : ""}"><span>${whoLabel} ${pctile ? `<span style="font-weight:400;font-size:.72rem;opacity:.7">${pctile}</span>` : ""}</span><span>${fmtK(you)}</span></div>`;
       const r25 = `<div class="emp-detail-comp-row"><span>25th pct.</span><span>${fmtK(ts.p25)}</span></div>`;
       const rMed = `<div class="emp-detail-comp-row"><span>Median</span><span>${fmtK(ts.median)}</span></div>`;
       const r75 = `<div class="emp-detail-comp-row"><span>75th pct.</span><span>${fmtK(ts.p75)}</span></div>`;
@@ -1180,6 +1195,50 @@ async function showPersonInline(name, officeName) {
       el.innerHTML = rows.join("");
     }
     renderCompStats(compTitle);
+
+    // Salary editing — click "Test a salary" to swap the figure for an inline
+    // input; Enter/blur commits, Escape cancels. While a hypothetical value
+    // is active, the salary and its cap-warning reflect it, the comparison
+    // row is relabeled "Hypothetical", and a Reset link brings back reality.
+    const salaryValEl = detail.querySelector("#ed-salary-val");
+    const salarySubEl = detail.querySelector("#ed-salary-sub");
+    const salaryEditBtn = detail.querySelector("#ed-salary-edit-btn");
+
+    function renderSalaryDisplay() {
+      const v = salaryOverride != null ? salaryOverride : latestEmp.annual_equiv;
+      const overNow = v > SALARY_CAP;
+      salaryValEl.innerHTML = `${overNow ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(v)}`;
+      salaryValEl.classList.toggle("ed-salary-val-hypo", salaryOverride != null);
+      salarySubEl.innerHTML = salaryOverride != null
+        ? `testing a hypothetical salary · <a class="ed-salary-reset" id="ed-salary-reset">Reset</a>`
+        : `est. annual · latest quarter`;
+      salaryEditBtn.textContent = salaryOverride != null ? "Edit" : "Test a salary";
+      detail.querySelector("#ed-salary-reset")?.addEventListener("click", () => {
+        salaryOverride = null;
+        renderSalaryDisplay();
+        renderCompStats(currentCompTitle);
+      });
+    }
+
+    function startSalaryEdit() {
+      const startVal = salaryOverride != null ? salaryOverride : latestEmp.annual_equiv;
+      salaryValEl.innerHTML = `<input type="number" id="ed-salary-input" class="ed-salary-input" step="1000" value="${Math.round(startVal)}" />`;
+      const input = detail.querySelector("#ed-salary-input");
+      input.focus();
+      input.select();
+      const commit = () => {
+        const n = parseFloat(input.value);
+        salaryOverride = Number.isFinite(n) && n > 0 ? n : null;
+        renderSalaryDisplay();
+        renderCompStats(currentCompTitle);
+      };
+      input.addEventListener("blur", commit);
+      input.addEventListener("keydown", e => {
+        if (e.key === "Enter") input.blur();
+        if (e.key === "Escape") { input.removeEventListener("blur", commit); renderSalaryDisplay(); }
+      });
+    }
+    salaryEditBtn.addEventListener("click", startSalaryEdit);
 
     const titleEl = detail.querySelector("#ed-comp-title"), wrap = detail.querySelector("#ed-comp-wrap"), searchEl = detail.querySelector("#ed-comp-search"), resultsEl = detail.querySelector("#ed-comp-results");
     if (titleEl) {
