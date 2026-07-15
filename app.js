@@ -1127,10 +1127,10 @@ async function showPersonInline(name, officeName) {
 
   const salaryBlockHtml = latestEmp ? `
     <div class="emp-detail-salary-row">
-      <div class="emp-detail-salary" id="ed-salary-val">${over ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(latestEmp.annual_equiv)}</div>
-      <button class="emp-salary-edit-btn" id="ed-salary-edit-btn" type="button">Test a salary</button>
+      <button class="emp-detail-salary" id="ed-salary-val" type="button" title="Click to try a different salary">${over ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(latestEmp.annual_equiv)}</button>
+      <span class="ed-salary-pill" id="ed-salary-pill" style="display:none">Testing <span class="ed-salary-reset" id="ed-salary-reset">✕</span></span>
     </div>
-    <div class="emp-detail-salary-sub" id="ed-salary-sub">est. annual · latest quarter</div>` : "";
+    <div class="emp-detail-salary-sub">est. annual · latest quarter — click the figure to test a different one</div>` : "";
 
   detail.innerHTML = `
     <div class="emp-detail-name">${esc(name)}</div>
@@ -1196,49 +1196,58 @@ async function showPersonInline(name, officeName) {
     }
     renderCompStats(compTitle);
 
-    // Salary editing — click "Test a salary" to swap the figure for an inline
-    // input; Enter/blur commits, Escape cancels. While a hypothetical value
-    // is active, the salary and its cap-warning reflect it, the comparison
-    // row is relabeled "Hypothetical", and a Reset link brings back reality.
-    const salaryValEl = detail.querySelector("#ed-salary-val");
-    const salarySubEl = detail.querySelector("#ed-salary-sub");
-    const salaryEditBtn = detail.querySelector("#ed-salary-edit-btn");
+    // Salary editing — click the salary figure itself to turn it into a
+    // number input, right where it already sits. Every keystroke updates
+    // the comparison below immediately (no separate "commit" step to learn),
+    // a small "Testing ✕" pill appears next to it as the one, constant sign
+    // something's been overridden, and that pill's ✕ is the only way back.
+    let editing = false;
+    const salaryRowEl = detail.querySelector(".emp-detail-salary-row");
+    const salaryPillEl = detail.querySelector("#ed-salary-pill");
 
     function renderSalaryDisplay() {
+      salaryPillEl.style.display = salaryOverride != null ? "" : "none";
+      if (editing) return;
       const v = salaryOverride != null ? salaryOverride : latestEmp.annual_equiv;
       const overNow = v > SALARY_CAP;
-      salaryValEl.innerHTML = `${overNow ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(v)}`;
-      salaryValEl.classList.toggle("ed-salary-val-hypo", salaryOverride != null);
-      salarySubEl.innerHTML = salaryOverride != null
-        ? `testing a hypothetical salary · <a class="ed-salary-reset" id="ed-salary-reset">Reset</a>`
-        : `est. annual · latest quarter`;
-      salaryEditBtn.textContent = salaryOverride != null ? "Edit" : "Test a salary";
-      detail.querySelector("#ed-salary-reset")?.addEventListener("click", () => {
-        salaryOverride = null;
-        renderSalaryDisplay();
-        renderCompStats(currentCompTitle);
-      });
+      const btn = document.createElement("button");
+      btn.className = "emp-detail-salary";
+      btn.id = "ed-salary-val";
+      btn.type = "button";
+      btn.title = "Click to try a different salary";
+      btn.innerHTML = `${overNow ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(v)}`;
+      btn.addEventListener("click", startSalaryEdit);
+      detail.querySelector("#ed-salary-val").replaceWith(btn);
     }
 
     function startSalaryEdit() {
+      editing = true;
       const startVal = salaryOverride != null ? salaryOverride : latestEmp.annual_equiv;
-      salaryValEl.innerHTML = `<input type="number" id="ed-salary-input" class="ed-salary-input" step="1000" value="${Math.round(startVal)}" />`;
-      const input = detail.querySelector("#ed-salary-input");
+      const input = document.createElement("input");
+      input.type = "number";
+      input.id = "ed-salary-val";
+      input.className = "emp-detail-salary ed-salary-input";
+      input.step = "1000";
+      input.value = Math.round(startVal);
+      detail.querySelector("#ed-salary-val").replaceWith(input);
       input.focus();
       input.select();
-      const commit = () => {
+      input.addEventListener("input", () => {
         const n = parseFloat(input.value);
         salaryOverride = Number.isFinite(n) && n > 0 ? n : null;
-        renderSalaryDisplay();
+        salaryPillEl.style.display = salaryOverride != null ? "" : "none";
         renderCompStats(currentCompTitle);
-      };
-      input.addEventListener("blur", commit);
-      input.addEventListener("keydown", e => {
-        if (e.key === "Enter") input.blur();
-        if (e.key === "Escape") { input.removeEventListener("blur", commit); renderSalaryDisplay(); }
       });
+      const stop = () => { editing = false; renderSalaryDisplay(); };
+      input.addEventListener("blur", stop);
+      input.addEventListener("keydown", e => { if (e.key === "Enter") input.blur(); });
     }
-    salaryEditBtn.addEventListener("click", startSalaryEdit);
+    detail.querySelector("#ed-salary-val")?.addEventListener("click", startSalaryEdit);
+    salaryPillEl.querySelector("#ed-salary-reset").addEventListener("click", () => {
+      salaryOverride = null;
+      renderSalaryDisplay();
+      renderCompStats(currentCompTitle);
+    });
 
     const titleEl = detail.querySelector("#ed-comp-title"), wrap = detail.querySelector("#ed-comp-wrap"), searchEl = detail.querySelector("#ed-comp-search"), resultsEl = detail.querySelector("#ed-comp-results");
     if (titleEl) {

@@ -626,24 +626,30 @@ tr:hover td { background: var(--bg2); }
 .emp-detail { background: var(--bg2); border-radius: 8px; margin: 4px 0; padding: 16px 18px; }
 .emp-detail-name { font-size: 1.2rem; font-weight: 800; color: var(--ink); letter-spacing: -.02em; }
 .emp-detail-meta { font-size: .8rem; color: var(--ink3); margin-top: 2px; }
-.emp-detail-salary-row { display: flex; align-items: baseline; gap: 10px; margin: 14px 0 2px; flex-wrap: wrap; }
-.emp-detail-salary { font-size: 1.6rem; font-weight: 800; color: var(--ink); letter-spacing: -.03em; border-radius: 6px; }
-.emp-detail-salary.ed-salary-val-hypo { background: var(--accent2); padding: 2px 8px; margin: 0 -8px; }
+.emp-detail-salary-row { display: flex; align-items: center; gap: 10px; margin: 14px 0 2px; flex-wrap: wrap; }
+.emp-detail-salary {
+  font: inherit; font-size: 1.6rem; font-weight: 800; color: var(--ink); letter-spacing: -.03em;
+  background: none; border: none; border-bottom: 2px dashed transparent; border-radius: 4px; padding: 0 2px; margin: 0 -2px;
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+.emp-detail-salary:hover { border-color: var(--ink3); }
 .emp-detail-salary-sub { font-size: .75rem; color: var(--ink3); margin-bottom: 14px; }
-.emp-salary-edit-btn {
-  background: none; border: none; padding: 0; cursor: pointer;
-  font-size: .72rem; font-weight: 600; color: var(--ink3);
-  border-bottom: 1px dashed var(--ink3);
-  transition: color .15s, border-color .15s;
-}
-.emp-salary-edit-btn:hover { color: var(--accent); border-color: var(--accent); }
 .ed-salary-input {
-  font-size: 1.6rem; font-weight: 800; letter-spacing: -.03em; color: var(--ink);
-  width: 9ch; padding: 0 4px; border: none; border-bottom: 2px solid var(--accent);
-  background: var(--accent2); border-radius: 4px 4px 0 0; outline: none;
+  border-bottom: 2px solid var(--accent) !important;
+  background: var(--accent2); outline: none; width: 9ch; cursor: text;
 }
-.ed-salary-reset { color: var(--accent); cursor: pointer; font-weight: 600; border-bottom: 1px dashed var(--accent); }
-.ed-salary-reset:hover { border-bottom-style: solid; }
+.ed-salary-pill {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: .68rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;
+  color: var(--accent); background: var(--accent2);
+  padding: 3px 6px 3px 10px; border-radius: 20px;
+}
+.ed-salary-reset {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 16px; height: 16px; border-radius: 50%;
+  cursor: pointer; color: #fff; background: var(--accent); font-size: .6rem; line-height: 1;
+}
+.ed-salary-reset:hover { opacity: .8; }
 .emp-detail-comp-you-hypo { outline: 1.5px dashed var(--accent); outline-offset: -1.5px; }
 .emp-detail-yoy { font-size: .85rem; margin: 4px 0 16px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .emp-detail-yoy-label { font-size: .75rem; color: var(--ink3); }
