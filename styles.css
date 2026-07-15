@@ -643,8 +643,15 @@ tr:hover td { background: var(--bg2); }
 }
 .ed-salary-prefix { color: var(--ink); }
 .ed-salary-input {
-  font: inherit; font-size: inherit; font-weight: inherit; color: var(--ink); letter-spacing: inherit;
+  font: inherit; font-size: inherit; font-weight: inherit; letter-spacing: inherit;
   border: none; background: none; outline: none; padding: 0; margin: 0 0 0 1px; width: 8ch; cursor: text;
+  /* This page has no dark theme, but some browsers auto-dark-style bare
+     native <input> text/background based on the OS preference regardless
+     of author CSS — opting into "light" here stops that from silently
+     making the typed digits invisible against the pale accent background. */
+  color-scheme: light;
+  color: var(--ink) !important;
+  -webkit-text-fill-color: var(--ink);
 }
 .ed-salary-pill {
   display: inline-flex; align-items: center; gap: 6px;
