@@ -654,6 +654,18 @@ tr:hover td { background: var(--bg2); }
   -webkit-text-fill-color: var(--ink);
 }
 .ed-salary-input::placeholder { color: var(--ink3); opacity: 1; -webkit-text-fill-color: var(--ink3); }
+/* Password-manager extensions (1Password, LastPass, Bitwarden, etc.) can
+   inject their own icon/overlay into a bare text input, which visually
+   "greys it out" and can swallow clicks/keystrokes meant for the field
+   itself. The data-*ignore attributes on the element ask well-behaved
+   extensions not to touch it; this hides the browser's own native
+   autofill icons as a second layer of defense. */
+.ed-salary-input::-webkit-credentials-auto-fill-button,
+.ed-salary-input::-webkit-strong-password-auto-fill-button,
+.ed-salary-input::-webkit-caps-lock-indicator,
+.ed-salary-input::-webkit-contacts-auto-fill-button {
+  display: none !important; visibility: hidden; pointer-events: none; position: absolute; right: 0;
+}
 .ed-salary-pill {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: .68rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;

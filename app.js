@@ -1129,7 +1129,7 @@ async function showPersonInline(name, officeName) {
     <div class="emp-detail-salary-row">
       <button class="emp-detail-salary" id="ed-salary-val" type="button" title="Click to try a different salary">${over ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(latestEmp.annual_equiv)}<span class="ed-salary-pencil">✎</span></button>
       <span class="emp-detail-salary ed-salary-input-wrap" id="ed-salary-input-wrap" style="display:none">
-        <span class="ed-salary-prefix">$</span><input type="text" inputmode="numeric" autocomplete="off" spellcheck="false" class="ed-salary-input" id="ed-salary-input" />
+        <span class="ed-salary-prefix">$</span><input type="text" inputmode="numeric" name="ed-salary-test-${Date.now()}" autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other" class="ed-salary-input" id="ed-salary-input" />
       </span>
       <span class="ed-salary-pill" id="ed-salary-pill" style="display:none">Testing <span class="ed-salary-reset" id="ed-salary-reset">✕</span></span>
     </div>
