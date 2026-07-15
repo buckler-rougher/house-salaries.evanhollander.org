@@ -1127,7 +1127,7 @@ async function showPersonInline(name, officeName) {
 
   const salaryBlockHtml = latestEmp ? `
     <div class="emp-detail-salary-row">
-      <button class="emp-detail-salary" id="ed-salary-val" type="button" title="Click to try a different salary"><span class="ed-salary-pencil">✎</span>${over ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(latestEmp.annual_equiv)}</button>
+      <button class="emp-detail-salary" id="ed-salary-val" type="button" title="Click to try a different salary">${over ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(latestEmp.annual_equiv)}<span class="ed-salary-pencil">✎</span></button>
       <span class="ed-salary-pill" id="ed-salary-pill" style="display:none">Testing <span class="ed-salary-reset" id="ed-salary-reset">✕</span></span>
     </div>
     <div class="emp-detail-salary-sub">est. annual · latest quarter</div>` : "";
@@ -1215,7 +1215,7 @@ async function showPersonInline(name, officeName) {
       btn.id = "ed-salary-val";
       btn.type = "button";
       btn.title = "Click to try a different salary";
-      btn.innerHTML = `<span class="ed-salary-pencil">✎</span>${overNow ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(v)}`;
+      btn.innerHTML = `${overNow ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(v)}<span class="ed-salary-pencil">✎</span>`;
       btn.addEventListener("click", startSalaryEdit);
       detail.querySelector("#ed-salary-val").replaceWith(btn);
     }
