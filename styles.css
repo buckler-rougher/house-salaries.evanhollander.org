@@ -653,6 +653,7 @@ tr:hover td { background: var(--bg2); }
   color: var(--ink) !important;
   -webkit-text-fill-color: var(--ink);
 }
+.ed-salary-input::placeholder { color: var(--ink3); opacity: 1; -webkit-text-fill-color: var(--ink3); }
 .ed-salary-pill {
   display: inline-flex; align-items: center; gap: 6px;
   font-size: .68rem; font-weight: 700; letter-spacing: .03em; text-transform: uppercase;

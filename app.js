@@ -1128,6 +1128,9 @@ async function showPersonInline(name, officeName) {
   const salaryBlockHtml = latestEmp ? `
     <div class="emp-detail-salary-row">
       <button class="emp-detail-salary" id="ed-salary-val" type="button" title="Click to try a different salary">${over ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(latestEmp.annual_equiv)}<span class="ed-salary-pencil">✎</span></button>
+      <span class="emp-detail-salary ed-salary-input-wrap" id="ed-salary-input-wrap" style="display:none">
+        <span class="ed-salary-prefix">$</span><input type="text" inputmode="numeric" autocomplete="off" spellcheck="false" class="ed-salary-input" id="ed-salary-input" />
+      </span>
       <span class="ed-salary-pill" id="ed-salary-pill" style="display:none">Testing <span class="ed-salary-reset" id="ed-salary-reset">✕</span></span>
     </div>
     <div class="emp-detail-salary-sub">est. annual · latest quarter</div>` : "";
@@ -1201,64 +1204,56 @@ async function showPersonInline(name, officeName) {
     // the comparison below immediately (no separate "commit" step to learn),
     // a small "Testing ✕" pill appears next to it as the one, constant sign
     // something's been overridden, and that pill's ✕ is the only way back.
-    let editing = false;
-    const salaryRowEl = detail.querySelector(".emp-detail-salary-row");
+    //
+    // The button and the input both exist in the DOM from the start; editing
+    // just toggles which one is visible. An earlier version created the
+    // <input> fresh (replaceWith) and focused it inside the same click
+    // handler that removed the button — reliable when there was a pause
+    // between the click and typing, but a real click-then-immediately-type
+    // could race the DOM swap and lose the keystrokes entirely (reproduced
+    // firsthand: on a fast click+type the field silently stayed in its
+    // button/display state). Toggling visibility on an element that's been
+    // sitting in the DOM the whole time removes that race.
+    const salaryValBtn = detail.querySelector("#ed-salary-val");
+    const salaryInputWrap = detail.querySelector("#ed-salary-input-wrap");
+    const salaryInput = detail.querySelector("#ed-salary-input");
     const salaryPillEl = detail.querySelector("#ed-salary-pill");
 
     function renderSalaryDisplay() {
       salaryPillEl.style.display = salaryOverride != null ? "" : "none";
-      if (editing) return;
       const v = salaryOverride != null ? salaryOverride : latestEmp.annual_equiv;
       const overNow = v > SALARY_CAP;
-      const btn = document.createElement("button");
-      btn.className = "emp-detail-salary";
-      btn.id = "ed-salary-val";
-      btn.type = "button";
-      btn.title = "Click to try a different salary";
-      btn.innerHTML = `${overNow ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(v)}<span class="ed-salary-pencil">✎</span>`;
-      btn.addEventListener("click", startSalaryEdit);
-      detail.querySelector("#ed-salary-val").replaceWith(btn);
+      salaryValBtn.innerHTML = `${overNow ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(v)}<span class="ed-salary-pencil">✎</span>`;
+      salaryValBtn.style.display = "";
+      salaryInputWrap.style.display = "none";
     }
 
     // Live-reformatting the field to "$X,XXX" on every keystroke (re-inserting
-    // commas as you type) kept fighting the caret in ways that read as typing
-    // being blocked entirely. Simpler and far more robust: a static "$"
-    // prefix sits outside the actual input, which holds nothing but plain
-    // digits while focused — untouched, native text editing, no caret math.
-    // Commas come back the moment it's no longer focused (renderSalaryDisplay).
+    // commas as you type) kept fighting the caret badly enough to read as
+    // typing being blocked. Simpler and far more robust: a static "$" prefix
+    // sits outside the actual input, which holds nothing but plain digits
+    // while focused, starting blank (current value shown as a placeholder)
+    // rather than pre-filled + select()-ed — nothing to select or replace,
+    // every keystroke is just a normal append. Commas return on blur.
     function startSalaryEdit() {
-      editing = true;
       const startVal = salaryOverride != null ? salaryOverride : latestEmp.annual_equiv;
-      const wrap = document.createElement("span");
-      wrap.id = "ed-salary-val";
-      wrap.className = "emp-detail-salary ed-salary-input-wrap";
-      const prefix = document.createElement("span");
-      prefix.textContent = "$";
-      prefix.className = "ed-salary-prefix";
-      const input = document.createElement("input");
-      input.type = "text";
-      input.inputMode = "numeric";
-      input.autocomplete = "off";
-      input.spellcheck = false;
-      input.className = "ed-salary-input";
-      input.value = Math.round(startVal).toLocaleString();
-      wrap.append(prefix, input);
-      detail.querySelector("#ed-salary-val").replaceWith(wrap);
-      input.focus();
-      input.select();
-      input.addEventListener("input", () => {
-        const digits = input.value.replace(/[^\d]/g, "");
-        if (input.value !== digits) input.value = digits; // strip anything non-numeric, leave the rest alone
-        const n = digits ? parseInt(digits, 10) : null;
-        salaryOverride = n > 0 ? n : null;
-        salaryPillEl.style.display = salaryOverride != null ? "" : "none";
-        renderCompStats(currentCompTitle);
-      });
-      const stop = () => { editing = false; renderSalaryDisplay(); };
-      input.addEventListener("blur", stop);
-      input.addEventListener("keydown", e => { if (e.key === "Enter") input.blur(); });
+      salaryInput.value = "";
+      salaryInput.placeholder = Math.round(startVal).toLocaleString();
+      salaryValBtn.style.display = "none";
+      salaryInputWrap.style.display = "";
+      salaryInput.focus();
     }
-    detail.querySelector("#ed-salary-val")?.addEventListener("click", startSalaryEdit);
+    salaryInput.addEventListener("input", () => {
+      const digits = salaryInput.value.replace(/[^\d]/g, "");
+      if (salaryInput.value !== digits) salaryInput.value = digits; // strip anything non-numeric, leave the rest alone
+      const n = digits ? parseInt(digits, 10) : null;
+      salaryOverride = n > 0 ? n : null;
+      salaryPillEl.style.display = salaryOverride != null ? "" : "none";
+      renderCompStats(currentCompTitle);
+    });
+    salaryInput.addEventListener("blur", renderSalaryDisplay);
+    salaryInput.addEventListener("keydown", e => { if (e.key === "Enter") salaryInput.blur(); });
+    salaryValBtn.addEventListener("click", startSalaryEdit);
     salaryPillEl.querySelector("#ed-salary-reset").addEventListener("click", () => {
       salaryOverride = null;
       renderSalaryDisplay();
