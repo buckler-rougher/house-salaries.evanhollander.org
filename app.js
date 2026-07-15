@@ -1220,45 +1220,39 @@ async function showPersonInline(name, officeName) {
       detail.querySelector("#ed-salary-val").replaceWith(btn);
     }
 
-    // Kept as a real $-and-comma-formatted string throughout — every input
-    // reformats the digits typed so far rather than falling back to a bare
-    // number-stepper field, which would look and behave nothing like the
-    // rest of the salary figures on the page.
+    // Live-reformatting the field to "$X,XXX" on every keystroke (re-inserting
+    // commas as you type) kept fighting the caret in ways that read as typing
+    // being blocked entirely. Simpler and far more robust: a static "$"
+    // prefix sits outside the actual input, which holds nothing but plain
+    // digits while focused — untouched, native text editing, no caret math.
+    // Commas come back the moment it's no longer focused (renderSalaryDisplay).
     function startSalaryEdit() {
       editing = true;
       const startVal = salaryOverride != null ? salaryOverride : latestEmp.annual_equiv;
+      const wrap = document.createElement("span");
+      wrap.id = "ed-salary-val";
+      wrap.className = "emp-detail-salary ed-salary-input-wrap";
+      const prefix = document.createElement("span");
+      prefix.textContent = "$";
+      prefix.className = "ed-salary-prefix";
       const input = document.createElement("input");
       input.type = "text";
       input.inputMode = "numeric";
-      input.id = "ed-salary-val";
-      input.className = "emp-detail-salary ed-salary-input";
-      input.value = fmt(Math.round(startVal));
-      detail.querySelector("#ed-salary-val").replaceWith(input);
+      input.autocomplete = "off";
+      input.spellcheck = false;
+      input.className = "ed-salary-input";
+      input.value = Math.round(startVal).toLocaleString();
+      wrap.append(prefix, input);
+      detail.querySelector("#ed-salary-val").replaceWith(wrap);
       input.focus();
       input.select();
       input.addEventListener("input", () => {
-        // Reformatting to "$X,XXX" changes the string length, so naively
-        // resetting the caret (or letting the browser default to the very
-        // end) fights typing anywhere but the tail end. Instead, count how
-        // many digits sit before the caret pre-format, then place the caret
-        // after that same count of digits in the reformatted string.
-        const digitsBeforeCaret = input.value.slice(0, input.selectionStart).replace(/[^\d]/g, "").length;
         const digits = input.value.replace(/[^\d]/g, "");
+        if (input.value !== digits) input.value = digits; // strip anything non-numeric, leave the rest alone
         const n = digits ? parseInt(digits, 10) : null;
-        input.value = n != null ? fmt(n) : "";
         salaryOverride = n > 0 ? n : null;
         salaryPillEl.style.display = salaryOverride != null ? "" : "none";
         renderCompStats(currentCompTitle);
-        let seen = 0, pos = input.value.length;
-        if (digitsBeforeCaret === 0) {
-          pos = 1; // right after the "$"
-        } else {
-          for (let i = 0; i < input.value.length; i++) {
-            if (/\d/.test(input.value[i])) seen++;
-            if (seen === digitsBeforeCaret) { pos = i + 1; break; }
-          }
-        }
-        input.setSelectionRange(pos, pos);
       });
       const stop = () => { editing = false; renderSalaryDisplay(); };
       input.addEventListener("blur", stop);
