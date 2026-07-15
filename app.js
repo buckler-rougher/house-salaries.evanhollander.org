@@ -1419,6 +1419,19 @@ function positionTooltip(e) {
   tt.style.top = y + "px";
 }
 
+// Anchors the tooltip to a fixed page point (a dot's own position) instead of
+// the cursor — centered above the point, flipping below/sideways near edges.
+function positionTooltipAtPoint(px, py) {
+  const tt = $("chart-tooltip");
+  if (!tt) return;
+  const tw = tt.offsetWidth, th = tt.offsetHeight;
+  let x = px - tw / 2, y = py - th - 14;
+  if (y < 4) y = py + 14;
+  x = Math.max(8, Math.min(x, window.innerWidth - tw - 8));
+  tt.style.left = x + "px";
+  tt.style.top = y + "px";
+}
+
 // svgSparkline's markup gets replaced wholesale on every re-render (including
 // mid-animation), so rather than re-wiring listeners after each innerHTML
 // write, one delegated listener on the document handles every sparkline dot
@@ -1434,11 +1447,11 @@ function setupSparklineTooltips() {
     const tt = $("chart-tooltip");
     tt.innerHTML = `<strong>${hit.dataset.label}</strong><br>${hit.dataset.value}`;
     tt.style.display = "block";
-    positionTooltip(e);
-    hit.previousElementSibling?.classList.add("spark-dot-active");
-  });
-  document.addEventListener("mousemove", e => {
-    if (e.target.closest?.(".spark-hit")) positionTooltip(e);
+    const dot = hit.previousElementSibling;
+    dot?.classList.add("spark-dot-active");
+    const dotRect = dot?.getBoundingClientRect();
+    if (dotRect) positionTooltipAtPoint(dotRect.left + dotRect.width / 2, dotRect.top + dotRect.height / 2);
+    else positionTooltip(e);
   });
   document.addEventListener("mouseout", e => {
     const hit = e.target.closest?.(".spark-hit");
