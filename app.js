@@ -1127,10 +1127,10 @@ async function showPersonInline(name, officeName) {
 
   const salaryBlockHtml = latestEmp ? `
     <div class="emp-detail-salary-row">
-      <button class="emp-detail-salary" id="ed-salary-val" type="button" title="Click to try a different salary">${over ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(latestEmp.annual_equiv)}</button>
+      <button class="emp-detail-salary" id="ed-salary-val" type="button" title="Click to try a different salary">${over ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(latestEmp.annual_equiv)}<span class="ed-salary-pencil">✎</span></button>
       <span class="ed-salary-pill" id="ed-salary-pill" style="display:none">Testing <span class="ed-salary-reset" id="ed-salary-reset">✕</span></span>
     </div>
-    <div class="emp-detail-salary-sub">est. annual · latest quarter — click the figure to test a different one</div>` : "";
+    <div class="emp-detail-salary-sub">est. annual · latest quarter — <span class="ed-salary-hint">click to test a different salary</span></div>` : "";
 
   detail.innerHTML = `
     <div class="emp-detail-name">${esc(name)}</div>
@@ -1215,26 +1215,32 @@ async function showPersonInline(name, officeName) {
       btn.id = "ed-salary-val";
       btn.type = "button";
       btn.title = "Click to try a different salary";
-      btn.innerHTML = `${overNow ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(v)}`;
+      btn.innerHTML = `${overNow ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(v)}<span class="ed-salary-pencil">✎</span>`;
       btn.addEventListener("click", startSalaryEdit);
       detail.querySelector("#ed-salary-val").replaceWith(btn);
     }
 
+    // Kept as a real $-and-comma-formatted string throughout — every input
+    // reformats the digits typed so far rather than falling back to a bare
+    // number-stepper field, which would look and behave nothing like the
+    // rest of the salary figures on the page.
     function startSalaryEdit() {
       editing = true;
       const startVal = salaryOverride != null ? salaryOverride : latestEmp.annual_equiv;
       const input = document.createElement("input");
-      input.type = "number";
+      input.type = "text";
+      input.inputMode = "numeric";
       input.id = "ed-salary-val";
       input.className = "emp-detail-salary ed-salary-input";
-      input.step = "1000";
-      input.value = Math.round(startVal);
+      input.value = fmt(Math.round(startVal));
       detail.querySelector("#ed-salary-val").replaceWith(input);
       input.focus();
       input.select();
       input.addEventListener("input", () => {
-        const n = parseFloat(input.value);
-        salaryOverride = Number.isFinite(n) && n > 0 ? n : null;
+        const digits = input.value.replace(/[^\d]/g, "");
+        const n = digits ? parseInt(digits, 10) : null;
+        input.value = n != null ? fmt(n) : "";
+        salaryOverride = n > 0 ? n : null;
         salaryPillEl.style.display = salaryOverride != null ? "" : "none";
         renderCompStats(currentCompTitle);
       });
