@@ -1192,7 +1192,7 @@ async function showPersonInline(name, officeName) {
         <button class="mini-q" data-q="4">Q4</button>
       </div>
     </div>`;
-    chartHtml = `<div class="emp-detail-section">Pay history · annual equivalent</div>${qFilterHtml}<div class="emp-detail-chart" id="emp-detail-chart"></div>`;
+    chartHtml = `<div class="emp-detail-section">Pay history · annual equivalent</div>${qFilterHtml}<div class="emp-detail-chart mini-chart-wrap" id="emp-detail-chart"></div>`;
   } else {
     chartHtml = `<div style="font-size:.82rem;color:var(--ink3);margin:16px 0">No multi-quarter history — this person may have joined recently or changed offices.</div>`;
   }
@@ -1233,28 +1233,17 @@ async function showPersonInline(name, officeName) {
     ${chartHtml}
     ${compHtml}`;
 
-  // Wire chart
+  // Wire chart — makeMiniTrend() is the same value-morph/zoom-transition
+  // engine already used for the position card and office trend charts, so
+  // switching between All/Q1–Q4 here gets the same animated transition
+  // instead of the plain instant swap this used to do.
   if (person) {
-    const labelMap = {};
-    summary.quarters.forEach(q => labelMap[q.id] = q.label);
-    let qf = 0;
     const firstTrackedQuarter = person.history.reduce((min, h) => h.quarter < min ? h.quarter : min, person.history[0].quarter);
-    function drawPersonChart() {
-      const filtQs = summary.quarters.filter(q => !qf || q.quarter === qf);
-      const data = filtQs.map(q => { const h = person.history.find(h => h.quarter === q.id); return h ? h.quarterly_pay * 4 * cpiFactorForQuarter(q) : null; });
-      const labels = filtQs.map(q => q.label);
-      const excludeIdx = filtQs.findIndex(q => q.id === firstTrackedQuarter);
-      const el = detail.querySelector(".emp-detail-chart");
-      if (el) el.innerHTML = svgSparkline(data, labels, qf ? 1 : 4, excludeIdx >= 0 ? excludeIdx : null);
-    }
-    drawPersonChart();
-    detail.querySelectorAll(".mini-q").forEach(b => {
-      b.addEventListener("click", () => {
-        qf = +b.dataset.q;
-        detail.querySelectorAll(".mini-q").forEach(x => x.classList.toggle("active", x === b));
-        drawPersonChart();
-      });
+    const getPersonData = () => summary.quarters.map(q => {
+      const h = person.history.find(h => h.quarter === q.id);
+      return h ? h.quarterly_pay * 4 * cpiFactorForQuarter(q) : null;
     });
+    makeMiniTrend(detail, getPersonData, null, firstTrackedQuarter);
   }
 
   // Wire comparison
@@ -2255,7 +2244,7 @@ function buildSparklineFrame(fullLabels, fullData, xs, opacities) {
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">${yTicks}${fills}${lines}${dots}</svg>`;
 }
 
-function makeMiniTrend(wrapEl, getDataFn, seedView) {
+function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId) {
   // miniTrendHtml() already rendered the pills with the right "active" class
   // for `initial` — reading it back off the DOM (rather than trusting
   // `initial` directly) keeps this in sync even if the template and this
@@ -2277,11 +2266,17 @@ function makeMiniTrend(wrapEl, getDataFn, seedView) {
       fullLabels, fullData, visible,
       labels: visIdx.map(i => fullLabels[i]),
       data: visIdx.map(i => fullData[i]),
+      ids: visIdx.map(i => allQs[i].id),
     };
   }
 
+  // Only used by the per-person pay-history chart (see showPersonInline) —
+  // their first tracked quarter is often a partial/prorated payment, so it's
+  // excluded from the trend-line fit wherever it lands in the current view.
+  const excludeIdxFor = view => excludeFirstQuarterId ? view.ids.indexOf(excludeFirstQuarterId) : null;
+
   function renderStatic(view) {
-    if (chartWrap) chartWrap.innerHTML = svgSparkline(view.data, view.labels, qf ? 1 : 4);
+    if (chartWrap) chartWrap.innerHTML = svgSparkline(view.data, view.labels, qf ? 1 : 4, excludeIdxFor(view) >= 0 ? excludeIdxFor(view) : null);
   }
 
   function render() {
@@ -2305,6 +2300,7 @@ function makeMiniTrend(wrapEl, getDataFn, seedView) {
       const fromData = prev.data;
       const duration = 380;
       const start = performance.now();
+      const excludeIdx = excludeIdxFor(view);
       const step = now => {
         if (myGen !== gen) return;
         const t = Math.min(1, (now - start) / duration);
@@ -2314,7 +2310,7 @@ function makeMiniTrend(wrapEl, getDataFn, seedView) {
           if (v == null || fv == null) return t < 1 ? (t < .5 ? fv : v) : v;
           return fv + (v - fv) * e;
         });
-        chartWrap.innerHTML = svgSparkline(iData, view.labels, qf ? 1 : 4);
+        chartWrap.innerHTML = svgSparkline(iData, view.labels, qf ? 1 : 4, excludeIdx >= 0 ? excludeIdx : null);
         if (t < 1) requestAnimationFrame(step);
       };
       requestAnimationFrame(step);
