@@ -165,6 +165,22 @@ def normalize_title(desc):
     """Normalize job title for grouping."""
     return desc.strip().upper()
 
+# Office names with an unambiguous fix — either a plain typo/abbreviation
+# ("OFCR" -> "OFFICER", a doubled letter), or multiple raw spellings that are
+# indisputably the same entity (inconsistent spacing/ampersand use around
+# the same words). Deliberately does NOT include cases where a committee
+# was renamed by an act of Congress (e.g. Oversight and Reform -> Oversight
+# and Accountability in the 118th) — collapsing those changes what "the
+# same office" means across a real historical event, which is a bigger
+# call than a typo fix and shouldn't be made silently.
+OFFICE_NAME_FIXUPS = {
+    "CHIEF ADMIN OFCR OF THE HOUSE": "CHIEF ADMINISTRATIVE OFFICER OF THE HOUSE",
+    "JOINT COMMMITTEE ON TAXATION": "JOINT COMMITTEE ON TAXATION",
+    "COMM ON SCIENCE  SPACE & TECH": "COMMITTEE ON SCIENCE, SPACE, AND TECHNOLOGY",
+    "COMM ON SCIENCE SPACE&TECH": "COMMITTEE ON SCIENCE, SPACE, AND TECHNOLOGY",
+    "COMMITTEE ON FINANCIAL SERVICE": "COMMITTEE ON FINANCIAL SERVICES",
+}
+
 def strip_org_prefix(org):
     """ORGANIZATION values carry a leading year stamp that varies in form —
     sometimes a bare "NNNN ", sometimes "FISCAL YEAR NNNN " — even for the
@@ -172,7 +188,8 @@ def strip_org_prefix(org):
     must strip both forms the same way, or the same real office silently
     fragments into two keys (and, worse, a person paid under both variants
     gets flagged as a "shared" employee and excluded from every stat)."""
-    return re.sub(r"^FISCAL YEAR \d{4}\s*", "", re.sub(r"^\d{4}\s+", "", org)).strip()
+    cleaned = re.sub(r"^FISCAL YEAR \d{4}\s*", "", re.sub(r"^\d{4}\s+", "", org)).strip()
+    return OFFICE_NAME_FIXUPS.get(cleaned, cleaned)
 
 def percentile(data, p):
     if not data:

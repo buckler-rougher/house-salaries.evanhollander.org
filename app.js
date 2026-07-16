@@ -318,7 +318,13 @@ async function navigateQuarter(dir) {
       await loadPeople();
       if (t) selectTitle(t, activeRow);
     } else if (currentSelection.type === "person") {
-      showPerson(currentSelection.personName, currentSelection.personOffice);
+      // showPerson() (used for actual navigation to a person) force-switches
+      // to the All Staff tab as a side effect — wrong here, since this is
+      // just refreshing an already-open person detail after some unrelated
+      // global filter changed, not a request to go anywhere. The detail row
+      // already exists (applyFilters() above just rebuilt the table), so
+      // refresh its contents in place instead.
+      showPersonInline(currentSelection.personName, currentSelection.personOffice);
     }
   }
   saveState();
@@ -353,7 +359,13 @@ async function setOfficeTypeFilter(type) {
       await loadPeople();
       if (t) selectTitle(t, activeRow); else clearTitle();
     } else if (currentSelection.type === "person") {
-      showPerson(currentSelection.personName, currentSelection.personOffice);
+      // showPerson() (used for actual navigation to a person) force-switches
+      // to the All Staff tab as a side effect — wrong here, since this is
+      // just refreshing an already-open person detail after some unrelated
+      // global filter changed, not a request to go anywhere. The detail row
+      // already exists (applyFilters() above just rebuilt the table), so
+      // refresh its contents in place instead.
+      showPersonInline(currentSelection.personName, currentSelection.personOffice);
     }
   }
   saveState();
@@ -390,7 +402,13 @@ async function setInflationOn(on) {
       await loadPeople();
       if (t) selectTitle(t, activeRow); else clearTitle();
     } else if (currentSelection.type === "person") {
-      showPerson(currentSelection.personName, currentSelection.personOffice);
+      // showPerson() (used for actual navigation to a person) force-switches
+      // to the All Staff tab as a side effect — wrong here, since this is
+      // just refreshing an already-open person detail after some unrelated
+      // global filter changed, not a request to go anywhere. The detail row
+      // already exists (applyFilters() above just rebuilt the table), so
+      // refresh its contents in place instead.
+      showPersonInline(currentSelection.personName, currentSelection.personOffice);
     }
   }
   saveState();
