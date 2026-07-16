@@ -2287,9 +2287,17 @@ function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId) {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const canMorph = prev && !reduceMotion && prev.data.length === view.data.length;
-    const prevWasAll = prev && prev.visible.every(v => v);
-    const nowIsAll = view.visible.every(v => v);
-    const isZoom = !canMorph && prev && !reduceMotion && prevWasAll !== nowIsAll
+    // Originally gated to "one side is the full timeline" (All <-> Q1), since
+    // that's the only case that came up when every dataset here was a fixed
+    // aggregate with the same point count regardless of quarter filter. A
+    // person's own history doesn't have that guarantee — how many Q1s vs Q2s
+    // they've been tracked through can differ by one depending on hire/leave
+    // timing — so a direct Q1 -> Q2 switch could have different point counts
+    // on each side and used to just snap instantly, having failed canMorph
+    // and this now-relaxed check both. The reveal/collapse logic below
+    // already handles an arbitrary subset on each side, not just "all vs
+    // one," so it's safe to run for any point-count mismatch.
+    const isZoom = !canMorph && prev && !reduceMotion
       && prev.fullLabels.join(",") === view.fullLabels.join(",");
 
     if (!prev || reduceMotion) {
