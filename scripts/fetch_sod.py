@@ -316,7 +316,7 @@ def process_all(quarters_to_process=None):
                 p["office"] = org_key
                 p["title"] = e["title"]
                 p["type"] = e["type"]
-            p["history"].append({"quarter": q["id"], "quarterly_pay": e["quarterly_pay"]})
+            p["history"].append({"quarter": q["id"], "quarterly_pay": e["quarterly_pay"], "title": e["title"]})
 
         if all_employees_latest is None:
             all_employees_latest = employees

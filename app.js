@@ -1096,19 +1096,32 @@ async function showPersonInline(name, officeName) {
     }
   }
 
-  // "Previously" — walk backward through every peopleData entry sharing this
-  // name, each time picking the one whose whole tracked stint ended most
-  // recently before the current stint's start, so a person who moved through
-  // several offices shows their full chain, not just the one hop back.
-  // Same-name matching is inherently best-effort (no ID to key on in the
-  // underlying SOD data), so the chain stops the moment a gap exceeds a
-  // year — a prior stint further back than that reads more like an
-  // unrelated same-name coincidence than an actual career move.
+  // "Previously" — two sources, newest first:
+  // 1. Title changes within this same office — each history entry now
+  //    carries its own quarter's title, so a promotion/lateral move that
+  //    never left this office shows up directly.
+  // 2. Walking backward through every peopleData entry sharing this name,
+  //    each time picking the one whose whole tracked stint ended most
+  //    recently before the current stint's start, so a person who moved
+  //    through several offices shows their full chain, not just one hop.
+  //    Same-name matching is inherently best-effort (no ID to key on in the
+  //    underlying SOD data), so the chain stops the moment a gap exceeds a
+  //    year — a prior stint further back than that reads more like an
+  //    unrelated same-name coincidence than an actual career move.
   let prevHtml = "";
   if (person) {
     const firstQuarter = p => p.history.reduce((min, h) => h.quarter < min ? h.quarter : min, p.history[0].quarter);
     const lastQuarter = p => p.history.reduce((max, h) => h.quarter > max ? h.quarter : max, p.history[0].quarter);
-    const chain = [];
+
+    const entries = [];
+    const sortedHist = [...person.history].sort((a, b) => a.quarter.localeCompare(b.quarter));
+    for (let i = 0; i < sortedHist.length - 1; i++) {
+      if (sortedHist[i].title && sortedHist[i + 1].title && sortedHist[i].title !== sortedHist[i + 1].title) {
+        entries.push({ title: sortedHist[i].title, office: officeName, until: sortedHist[i].quarter });
+      }
+    }
+    entries.reverse();
+
     const used = new Set([officeName]);
     let cursorFirst = firstQuarter(person);
     for (;;) {
@@ -1121,13 +1134,14 @@ async function showPersonInline(name, officeName) {
       if (!best) break;
       const [y, q] = cursorFirst.split("Q");
       if (lastQuarter(best) < `${+y - 1}Q${q}`) break; // gap too big — stop the chain here
-      chain.push(best);
+      entries.push({ title: best.title, office: best.office, until: lastQuarter(best) });
       used.add(best.office);
       cursorFirst = firstQuarter(best);
     }
-    if (chain.length) {
-      prevHtml = `<div class="emp-detail-prev">Previously: ${chain.map(p =>
-        `<strong>${esc(p.title)}</strong> at <span class="office-link" data-office="${esc(p.office)}">${esc(p.office)}</span> <span class="emp-detail-prev-until">(through ${labelMap[lastQuarter(p)] || lastQuarter(p)})</span>`
+
+    if (entries.length) {
+      prevHtml = `<div class="emp-detail-prev">Previously: ${entries.map(e =>
+        `<strong>${esc(e.title)}</strong>${e.office !== officeName ? ` at <span class="office-link" data-office="${esc(e.office)}">${esc(e.office)}</span>` : ""} <span class="emp-detail-prev-until">(through ${labelMap[e.until] || e.until})</span>`
       ).join(", ")}</div>`;
     }
   }
@@ -1186,12 +1200,14 @@ async function showPersonInline(name, officeName) {
     const labelMap = {};
     summary.quarters.forEach(q => labelMap[q.id] = q.label);
     let qf = 0;
+    const firstTrackedQuarter = person.history.reduce((min, h) => h.quarter < min ? h.quarter : min, person.history[0].quarter);
     function drawPersonChart() {
       const filtQs = summary.quarters.filter(q => !qf || q.quarter === qf);
       const data = filtQs.map(q => { const h = person.history.find(h => h.quarter === q.id); return h ? h.quarterly_pay * 4 * cpiFactorForQuarter(q) : null; });
       const labels = filtQs.map(q => q.label);
+      const excludeIdx = filtQs.findIndex(q => q.id === firstTrackedQuarter);
       const el = detail.querySelector(".emp-detail-chart");
-      if (el) el.innerHTML = svgSparkline(data, labels, qf ? 1 : 4);
+      if (el) el.innerHTML = svgSparkline(data, labels, qf ? 1 : 4, excludeIdx >= 0 ? excludeIdx : null);
     }
     drawPersonChart();
     detail.querySelectorAll(".mini-q").forEach(b => {
@@ -2045,7 +2061,7 @@ function shortAxisLabel(lb) {
 // full timeline), but 1 when the caller has filtered down to a single
 // calendar quarter (e.g. "Q1"), since then consecutive points are already a
 // full year apart and multiplying by 4 would inflate the trend 4x.
-function svgSparkline(data, labels, annualMultiplier = 4) {
+function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend = null) {
   const W = 560, H = 200;
   // Rotated x-axis labels (below) are anchored at their end and tilt up-left
   // from there, so the first tick's label — anchored right at pad.l — was
@@ -2115,11 +2131,18 @@ function svgSparkline(data, labels, annualMultiplier = 4) {
        style="cursor:crosshair" data-label="${labels[i]}" data-value="$${Math.round(v).toLocaleString()}"/>`
   ).join("");
 
-  // Trend line + annotation (need ≥3 valid points)
+  // Trend line + annotation (need ≥3 valid points). A person's first tracked
+  // quarter is often a partial/prorated payment (mid-quarter hire), which
+  // would otherwise drag the regression down — excluded from the fit itself
+  // (by data index, so it's still the right point even under a Q1–Q4
+  // filter) but still plotted as a real point on the line.
   let trendEl = "", annotEl = "";
-  if (valid.length >= 3) {
-    const { slope, intercept } = linReg(valid.map(d => d.i), valid.map(d => d.v));
-    const x0 = valid[0].i, x1 = valid[valid.length - 1].i;
+  const trendPts = excludeIndexFromTrend != null && valid.length > 3
+    ? valid.filter(d => d.i !== excludeIndexFromTrend)
+    : valid;
+  if (trendPts.length >= 3) {
+    const { slope, intercept } = linReg(trendPts.map(d => d.i), trendPts.map(d => d.v));
+    const x0 = trendPts[0].i, x1 = trendPts[trendPts.length - 1].i;
     const ty0 = sy(slope * x0 + intercept), ty1 = sy(slope * x1 + intercept);
     trendEl = `<line x1="${sx(x0).toFixed(1)}" y1="${ty0.toFixed(1)}" x2="${sx(x1).toFixed(1)}" y2="${ty1.toFixed(1)}"
       stroke="#6b7280" stroke-width="1.2" stroke-dasharray="4 3" opacity=".7"/>`;
