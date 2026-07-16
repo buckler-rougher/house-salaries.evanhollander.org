@@ -32,7 +32,7 @@ let currentSelection = null; // { type: "title"|"person", titleName, personName,
 const PAGE = 25;
 
 const SALARY_CAP = 228000;
-const TYPE_LABELS = { member:"Member", committee:"Committee", leadership:"Leadership", administrative:"Admin" };
+const TYPE_LABELS = { member:"Member", committee:"Committee", leadership:"Leadership", administrative:"Administrative" };
 const TYPE_COLORS = { member:"#2563eb", committee:"#059669", leadership:"#b45309", administrative:"#6b7280" };
 
 async function loadData() {

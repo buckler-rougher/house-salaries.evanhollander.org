@@ -191,6 +191,29 @@ def strip_org_prefix(org):
     cleaned = re.sub(r"^FISCAL YEAR \d{4}\s*", "", re.sub(r"^\d{4}\s+", "", org)).strip()
     return OFFICE_NAME_FIXUPS.get(cleaned, cleaned)
 
+# Committees Congress itself renamed (control changed hands, name changed
+# with it) — unlike OFFICE_NAME_FIXUPS above, these should NOT change what
+# gets displayed for a given quarter (a 2021 staffer worked at "Oversight
+# and Reform," not "Oversight and Accountability," and per-quarter views
+# should say so). This only affects PERSON_MERGE_KEY below: the key used to
+# decide whether two stints are "the same office" for tenure-continuity
+# purposes, so a staffer who was there through the rename doesn't look like
+# they left one committee and joined a brand new one.
+COMMITTEE_RENAME_MERGE = {
+    "COMMITTEE ON OVERSIGHT AND ACCOUNTABILITY": "COMMITTEE ON OVERSIGHT",
+    "COMMITTEE ON OVERSIGHT AND REFORM": "COMMITTEE ON OVERSIGHT",
+    "COMMITTEE ON EDUCATION AND WORKFORCE": "COMMITTEE ON EDUCATION",
+    "COMMITTEE ON EDUCATION AND LABOR": "COMMITTEE ON EDUCATION",
+    "VETERANS' AFFAIRS": "COMMITTEE ON VETERANS AFFAIRS",
+    "COMMITTEE ON VETERANS AFFAIRS": "COMMITTEE ON VETERANS AFFAIRS",
+}
+
+def person_merge_key(org_key):
+    """The key used for (name, office) grouping in people_index — merges
+    known committee renames so tenure tracking treats them as one office,
+    while org_key itself (used for actual per-quarter display) is untouched."""
+    return COMMITTEE_RENAME_MERGE.get(org_key, org_key)
+
 def percentile(data, p):
     if not data:
         return 0
@@ -366,7 +389,7 @@ def process_all(quarters_to_process=None):
             if e["intern"] or e["shared"]:
                 continue
             org_key = strip_org_prefix(e["office"])
-            pk = (e["name"], org_key)
+            pk = (e["name"], person_merge_key(org_key))
             p = people_index[pk]
             if not p["history"]:
                 p["name"] = e["name"]
