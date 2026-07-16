@@ -5,6 +5,21 @@ const fmt   = n => n == null ? "—" : "$" + Math.round(n).toLocaleString();
 const fmtK  = n => n == null ? "—" : "$" + Math.round(n / 1000) + "k";
 const fmtSh = n => { if (n == null) return "—"; return n >= 1000 ? "$" + Math.round(n/1000) + "k" : "$" + Math.round(n); };
 
+// A plain substring search on a full name misses "john smith" against
+// "John A. Smith" — a middle name/initial (with or without a period, which
+// people also aren't consistent about) sits right where the search expects
+// the last name to start. Falls back to word-subset matching: every word
+// in the query has to match (as a substring) some word in the name,
+// regardless of order or what's in between.
+function fuzzyNameMatch(haystack, queryLower) {
+  const norm = s => s.toLowerCase().replace(/\./g, "").replace(/\s+/g, " ").trim();
+  const normHay = norm(haystack), normQ = norm(queryLower);
+  if (normHay.includes(normQ)) return true;
+  const hayWords = normHay.split(" ");
+  const qWords = normQ.split(" ").filter(Boolean);
+  return qWords.length > 0 && qWords.every(qw => hayWords.some(hw => hw.includes(qw)));
+}
+
 let summary = null, employees = [];
 let trendMetric = "median", trendMode = "overall", trendQFilter = 0;
 let sortKey = "annual_equiv", sortDir = -1, page = 1, filtered = [];
@@ -2446,7 +2461,7 @@ function renderOfficeList() {
 
   // Office type is filtered globally already (officeData is built from it in buildOfficeData())
   let rows = officeData.filter(o => {
-    if (q && !o.name.toLowerCase().includes(q)) return false;
+    if (q && !fuzzyNameMatch(o.name, q)) return false;
     return true;
   });
 
@@ -2557,7 +2572,7 @@ function applyFilters() {
     if (show === "staff"  &&  e.intern) return false;
     if (show === "intern" && !e.intern) return false;
     if (officeTypeFilter && e.type !== officeTypeFilter) return false;
-    if (q && !e.name.toLowerCase().includes(q) && !e.office.toLowerCase().includes(q) && !e.title.toLowerCase().includes(q)) return false;
+    if (q && !fuzzyNameMatch(e.name, q) && !fuzzyNameMatch(e.office, q) && !e.title.toLowerCase().includes(q)) return false;
     return true;
   });
   page = 1; renderTable();
