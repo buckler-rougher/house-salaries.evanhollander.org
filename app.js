@@ -1096,27 +1096,39 @@ async function showPersonInline(name, officeName) {
     }
   }
 
-  // "Previously" — someone with this same name shows up under a DIFFERENT
-  // office, with their whole tracked stint there ending before this stint
-  // began. Same-name matching is inherently best-effort (no ID to key on in
-  // the underlying SOD data), so this only surfaces a prior stint that ended
-  // within a year of the current one starting, to keep unrelated same-name
-  // coincidences from showing up as a career move.
+  // "Previously" — walk backward through every peopleData entry sharing this
+  // name, each time picking the one whose whole tracked stint ended most
+  // recently before the current stint's start, so a person who moved through
+  // several offices shows their full chain, not just the one hop back.
+  // Same-name matching is inherently best-effort (no ID to key on in the
+  // underlying SOD data), so the chain stops the moment a gap exceeds a
+  // year — a prior stint further back than that reads more like an
+  // unrelated same-name coincidence than an actual career move.
   let prevHtml = "";
   if (person) {
-    const myFirst = person.history.reduce((min, h) => h.quarter < min ? h.quarter : min, person.history[0].quarter);
-    let best = null;
-    (peopleData || []).forEach(p => {
-      if (p.name !== name || p.office === officeName || !p.history.length) return;
-      const last = p.history.reduce((max, h) => h.quarter > max ? h.quarter : max, p.history[0].quarter);
-      if (last < myFirst && (!best || last > best.last)) best = { office: p.office, title: p.title, last };
-    });
-    if (best) {
-      const [y, q] = myFirst.split("Q");
-      const cutoffId = `${+y - 1}Q${q}`;
-      if (best.last >= cutoffId) {
-        prevHtml = `<div class="emp-detail-prev">Previously <strong>${esc(best.title)}</strong> at <span class="office-link" data-office="${esc(best.office)}">${esc(best.office)}</span> <span class="emp-detail-prev-until">· through ${labelMap[best.last] || best.last}</span></div>`;
-      }
+    const firstQuarter = p => p.history.reduce((min, h) => h.quarter < min ? h.quarter : min, p.history[0].quarter);
+    const lastQuarter = p => p.history.reduce((max, h) => h.quarter > max ? h.quarter : max, p.history[0].quarter);
+    const chain = [];
+    const used = new Set([officeName]);
+    let cursorFirst = firstQuarter(person);
+    for (;;) {
+      let best = null;
+      (peopleData || []).forEach(p => {
+        if (p.name !== name || used.has(p.office) || !p.history.length) return;
+        const last = lastQuarter(p);
+        if (last < cursorFirst && (!best || last > lastQuarter(best))) best = p;
+      });
+      if (!best) break;
+      const [y, q] = cursorFirst.split("Q");
+      if (lastQuarter(best) < `${+y - 1}Q${q}`) break; // gap too big — stop the chain here
+      chain.push(best);
+      used.add(best.office);
+      cursorFirst = firstQuarter(best);
+    }
+    if (chain.length) {
+      prevHtml = `<div class="emp-detail-prev">Previously: ${chain.map(p =>
+        `<strong>${esc(p.title)}</strong> at <span class="office-link" data-office="${esc(p.office)}">${esc(p.office)}</span> <span class="emp-detail-prev-until">(through ${labelMap[lastQuarter(p)] || lastQuarter(p)})</span>`
+      ).join(", ")}</div>`;
     }
   }
 
