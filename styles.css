@@ -679,6 +679,8 @@ tr:hover td { background: var(--bg2); }
 }
 .ed-salary-reset:hover { opacity: .8; }
 .emp-detail-comp-you-hypo { outline: 1.5px dashed var(--accent); outline-offset: -1.5px; }
+.emp-detail-prev { font-size: .8rem; color: var(--ink2); margin-top: 6px; }
+.emp-detail-prev-until { color: var(--ink3); font-size: .75rem; }
 .emp-detail-yoy { font-size: .85rem; margin: 4px 0 16px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .emp-detail-yoy-label { font-size: .75rem; color: var(--ink3); }
 .emp-detail-section { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); margin: 18px 0 10px; }

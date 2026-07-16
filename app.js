@@ -1071,6 +1071,9 @@ async function showPersonInline(name, officeName) {
   const latestEmp = employees.find(e => e.name === name && cleanOrg(e.office) === officeName);
   const over = latestEmp && latestEmp.annual_equiv > SALARY_CAP;
 
+  const labelMap = {};
+  summary.quarters.forEach(q => labelMap[q.id] = q.label);
+
   // Year-over-year same-quarter stat
   let yoyHtml = "";
   if (person && person.history.length >= 2) {
@@ -1084,14 +1087,36 @@ async function showPersonInline(name, officeName) {
       const latestAnn = latest.quarterly_pay * 4 * cpiFactorForId(latest.quarter), priorAnn = prior.quarterly_pay * 4 * cpiFactorForId(prior.quarter);
       const diff = latestAnn - priorAnn;
       const pct = Math.round((diff / priorAnn) * 100);
-      const labelMap = {};
-      summary.quarters.forEach(q => labelMap[q.id] = q.label);
       const sign = diff >= 0 ? "+" : "−";
       const color = diff >= 0 ? "#059669" : "#dc2626";
       yoyHtml = `<div class="emp-detail-yoy">
         <span style="color:${color};font-weight:700">${sign}${fmtK(Math.abs(diff))} (${sign}${Math.abs(pct)}%)</span>
         <span class="emp-detail-yoy-label">vs. ${labelMap[priorId] || priorId} · same quarter last year</span>
       </div>`;
+    }
+  }
+
+  // "Previously" — someone with this same name shows up under a DIFFERENT
+  // office, with their whole tracked stint there ending before this stint
+  // began. Same-name matching is inherently best-effort (no ID to key on in
+  // the underlying SOD data), so this only surfaces a prior stint that ended
+  // within a year of the current one starting, to keep unrelated same-name
+  // coincidences from showing up as a career move.
+  let prevHtml = "";
+  if (person) {
+    const myFirst = person.history.reduce((min, h) => h.quarter < min ? h.quarter : min, person.history[0].quarter);
+    let best = null;
+    (peopleData || []).forEach(p => {
+      if (p.name !== name || p.office === officeName || !p.history.length) return;
+      const last = p.history.reduce((max, h) => h.quarter > max ? h.quarter : max, p.history[0].quarter);
+      if (last < myFirst && (!best || last > best.last)) best = { office: p.office, title: p.title, last };
+    });
+    if (best) {
+      const [y, q] = myFirst.split("Q");
+      const cutoffId = `${+y - 1}Q${q}`;
+      if (best.last >= cutoffId) {
+        prevHtml = `<div class="emp-detail-prev">Previously <strong>${esc(best.title)}</strong> at <span class="office-link" data-office="${esc(best.office)}">${esc(best.office)}</span> <span class="emp-detail-prev-until">· through ${labelMap[best.last] || best.last}</span></div>`;
+      }
     }
   }
 
@@ -1138,6 +1163,7 @@ async function showPersonInline(name, officeName) {
   detail.innerHTML = `
     <div class="emp-detail-name">${esc(name)}</div>
     <div class="emp-detail-meta"><span class="office-link" data-office="${esc(officeName)}">${esc(officeName)}</span>${latestEmp ? ` · ${esc(latestEmp.title)}` : ""}</div>
+    ${prevHtml}
     ${salaryBlockHtml}
     ${yoyHtml}
     ${chartHtml}
