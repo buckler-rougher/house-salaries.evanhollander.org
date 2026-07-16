@@ -74,33 +74,73 @@ def classify_office(org):
 
 NAME_SUFFIXES = {"II", "III", "IV", "V", "JR", "SR"}
 
+# Real Mac-prefix surnames where the letter right after "Mac" should be
+# capitalized (MacDonald, MacKenzie, ...) — NOT a general "starts with Mac"
+# rule, since plenty of ordinary surnames (Macias, Maczka, Macheledt) just
+# happen to start with those three letters and would be mangled by one.
+MAC_SURNAMES = {
+    "macdonald", "mackenzie", "maclean", "macarthur", "macgregor", "mackay",
+    "macfarlane", "macpherson", "macleod", "macbride", "maclaine", "maclay",
+    "macmillan", "macneil", "macneill", "maccallum", "macleay", "macrae",
+    "macinnes", "maclachlan", "macaulay", "macnab", "macnamara", "macphail",
+    "macquarie", "macqueen", "macewan", "macewen", "maccormack", "macdougall",
+    "macfadyen", "macfie", "macgowan", "mackinnon", "mackintosh", "maclure",
+    "macnaughton", "macnicol", "macready", "macvicar", "macwilliam",
+}
+
+def _fix_suffix_letter(w):
+    """capitalize() lowercases everything after the first letter, which
+    breaks Mc-/Mac-/O'-prefixed surnames (MCCANE -> Mccane instead of
+    McCane). Fix those three patterns; everything else is a plain
+    capitalize()."""
+    low = w.lower()
+    if low.startswith("mc") and len(w) > 2:
+        return "Mc" + w[2].upper() + w[3:].lower()
+    if (low.startswith("o'") or low.startswith("o’")) and len(w) > 2:
+        return w[:2].capitalize() + w[2].upper() + w[3:].lower()
+    if low in MAC_SURNAMES:
+        return "Mac" + w[3].upper() + w[4:].lower()
+    return w.capitalize()
+
 def cap_part(p):
     """Capitalize a name segment, handling hyphens."""
     if "-" in p:
-        return "-".join(seg.capitalize() for seg in p.split("-"))
-    return p.capitalize()
+        return "-".join(_fix_suffix_letter(seg) for seg in p.split("-"))
+    return _fix_suffix_letter(p)
+
+def _extract_suffix(tokens):
+    """A generational suffix (II, III, Jr., ...) can show up in any of several
+    spots depending on how a given SOD row happened to be entered — stuck to
+    the last name before the comma ("WALKER III, JOHN"), right after the
+    comma ahead of the first name ("WALKER,III JOHN"), or with no comma at
+    all in either position ("WALKER III JOHN", "WALKER JOHN III"). Rather
+    than special-case each layout, scan every token once and pull the
+    suffix out wherever it is."""
+    for i, t in enumerate(tokens):
+        key = t.upper().rstrip(".")
+        if key in NAME_SUFFIXES:
+            suffix = key if key not in {"JR", "SR"} else key.capitalize() + "."
+            return tokens[:i] + tokens[i + 1:], suffix
+    return tokens, None
 
 def fmt_name(raw):
     """SOD format is LAST FIRST [MIDDLE [SUFFIX]] — output First [Middle] Last [Suffix]."""
     raw = raw.strip()
     if "," in raw:
-        last, rest = raw.split(",", 1)
-        parts = [p.strip() for p in rest.split() if p.strip()]
-        return " ".join(cap_part(p) for p in parts) + " " + cap_part(last)
-    parts = raw.split()
-    if not parts:
+        last_part, rest = raw.split(",", 1)
+        last_tokens, suffix1 = _extract_suffix(last_part.split())
+        rest_tokens, suffix2 = _extract_suffix([p.strip() for p in rest.split() if p.strip()])
+        suffix = suffix1 or suffix2
+        result = " ".join(cap_part(p) for p in rest_tokens) + " " + " ".join(cap_part(p) for p in last_tokens)
+        return result + (" " + suffix if suffix else "")
+    tokens, suffix = _extract_suffix(raw.split())
+    if not tokens:
         return raw
-    # Pull trailing suffix (II, III, Jr., Sr.)
-    suffix = None
-    if len(parts) > 1 and parts[-1].upper().rstrip(".") in NAME_SUFFIXES:
-        raw_suf = parts[-1].upper().rstrip(".")
-        suffix = raw_suf if raw_suf not in {"JR", "SR"} else raw_suf.capitalize() + "."
-        parts = parts[:-1]
-    if len(parts) >= 2:
-        last, first_middle = parts[0], parts[1:]
+    if len(tokens) >= 2:
+        last, first_middle = tokens[0], tokens[1:]
         result = " ".join(cap_part(p) for p in first_middle) + " " + cap_part(last)
         return result + (" " + suffix if suffix else "")
-    return cap_part(parts[0])
+    return cap_part(tokens[0]) + (" " + suffix if suffix else "")
 
 TITLE_SMALL = {"of","the","a","an","and","or","but","in","on","at","to","for","with","by","from","vs","via"}
 KEEP_UPPER = {"DC","LA","IT","PR","HR","VA","MD","NY","CA","TX","FL","OH","PA","US","GOP","DNC","FBI","DOJ","CBO","OMB"}
