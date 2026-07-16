@@ -32,6 +32,7 @@ let currentSelection = null; // { type: "title"|"person", titleName, personName,
 const PAGE = 25;
 
 const SALARY_CAP = 228000;
+const ALL_STAFF_KEY = "__ALL_STAFF__"; // sentinel titleStr for "compare to all staff" instead of one title
 const TYPE_LABELS = { member:"Member", committee:"Committee", leadership:"Leadership", administrative:"Administrative" };
 const TYPE_COLORS = { member:"#2563eb", committee:"#059669", leadership:"#b45309", administrative:"#6b7280" };
 
@@ -1199,11 +1200,15 @@ async function showPersonInline(name, officeName) {
   // Comparison section
   const allTitles = summary.quarters[summary.quarters.length - 1]?.top_titles || [];
   const compTitle = latestEmp?.title || person?.title || "";
+  const overallStats = adjQuarter(viewedQuarter()).overall;
   const compHtml = latestEmp ? `
     <div class="emp-detail-section">
       Compare to: <span id="ed-comp-title" class="emp-comp-title-link">${esc(compTitle)}</span>
     </div>
     <div class="ed-comp-wrap" id="ed-comp-wrap" style="display:none">
+      <div class="ed-comp-allstaff" id="ed-comp-allstaff" data-title="${ALL_STAFF_KEY}">
+        <span class="ed-comp-result-title">All staff</span><span class="ed-comp-result-med">${fmtK(overallStats.median)}</span>
+      </div>
       <input id="ed-comp-search" class="ed-comp-input" placeholder="Search a title…" autocomplete="off" />
       <div id="ed-comp-results" class="ed-comp-results"></div>
     </div>
@@ -1263,7 +1268,7 @@ async function showPersonInline(name, officeName) {
 
     function renderCompStats(titleStr) {
       currentCompTitle = titleStr;
-      const ts = allTitles.find(t => t.title === titleStr);
+      const ts = titleStr === ALL_STAFF_KEY ? overallStats : allTitles.find(t => t.title === titleStr);
       const el = detail.querySelector("#ed-comp-stats");
       if (!el) return;
       if (!ts) { el.innerHTML = `<div style="font-size:.78rem;color:var(--ink3);padding:6px 0">No salary data for this title.</div>`; return; }
@@ -1347,11 +1352,16 @@ async function showPersonInline(name, officeName) {
       renderCompStats(currentCompTitle);
     });
 
-    const titleEl = detail.querySelector("#ed-comp-title"), wrap = detail.querySelector("#ed-comp-wrap"), searchEl = detail.querySelector("#ed-comp-search"), resultsEl = detail.querySelector("#ed-comp-results");
+    const titleEl = detail.querySelector("#ed-comp-title"), wrap = detail.querySelector("#ed-comp-wrap"), searchEl = detail.querySelector("#ed-comp-search"), resultsEl = detail.querySelector("#ed-comp-results"), allStaffEl = detail.querySelector("#ed-comp-allstaff");
     if (titleEl) {
       titleEl.addEventListener("click", () => {
         wrap.style.display = wrap.style.display === "none" ? "block" : "none";
         if (wrap.style.display === "block") { searchEl.value = ""; searchEl.focus(); }
+      });
+      allStaffEl?.addEventListener("click", () => {
+        titleEl.textContent = "All staff";
+        wrap.style.display = "none"; resultsEl.style.display = "none";
+        renderCompStats(ALL_STAFF_KEY);
       });
       searchEl.addEventListener("input", () => {
         const q = searchEl.value.toLowerCase().trim();

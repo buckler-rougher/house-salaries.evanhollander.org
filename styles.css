@@ -716,6 +716,13 @@ tr:hover td { background: var(--bg2); }
 .ed-comp-result:hover { background: var(--bg2); color: var(--ink); }
 .ed-comp-result-title { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .ed-comp-result-med { flex-shrink: 0; font-size: .75rem; color: var(--ink3); }
+.ed-comp-allstaff {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 9px 12px; font-size: .82rem; font-weight: 700; color: var(--ink);
+  cursor: pointer; border: 1.5px solid var(--line); border-radius: 8px; margin-bottom: 8px;
+  background: var(--bg2);
+}
+.ed-comp-allstaff:hover { border-color: var(--accent); }
 
 /* ── Office total payroll ── */
 .office-total-payroll { font-size: .75rem; color: var(--ink3); margin: 10px 0 4px; }
