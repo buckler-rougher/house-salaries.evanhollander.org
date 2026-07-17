@@ -1997,7 +1997,14 @@ function drawSvgLineChart(containerEl, fullLabels, fullDatasets, opts = {}) {
     // and fading in place, which read as moving "in odd directions".
     containerEl.style.transform = "";
     const n = fullLabels.length;
-    const W = 680, H = 300, pad = { t: 16, r: 16, b: 52, l: 58 }, pw = W - pad.l - pad.r;
+    // Must match buildTrendChartBody's own pad exactly — it draws the
+    // gridlines/axis for every one of these animation frames using its own
+    // internal pad, while the point x-positions here are computed
+    // separately and passed in as `xs`. A stale pad here doesn't just
+    // resize the plot area frame-to-frame, it floats the data points in a
+    // completely different horizontal region than the gridlines drawn
+    // around them until the animation ends and they snap into alignment.
+    const W = 680, H = 300, pad = { t: 16, r: 16, b: 60, l: 96 }, pw = W - pad.l - pad.r;
     const allIdx = fullLabels.map((_, i) => i);
     const oldVisIdx = allIdx.filter(i => prev.visible[i]);
     const newVisIdx = allIdx.filter(i => visible[i]);
