@@ -760,6 +760,7 @@ function renderPosResults(query) {
 
 let preTitleTab = null; // tab that was active before a position replaced it, so clearTitle() can restore it
 let lastPositionTrend = null; // trend controller for the currently-shown position card, so the next selectTitle() can seed its chart from this one's last view instead of resetting
+let lastPersonTrend = null;   // same idea, for the person-detail pay-history chart — {name, office, controller}
 
 // Parses "$75k" / "$4.3k" / "$900" (from fmtSh) back into a raw number so we
 // can tween between an old and new displayed value.
@@ -1054,6 +1055,7 @@ function selectTitle(t, el, forcedTrendUI) {
 function closePersonDetail() {
   document.querySelectorAll(".emp-detail-row").forEach(row => row.style.display = "none");
   currentSelection = null;
+  lastPersonTrend = null;
   setHash({});
 }
 
@@ -1261,13 +1263,29 @@ async function showPersonInline(name, officeName) {
   // engine already used for the position card and office trend charts, so
   // switching between All/Q1–Q4 here gets the same animated transition
   // instead of the plain instant swap this used to do.
+  //
+  // showPersonInline() rebuilds detail.innerHTML from scratch any time
+  // something global changes (inflation toggle, quarter nav) while this
+  // person's card happens to already be open — including a fresh
+  // makeMiniTrend() instance with no memory of the previous one, which is
+  // why toggling inflation used to make the chart jump straight to its new
+  // values instead of morphing. Seeding the new instance with the old one's
+  // last view (same trick used for the position card across a re-render)
+  // fixes that — but only when it's genuinely the same person re-rendering,
+  // not a fresh navigation to someone else, where an instant first render
+  // is correct.
   if (person) {
     const firstTrackedQuarter = person.history.reduce((min, h) => h.quarter < min ? h.quarter : min, person.history[0].quarter);
     const getPersonData = () => summary.quarters.map(q => {
       const h = person.history.find(h => h.quarter === q.id);
       return h ? h.quarterly_pay * 4 * cpiFactorForQuarter(q) : null;
     });
-    makeMiniTrend(detail, getPersonData, null, firstTrackedQuarter);
+    const seed = (lastPersonTrend && lastPersonTrend.name === name && lastPersonTrend.office === officeName)
+      ? lastPersonTrend.controller.getPrev() : null;
+    const controller = makeMiniTrend(detail, getPersonData, seed, firstTrackedQuarter);
+    lastPersonTrend = { name, office: officeName, controller };
+  } else {
+    lastPersonTrend = null;
   }
 
   // Wire comparison
