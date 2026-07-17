@@ -2242,9 +2242,14 @@ const MINI_EASE_ZOOM = t => -(Math.cos(Math.PI * t) - 1) / 2; // easeInOutSine �
 
 // Stripped-down sparkline frame for mid-zoom animation only — no x-axis text or
 // trend annotation (those come back once renderStatic() calls the real svgSparkline).
-function buildSparklineFrame(fullLabels, fullData, xs, opacities) {
+function buildSparklineFrame(fullLabels, fullData, xs, opacities, padL = 54) {
   const W = 560, H = 200;
-  const pad = { t: 22, r: 16, b: 48, l: 54 };
+  // Must match svgSparkline's own pad exactly (t:22, r:16, b:56, and l
+  // conditional on rotated labels) — this renders every frame *during* a
+  // zoom transition, and if its plot rectangle doesn't match the static
+  // frame's (svgSparkline) that bookends the animation, the chart visibly
+  // jumps/resizes right as the animation starts or ends.
+  const pad = { t: 22, r: 16, b: 56, l: padL };
   const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
   const n = fullLabels.length;
 
@@ -2376,7 +2381,11 @@ function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId) {
       // Real zoom: reveal every quarter on the timeline, then push in on the
       // newly-selected slice (or the reverse when returning to "All quarters").
       const n = view.fullLabels.length;
-      const pad = { l: 54, r: 16 }, pw = 560 - pad.l - pad.r;
+      // Same pad.l svgSparkline itself would use for this many labels — has
+      // to match, since this positions the actual data points during the
+      // animation and svgSparkline renders the static frames that bookend it.
+      const padL = n > 4 ? 92 : 54;
+      const pad = { l: padL, r: 16 }, pw = 560 - pad.l - pad.r;
       const allIdx = view.fullLabels.map((_, i) => i);
       const oldVisIdx = allIdx.filter(i => prev.visible[i]);
       const newVisIdx = allIdx.filter(i => view.visible[i]);
@@ -2413,7 +2422,7 @@ function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId) {
             if (v == null || fv == null) return v;
             return fv + (v - fv) * e;
           });
-          chartWrap.innerHTML = buildSparklineFrame(view.fullLabels, iData, xs, ops);
+          chartWrap.innerHTML = buildSparklineFrame(view.fullLabels, iData, xs, ops, padL);
           if (t < 1) requestAnimationFrame(step); else onDone();
         };
         requestAnimationFrame(step);
