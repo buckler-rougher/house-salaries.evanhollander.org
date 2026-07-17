@@ -2303,7 +2303,25 @@ function buildSparklineFrame(fullLabels, fullData, xs, opacities, padL = 54) {
     return `<circle cx="${sx(i).toFixed(1)}" cy="${sy(v).toFixed(1)}" r="4" fill="white" stroke="#1b6f2c" stroke-width="2" opacity="${o.toFixed(2)}"/>`;
   }).join("");
 
-  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%"><defs>${fillGrad.defs}</defs>${yTicks}${fills}${lines}${dots}</svg>`;
+  // X-axis labels were previously skipped entirely during the animation
+  // ("no x-axis text" — see the function comment this replaces) on the
+  // assumption that a few hundred ms without them wouldn't be noticed. In
+  // practice the whole label row visibly disappearing and then popping back
+  // in reads as a much bigger glitch than the value/position tweening it
+  // was meant to smooth over. Same layout as svgSparkline's, just driven by
+  // the same animated `xs` positions the dots/lines use, so the labels stay
+  // correctly aligned with their points throughout instead of only at the
+  // two static ends.
+  const step = Math.max(1, Math.ceil(n / 6));
+  const xLabels = fullLabels.map((lb, i) => {
+    if (i % step !== 0 && i !== n - 1) return "";
+    if (op(i) <= 0.02) return "";
+    const ty = pad.t + ph + 16;
+    return `<text text-anchor="end" font-size="10" fill="#888" opacity="${op(i).toFixed(2)}"
+      transform="translate(${sx(i).toFixed(1)},${ty.toFixed(1)}) rotate(-45)">${shortAxisLabel(lb)}</text>`;
+  }).join("");
+
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%"><defs>${fillGrad.defs}</defs>${yTicks}${fills}${lines}${dots}${xLabels}</svg>`;
 }
 
 function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId) {
