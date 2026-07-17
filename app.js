@@ -33,6 +33,16 @@ const PAGE = 25;
 
 const SALARY_CAP = 228000;
 const ALL_STAFF_KEY = "__ALL_STAFF__"; // sentinel titleStr for "compare to all staff" instead of one title
+
+// Charts embed their own <svg>...</svg> as raw innerHTML, often several at
+// once on the same page (position card, office card, per-person chart) — a
+// fixed gradient id would collide across them, so each call gets its own.
+let gradSeq = 0;
+function areaFillGradient(color, topOpacity) {
+  const id = `areaFade${gradSeq++}`;
+  const defs = `<linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="${color}" stop-opacity="${topOpacity}"/><stop offset="100%" stop-color="${color}" stop-opacity="0"/></linearGradient>`;
+  return { id, defs };
+}
 const TYPE_LABELS = { member:"Member", committee:"Committee", leadership:"Leadership", administrative:"Administrative" };
 const TYPE_COLORS = { member:"#2563eb", committee:"#059669", leadership:"#b45309", administrative:"#6b7280" };
 
@@ -1723,6 +1733,7 @@ function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel, xs = 
 
   // Per-dataset paths — a point counts as part of a line segment only while it's
   // (mostly) visible, so fading/appearing points during a zoom detach cleanly.
+  const fillGradDefs = [];
   const pathEls = datasets.map(ds => {
     const color = ds.color;
     const segs = [];
@@ -1733,12 +1744,16 @@ function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel, xs = 
     });
     if (cur.length) segs.push(cur);
 
-    const fills = (ds.fill && segs.length) ? segs.map(s => {
-      if (s.length < 2) return "";
-      const d = s.map(([i, v], j) => `${j ? "L" : "M"}${sx(i).toFixed(1)},${sy(v).toFixed(1)}`).join(" ");
-      const last = s[s.length - 1], first = s[0];
-      return `<path d="${d} L${sx(last[0]).toFixed(1)},${(pad.t + ph).toFixed(1)} L${sx(first[0]).toFixed(1)},${(pad.t + ph).toFixed(1)} Z" fill="${color}" opacity=".07" stroke="none"/>`;
-    }).join("") : "";
+    const fills = (ds.fill && segs.length) ? (() => {
+      const grad = areaFillGradient(color, .07);
+      fillGradDefs.push(grad.defs);
+      return segs.map(s => {
+        if (s.length < 2) return "";
+        const d = s.map(([i, v], j) => `${j ? "L" : "M"}${sx(i).toFixed(1)},${sy(v).toFixed(1)}`).join(" ");
+        const last = s[s.length - 1], first = s[0];
+        return `<path d="${d} L${sx(last[0]).toFixed(1)},${(pad.t + ph).toFixed(1)} L${sx(first[0]).toFixed(1)},${(pad.t + ph).toFixed(1)} Z" fill="url(#${grad.id})" stroke="none"/>`;
+      }).join("");
+    })() : "";
 
     const lines = segs.map(s => {
       const d = s.map(([i, v], j) => `${j ? "L" : "M"}${sx(i).toFixed(1)},${sy(v).toFixed(1)}`).join(" ");
@@ -1785,7 +1800,8 @@ function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel, xs = 
             <text x="${x}" y="${(pad.t - 4).toFixed(1)}" text-anchor="middle" font-size="9" fill="#1b6f2c" opacity=".8">${labels[hlIdx]}</text>`;
   })() : "";
 
-  return { svgBody: `${yTicks}${hlLine}${pathEls}${trendEls}${xLabels}${soloAnnot}`, W, H, pad, ph, sx };
+  const defsBlock = fillGradDefs.length ? `<defs>${fillGradDefs.join("")}</defs>` : "";
+  return { svgBody: `${defsBlock}${yTicks}${hlLine}${pathEls}${trendEls}${xLabels}${soloAnnot}`, W, H, pad, ph, sx };
 }
 
 function drawSvgLineChart(containerEl, fullLabels, fullDatasets, opts = {}) {
@@ -2154,10 +2170,11 @@ function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend 
   });
   if (cur.length) segs.push(cur);
 
+  const fillGrad = areaFillGradient("#1b6f2c", .07);
   const fills = segs.map(s => {
     if (s.length < 2) return "";
     const d = s.map((p, j) => `${j ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
-    return `<path d="${d} L${s[s.length-1][0].toFixed(1)},${(pad.t+ph).toFixed(1)} L${s[0][0].toFixed(1)},${(pad.t+ph).toFixed(1)} Z" fill="rgba(27,111,44,.07)" stroke="none"/>`;
+    return `<path d="${d} L${s[s.length-1][0].toFixed(1)},${(pad.t+ph).toFixed(1)} L${s[0][0].toFixed(1)},${(pad.t+ph).toFixed(1)} Z" fill="url(#${fillGrad.id})" stroke="none"/>`;
   }).join("");
 
   const lines = segs.map(s => {
@@ -2199,7 +2216,7 @@ function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend 
     annotEl = `<text x="${(W - pad.r).toFixed(1)}" y="14" text-anchor="end" font-size="11" fill="#6b7280">${label}</text>`;
   }
 
-  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">${yTicks}${fills}${lines}${trendEl}${dots}${xLabels}${annotEl}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%"><defs>${fillGrad.defs}</defs>${yTicks}${fills}${lines}${trendEl}${dots}${xLabels}${annotEl}</svg>`;
 }
 
 const MINI_EASE_CUBIC = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // value-morph
@@ -2237,10 +2254,11 @@ function buildSparklineFrame(fullLabels, fullData, xs, opacities) {
   });
   if (cur.length) segs.push(cur);
 
+  const fillGrad = areaFillGradient("#1b6f2c", .07);
   const fills = segs.map(s => {
     if (s.length < 2) return "";
     const d = s.map((p, j) => `${j ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
-    return `<path d="${d} L${s[s.length-1][0].toFixed(1)},${(pad.t+ph).toFixed(1)} L${s[0][0].toFixed(1)},${(pad.t+ph).toFixed(1)} Z" fill="rgba(27,111,44,.07)" stroke="none"/>`;
+    return `<path d="${d} L${s[s.length-1][0].toFixed(1)},${(pad.t+ph).toFixed(1)} L${s[0][0].toFixed(1)},${(pad.t+ph).toFixed(1)} Z" fill="url(#${fillGrad.id})" stroke="none"/>`;
   }).join("");
 
   const lines = segs.map(s => {
@@ -2255,7 +2273,7 @@ function buildSparklineFrame(fullLabels, fullData, xs, opacities) {
     return `<circle cx="${sx(i).toFixed(1)}" cy="${sy(v).toFixed(1)}" r="4" fill="white" stroke="#1b6f2c" stroke-width="2" opacity="${o.toFixed(2)}"/>`;
   }).join("");
 
-  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">${yTicks}${fills}${lines}${dots}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%"><defs>${fillGrad.defs}</defs>${yTicks}${fills}${lines}${dots}</svg>`;
 }
 
 function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId) {
