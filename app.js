@@ -1229,9 +1229,18 @@ async function showPersonInline(name, officeName) {
     </div>
     <div class="emp-detail-salary-sub">est. annual · latest quarter</div>` : "";
 
-  detail.innerHTML = `
+  // A little easter egg — this specific (name, office) pair is the site's
+  // own author, so their entry gets an actual photo next to it instead of
+  // the plain name/office block everyone else gets.
+  const isAuthorProfile = name === "Evan M. Hollander" && officeName === "HON. JOHN B. LARSON";
+  const nameBlockHtml = `
     <div class="emp-detail-name">${esc(name)}</div>
-    <div class="emp-detail-meta"><span class="office-link" data-office="${esc(officeName)}">${esc(officeName)}</span>${latestEmp ? ` · ${esc(latestEmp.title)}` : ""}</div>
+    <div class="emp-detail-meta"><span class="office-link" data-office="${esc(officeName)}">${esc(officeName)}</span>${latestEmp ? ` · ${esc(latestEmp.title)}` : ""}</div>`;
+
+  detail.innerHTML = `
+    ${isAuthorProfile
+      ? `<div class="emp-detail-header-row"><img class="emp-detail-photo" src="https://cdn.evanhollander.org/profile.webp" alt="" />${nameBlockHtml}</div>`
+      : nameBlockHtml}
     ${prevHtml}
     ${salaryBlockHtml}
     ${yoyHtml}
