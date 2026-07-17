@@ -456,9 +456,9 @@ function renderDist() {
     : q.distribution;
   const barColors = dist.map(b => {
     if (b.min < 50000)  return "#e8e5df";
-    if (b.min < 80000)  return "#f4a69a";
-    if (b.min < 130000) return "#c0392b";
-    return "#8b1a12";
+    if (b.min < 80000)  return "#95cd9e";
+    if (b.min < 130000) return "#1b6f2c";
+    return "#0e3d1a";
   });
 
   const W = 680, H = 280;
@@ -640,7 +640,7 @@ function renderTrend() {
 
   if (trendMode === "overall") {
     drawSvgLineChart($("chart-trend"), labels, [{
-      id: "overall", label: METRIC_LABELS[trendMetric], color: "#c0392b", fill: true,
+      id: "overall", label: METRIC_LABELS[trendMetric], color: "#1b6f2c", fill: true,
       data: allQs.map(q => { const aq = adjQuarter(q); return officeTypeFilter ? (aq.by_type[officeTypeFilter]?.[trendMetric] ?? null) : aq.overall[trendMetric]; }),
     }], hlOpts);
 
@@ -1767,8 +1767,8 @@ function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel, xs = 
   const hlIdx = highlightLabel != null ? labels.indexOf(highlightLabel) : -1;
   const hlLine = hlIdx >= 0 ? (() => {
     const x = sx(hlIdx).toFixed(1);
-    return `<line x1="${x}" x2="${x}" y1="${pad.t}" y2="${pad.t + ph}" stroke="#c0392b" stroke-width="1.5" stroke-dasharray="4 3" opacity=".5"/>
-            <text x="${x}" y="${(pad.t - 4).toFixed(1)}" text-anchor="middle" font-size="9" fill="#c0392b" opacity=".8">${labels[hlIdx]}</text>`;
+    return `<line x1="${x}" x2="${x}" y1="${pad.t}" y2="${pad.t + ph}" stroke="#1b6f2c" stroke-width="1.5" stroke-dasharray="4 3" opacity=".5"/>
+            <text x="${x}" y="${(pad.t - 4).toFixed(1)}" text-anchor="middle" font-size="9" fill="#1b6f2c" opacity=".8">${labels[hlIdx]}</text>`;
   })() : "";
 
   return { svgBody: `${yTicks}${hlLine}${pathEls}${trendEls}${xLabels}${soloAnnot}`, W, H, pad, ph, sx };
@@ -2143,12 +2143,12 @@ function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend 
   const fills = segs.map(s => {
     if (s.length < 2) return "";
     const d = s.map((p, j) => `${j ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
-    return `<path d="${d} L${s[s.length-1][0].toFixed(1)},${(pad.t+ph).toFixed(1)} L${s[0][0].toFixed(1)},${(pad.t+ph).toFixed(1)} Z" fill="rgba(192,57,43,.07)" stroke="none"/>`;
+    return `<path d="${d} L${s[s.length-1][0].toFixed(1)},${(pad.t+ph).toFixed(1)} L${s[0][0].toFixed(1)},${(pad.t+ph).toFixed(1)} Z" fill="rgba(27,111,44,.07)" stroke="none"/>`;
   }).join("");
 
   const lines = segs.map(s => {
     const d = s.map((p, j) => `${j ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
-    return `<path d="${d}" fill="none" stroke="#c0392b" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+    return `<path d="${d}" fill="none" stroke="#1b6f2c" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>`;
   }).join("");
 
   // Hover hit-area is a full-height vertical band around each point, not just
@@ -2158,7 +2158,7 @@ function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend 
   // tooltip (see setupSparklineTooltips) shared with the rest of the charts.
   const bandW = Math.max(16, Math.min(40, pw / Math.max(data.length - 1, 1)));
   const dots = valid.map(({ v, i }) =>
-    `<circle class="spark-dot" cx="${sx(i).toFixed(1)}" cy="${sy(v).toFixed(1)}" r="4" fill="white" stroke="#c0392b" stroke-width="2"/>
+    `<circle class="spark-dot" cx="${sx(i).toFixed(1)}" cy="${sy(v).toFixed(1)}" r="4" fill="white" stroke="#1b6f2c" stroke-width="2"/>
      <rect class="spark-hit" x="${(sx(i) - bandW / 2).toFixed(1)}" y="${pad.t}" width="${bandW.toFixed(1)}" height="${ph}" fill="transparent"
        style="cursor:crosshair" data-label="${labels[i]}" data-value="$${Math.round(v).toLocaleString()}"/>`
   ).join("");
@@ -2226,19 +2226,19 @@ function buildSparklineFrame(fullLabels, fullData, xs, opacities) {
   const fills = segs.map(s => {
     if (s.length < 2) return "";
     const d = s.map((p, j) => `${j ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
-    return `<path d="${d} L${s[s.length-1][0].toFixed(1)},${(pad.t+ph).toFixed(1)} L${s[0][0].toFixed(1)},${(pad.t+ph).toFixed(1)} Z" fill="rgba(192,57,43,.07)" stroke="none"/>`;
+    return `<path d="${d} L${s[s.length-1][0].toFixed(1)},${(pad.t+ph).toFixed(1)} L${s[0][0].toFixed(1)},${(pad.t+ph).toFixed(1)} Z" fill="rgba(27,111,44,.07)" stroke="none"/>`;
   }).join("");
 
   const lines = segs.map(s => {
     const d = s.map((p, j) => `${j ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
-    return `<path d="${d}" fill="none" stroke="#c0392b" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>`;
+    return `<path d="${d}" fill="none" stroke="#1b6f2c" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>`;
   }).join("");
 
   const dots = fullData.map((v, i) => {
     if (v == null) return "";
     const o = op(i);
     if (o <= 0.02) return "";
-    return `<circle cx="${sx(i).toFixed(1)}" cy="${sy(v).toFixed(1)}" r="4" fill="white" stroke="#c0392b" stroke-width="2" opacity="${o.toFixed(2)}"/>`;
+    return `<circle cx="${sx(i).toFixed(1)}" cy="${sy(v).toFixed(1)}" r="4" fill="white" stroke="#1b6f2c" stroke-width="2" opacity="${o.toFixed(2)}"/>`;
   }).join("");
 
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">${yTicks}${fills}${lines}${dots}</svg>`;

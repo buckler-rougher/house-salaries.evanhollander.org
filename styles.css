@@ -18,8 +18,8 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
   --ink:    #111111;
   --ink2:   #444444;
   --ink3:   #888888;
-  --accent: #c0392b;      /* warm red — distinct, not techy */
-  --accent2: #f9ebe9;
+  --accent: #1b6f2c;      /* green — nonpartisan, reads as money */
+  --accent2: #e8f3e9;
   --text:   #111111;
 }
 
@@ -326,7 +326,7 @@ body {
 .mini-pill:not(.active):hover, .mini-q:not(.active):hover { border-color: var(--ink); color: var(--ink); }
 .mini-chart-wrap { position: relative; height: 200px; }
 .spark-dot { transition: fill 100ms ease, r 100ms ease; }
-.spark-dot.spark-dot-active { fill: #c0392b; r: 5; }
+.spark-dot.spark-dot-active { fill: var(--accent); r: 5; }
 
 /* ── Main trend quarter filter ── */
 .trend-q-row { display: flex; align-items: center; gap: 6px; margin-bottom: 10px; flex-wrap: wrap; }
