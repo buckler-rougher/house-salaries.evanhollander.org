@@ -66,6 +66,11 @@ async function loadData() {
     updateInflationNote();
     await restoreState();
     restoreHash();
+    // restoreHash() only ran once, at load — a same-page hash link (like the
+    // footer's link to a specific person) just updates location.hash without
+    // a reload, so without this listener nothing would visibly happen when
+    // clicking it.
+    window.addEventListener("hashchange", restoreHash);
 
     // people.json is large (~11MB), so it's not fetched up front — but kick
     // it off now in the background rather than waiting for something to

@@ -873,6 +873,7 @@ tr:hover td { background: var(--bg2); }
 .site-footer-link:hover { color: var(--ink); }
 .footer-profile-link { color: var(--ink3); display: inline-flex; vertical-align: -2px; }
 .footer-profile-link:hover { color: var(--accent); }
+.footer-profile-photo { width: 18px; height: 18px; border-radius: 50%; object-fit: cover; vertical-align: -4px; margin-right: 1px; }
 .site-footer-secondary {
   margin-top: 8px; font-size: .68rem; color: var(--ink3); line-height: 1.5;
 }
