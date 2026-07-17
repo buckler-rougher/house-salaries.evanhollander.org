@@ -2367,18 +2367,22 @@ function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId) {
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
     const canMorph = prev && !reduceMotion && prev.data.length === view.data.length;
-    // Originally gated to "one side is the full timeline" (All <-> Q1), since
-    // that's the only case that came up when every dataset here was a fixed
-    // aggregate with the same point count regardless of quarter filter. A
-    // person's own history doesn't have that guarantee — how many Q1s vs Q2s
-    // they've been tracked through can differ by one depending on hire/leave
-    // timing — so a direct Q1 -> Q2 switch could have different point counts
-    // on each side and used to just snap instantly, having failed canMorph
-    // and this now-relaxed check both. The reveal/collapse logic below
-    // already handles an arbitrary subset on each side, not just "all vs
-    // one," so it's safe to run for any point-count mismatch.
-    const isZoom = !canMorph && prev && !reduceMotion
-      && prev.fullLabels.join(",") === view.fullLabels.join(",");
+    const prevWasAll = prev && prev.visible.every(v => v);
+    const nowIsAll = view.visible.every(v => v);
+    const sameTimeline = prev && !reduceMotion && prev.fullLabels.join(",") === view.fullLabels.join(",");
+    // All <-> one quarter: genuinely a "zoom" — reveal the full timeline (or
+    // collapse back into it), a real change in how much of the timeline is
+    // shown, not just which slice.
+    const isFullReveal = !canMorph && sameTimeline && (prevWasAll || nowIsAll);
+    // One quarter -> a different one (Q1 -> Q2, say) with a point-count
+    // mismatch: a person's own history doesn't guarantee equal counts across
+    // quarters — how many Q1s vs Q2s they've been tracked through can differ
+    // by one depending on hire/leave timing. This isn't really a "zoom" (the
+    // amount of timeline on screen doesn't change, All is never involved) —
+    // detouring through a full-timeline reveal here just to get from one
+    // slice to another read as backwards. Handled below by matching points
+    // between the two slices by their actual quarter instead of by index.
+    const isSubsetMorph = !canMorph && sameTimeline && !isFullReveal;
 
     if (!prev || reduceMotion) {
       renderStatic(view);
@@ -2402,7 +2406,7 @@ function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId) {
         if (t < 1) requestAnimationFrame(step);
       };
       requestAnimationFrame(step);
-    } else if (isZoom) {
+    } else if (isFullReveal) {
       // Real zoom: reveal every quarter on the timeline, then push in on the
       // newly-selected slice (or the reverse when returning to "All quarters").
       const n = view.fullLabels.length;
@@ -2463,6 +2467,48 @@ function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId) {
       } else {
         renderStatic(view);
       }
+    } else if (isSubsetMorph) {
+      // Match points between the old slice and the new one by their actual
+      // quarter id (not array index — the two slices don't line up index-
+      // for-index when their lengths differ). A quarter present in both
+      // slides directly from its old position to its new one; a quarter
+      // only in the old slice fades out without moving; a quarter only in
+      // the new slice fades in without moving. Nothing ever detours through
+      // where the full timeline would put it.
+      const padL = view.labels.length > 4 ? 92 : 54;
+      const pad = { l: padL, r: 16 }, pw = 560 - pad.l - pad.r;
+      const prevIds = prev.ids, newIds = view.ids;
+      const unionIds = [...new Set([...prevIds, ...newIds])].sort();
+      const oldPosOf = id => { const i = prevIds.indexOf(id); return i < 0 ? null : pad.l + (prevIds.length <= 1 ? pw / 2 : (i / (prevIds.length - 1)) * pw); };
+      const newPosOf = id => { const i = newIds.indexOf(id); return i < 0 ? null : pad.l + (newIds.length <= 1 ? pw / 2 : (i / (newIds.length - 1)) * pw); };
+      const fromX = unionIds.map(id => oldPosOf(id) ?? newPosOf(id));
+      const toX = unionIds.map(id => newPosOf(id) ?? oldPosOf(id));
+      const fromOp = unionIds.map(id => prevIds.includes(id) ? 1 : 0);
+      const toOp = unionIds.map(id => newIds.includes(id) ? 1 : 0);
+      const fromVal = unionIds.map(id => { const i = prevIds.indexOf(id); return i < 0 ? null : prev.data[i]; });
+      const toVal = unionIds.map(id => { const i = newIds.indexOf(id); return i < 0 ? null : view.data[i]; });
+      // Look the display label up from summary.quarters by id, rather than
+      // reasoning about which slice (old or new) it happened to come from.
+      const idToLabel = {}; summary.quarters.forEach(q => idToLabel[q.id] = q.label);
+      const labelsForFrame = unionIds.map(id => idToLabel[id] || id);
+
+      const duration = 420;
+      const start = performance.now();
+      const step = now => {
+        if (myGen !== gen) return;
+        const t = Math.min(1, (now - start) / duration);
+        const e = MINI_EASE_ZOOM(t);
+        const xs = unionIds.map((_, i) => fromX[i] + (toX[i] - fromX[i]) * e);
+        const ops = unionIds.map((_, i) => fromOp[i] + (toOp[i] - fromOp[i]) * e);
+        const iData = unionIds.map((_, i) => {
+          const fv = fromVal[i], tv = toVal[i];
+          if (fv == null || tv == null) return fv ?? tv;
+          return fv + (tv - fv) * e;
+        });
+        chartWrap.innerHTML = buildSparklineFrame(labelsForFrame, iData, xs, ops, padL);
+        if (t < 1) requestAnimationFrame(step); else renderStatic(view);
+      };
+      requestAnimationFrame(step);
     } else {
       renderStatic(view);
     }
