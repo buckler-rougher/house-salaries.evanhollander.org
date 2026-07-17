@@ -2381,7 +2381,8 @@ function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId) {
     // amount of timeline on screen doesn't change, All is never involved) —
     // detouring through a full-timeline reveal here just to get from one
     // slice to another read as backwards. Handled below by matching points
-    // between the two slices by their actual quarter instead of by index.
+    // between the two slices by array index (see that branch for why not
+    // by quarter identity).
     const isSubsetMorph = !canMorph && sameTimeline && !isFullReveal;
 
     if (!prev || reduceMotion) {
@@ -2469,28 +2470,31 @@ function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId) {
       }
     } else if (isSubsetMorph) {
       // Match points between the old slice and the new one by their actual
-      // quarter id (not array index — the two slices don't line up index-
-      // for-index when their lengths differ). A quarter present in both
-      // slides directly from its old position to its new one; a quarter
-      // only in the old slice fades out without moving; a quarter only in
-      // the new slice fades in without moving. Nothing ever detours through
-      // where the full timeline would put it.
+      // quarter id, originally — except a quarter-of-year filter (Q1/Q2/Q3/
+      // Q4) never shares an actual quarter with a different one (a given
+      // year's Q1 is never also its Q3), so id-matching degenerated into
+      // pure fades with nothing ever sharing an id to slide between —
+      // exactly the "doesn't morph" this was meant to fix. Matching by
+      // array index instead: each subset lays its own points evenly
+      // spaced, so index 0 sits at the same spot regardless of length, but
+      // every later index's spacing shifts as the count changes — that
+      // shift *is* the slide. Whichever side has fewer points, its excess
+      // indices on the other side fade in/out at their own position rather
+      // than sliding from/to somewhere semantically meaningless.
       const padL = view.labels.length > 4 ? 92 : 54;
       const pad = { l: padL, r: 16 }, pw = 560 - pad.l - pad.r;
-      const prevIds = prev.ids, newIds = view.ids;
-      const unionIds = [...new Set([...prevIds, ...newIds])].sort();
-      const oldPosOf = id => { const i = prevIds.indexOf(id); return i < 0 ? null : pad.l + (prevIds.length <= 1 ? pw / 2 : (i / (prevIds.length - 1)) * pw); };
-      const newPosOf = id => { const i = newIds.indexOf(id); return i < 0 ? null : pad.l + (newIds.length <= 1 ? pw / 2 : (i / (newIds.length - 1)) * pw); };
-      const fromX = unionIds.map(id => oldPosOf(id) ?? newPosOf(id));
-      const toX = unionIds.map(id => newPosOf(id) ?? oldPosOf(id));
-      const fromOp = unionIds.map(id => prevIds.includes(id) ? 1 : 0);
-      const toOp = unionIds.map(id => newIds.includes(id) ? 1 : 0);
-      const fromVal = unionIds.map(id => { const i = prevIds.indexOf(id); return i < 0 ? null : prev.data[i]; });
-      const toVal = unionIds.map(id => { const i = newIds.indexOf(id); return i < 0 ? null : view.data[i]; });
-      // Look the display label up from summary.quarters by id, rather than
-      // reasoning about which slice (old or new) it happened to come from.
-      const idToLabel = {}; summary.quarters.forEach(q => idToLabel[q.id] = q.label);
-      const labelsForFrame = unionIds.map(id => idToLabel[id] || id);
+      const prevLen = prev.data.length, newLen = view.data.length;
+      const maxLen = Math.max(prevLen, newLen);
+      const oldXAt = i => pad.l + (prevLen <= 1 ? pw / 2 : (i / (prevLen - 1)) * pw);
+      const newXAt = i => pad.l + (newLen <= 1 ? pw / 2 : (i / (newLen - 1)) * pw);
+      const idx = Array.from({ length: maxLen }, (_, i) => i);
+      const fromX = idx.map(i => i < prevLen ? oldXAt(i) : newXAt(Math.min(i, newLen - 1)));
+      const toX = idx.map(i => i < newLen ? newXAt(i) : oldXAt(Math.min(i, prevLen - 1)));
+      const fromOp = idx.map(i => i < prevLen ? 1 : 0);
+      const toOp = idx.map(i => i < newLen ? 1 : 0);
+      const fromVal = idx.map(i => i < prevLen ? prev.data[i] : null);
+      const toVal = idx.map(i => i < newLen ? view.data[i] : null);
+      const labelsForFrame = idx.map(i => i < newLen ? view.labels[i] : prev.labels[i]);
 
       const duration = 420;
       const start = performance.now();
@@ -2498,9 +2502,9 @@ function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId) {
         if (myGen !== gen) return;
         const t = Math.min(1, (now - start) / duration);
         const e = MINI_EASE_ZOOM(t);
-        const xs = unionIds.map((_, i) => fromX[i] + (toX[i] - fromX[i]) * e);
-        const ops = unionIds.map((_, i) => fromOp[i] + (toOp[i] - fromOp[i]) * e);
-        const iData = unionIds.map((_, i) => {
+        const xs = idx.map(i => fromX[i] + (toX[i] - fromX[i]) * e);
+        const ops = idx.map(i => fromOp[i] + (toOp[i] - fromOp[i]) * e);
+        const iData = idx.map(i => {
           const fv = fromVal[i], tv = toVal[i];
           if (fv == null || tv == null) return fv ?? tv;
           return fv + (tv - fv) * e;
