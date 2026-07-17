@@ -1239,7 +1239,7 @@ async function showPersonInline(name, officeName) {
 
   detail.innerHTML = `
     ${isAuthorProfile
-      ? `<div class="emp-detail-header-row"><img class="emp-detail-photo" src="https://cdn.evanhollander.org/profile.webp" alt="" />${nameBlockHtml}</div>`
+      ? `<div class="emp-detail-header-row"><img class="emp-detail-photo" src="https://cdn.evanhollander.org/profile.webp" alt="" /><div>${nameBlockHtml}</div></div>`
       : nameBlockHtml}
     ${prevHtml}
     ${salaryBlockHtml}
