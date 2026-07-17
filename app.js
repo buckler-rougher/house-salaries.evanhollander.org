@@ -1745,7 +1745,7 @@ function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel, xs = 
     if (cur.length) segs.push(cur);
 
     const fills = (ds.fill && segs.length) ? (() => {
-      const grad = areaFillGradient(color, .07);
+      const grad = areaFillGradient(color, .16);
       fillGradDefs.push(grad.defs);
       return segs.map(s => {
         if (s.length < 2) return "";
@@ -2170,7 +2170,7 @@ function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend 
   });
   if (cur.length) segs.push(cur);
 
-  const fillGrad = areaFillGradient("#1b6f2c", .07);
+  const fillGrad = areaFillGradient("#1b6f2c", .16);
   const fills = segs.map(s => {
     if (s.length < 2) return "";
     const d = s.map((p, j) => `${j ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
@@ -2254,7 +2254,7 @@ function buildSparklineFrame(fullLabels, fullData, xs, opacities) {
   });
   if (cur.length) segs.push(cur);
 
-  const fillGrad = areaFillGradient("#1b6f2c", .07);
+  const fillGrad = areaFillGradient("#1b6f2c", .16);
   const fills = segs.map(s => {
     if (s.length < 2) return "";
     const d = s.map((p, j) => `${j ? "L" : "M"}${p[0].toFixed(1)},${p[1].toFixed(1)}`).join(" ");
