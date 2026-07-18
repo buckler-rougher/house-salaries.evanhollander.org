@@ -2038,6 +2038,13 @@ function drawSvgLineChart(containerEl, fullLabels, fullDatasets, opts = {}) {
   const isQuarterZoom = !canMorph && prev && prev.datasetSig === datasetSig && sameFull
     && !reduceMotion && prevWasAll !== nowIsAll;
 
+  // Two different non-"All" quarter filters with different point counts —
+  // e.g. Q1's 6 points (one per year) vs Q2/Q3/Q4's 5 (2026 has no Q2 yet).
+  // Neither canMorph (lengths differ) nor isQuarterZoom (neither side is
+  // "All") fires here, so without this it fell through to the mode-switch
+  // crossfade and just flashed instead of transforming.
+  const isSubsetMorph = !canMorph && !isQuarterZoom && prev && prev.datasetSig === datasetSig
+    && sameFull && !reduceMotion && prev.labels;
   if (!containerEl.dataset.trendRendered) {
     // Very first paint ever for this container — keep the draw-in flourish
     containerEl.dataset.trendRendered = "1";
@@ -2164,6 +2171,54 @@ function drawSvgLineChart(containerEl, fullLabels, fullDatasets, opts = {}) {
     } else {
       renderStatic(false);
     }
+  } else if (isSubsetMorph) {
+    // Neither subset is "All", so there's no shared timeline to zoom through
+    // and no shared quarter identity to match points by (a given year's Q1 is
+    // never also its Q2) — lay each subset's points evenly across the plot
+    // width by array index instead. Index 0 always lands at the same x
+    // regardless of length, but every later index's spacing shifts as the
+    // count changes between the two subsets, and that shift is the slide.
+    // Whichever side has fewer points, the excess indices fade in/out at
+    // their own natural index position rather than sliding to/from nothing.
+    containerEl.style.transform = "";
+    const W = 680, H = 300, pad = { t: 16, r: 16, b: 60, l: 96 }, pw = W - pad.l - pad.r;
+    const prevLen = prev.labels.length, newLen = labels.length, maxLen = Math.max(prevLen, newLen);
+    const oldXAt = i => pad.l + (prevLen <= 1 ? pw / 2 : (i / (prevLen - 1)) * pw);
+    const newXAt = i => pad.l + (newLen <= 1 ? pw / 2 : (i / (newLen - 1)) * pw);
+    const idx = Array.from({ length: maxLen }, (_, i) => i);
+    const fromX = i => i < prevLen ? oldXAt(i) : newXAt(i);
+    const toX = i => i < newLen ? newXAt(i) : oldXAt(i);
+    const fromOp = i => i < prevLen ? 1 : 0;
+    const toOp = i => i < newLen ? 1 : 0;
+    const labelsForFrame = idx.map(i => i < newLen ? labels[i] : prev.labels[i]);
+    const fromYMin = prev.yMin, fromYMax = prev.yMax;
+    const duration = 480;
+    const start = performance.now();
+    const step = now => {
+      if (containerEl.dataset.trendGen !== gen) return;
+      const t = Math.min(1, (now - start) / duration);
+      const e = easeZoomSine(t);
+      const xs = idx.map(i => fromX(i) + (toX(i) - fromX(i)) * e);
+      const ops = idx.map(i => fromOp(i) + (toOp(i) - fromOp(i)) * e);
+      const iYMin = fromYMin + (yMin - fromYMin) * e;
+      const iYMax = fromYMax + (yMax - fromYMax) * e;
+      const iDatasets = datasets.map((ds, di) => {
+        const fromDS = prev.datasets[di];
+        return {
+          ...ds,
+          data: idx.map(i => {
+            const fv = i < prevLen ? fromDS.data[i] : (i < newLen ? ds.data[i] : null);
+            const tv = i < newLen ? ds.data[i] : (i < prevLen ? fromDS.data[i] : null);
+            if (fv == null || tv == null) return fv ?? tv;
+            return fv + (tv - fv) * e;
+          }),
+        };
+      });
+      const { svgBody } = buildTrendChartBody(labelsForFrame, iDatasets, iYMin, iYMax, highlightLabel, xs, ops);
+      containerEl.innerHTML = `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%">${svgBody}</svg>`;
+      if (t < 1) requestAnimationFrame(step); else renderStatic(false);
+    };
+    requestAnimationFrame(step);
   } else {
     // Different series (mode switch) — plain crossfade, no zoom metaphor
     containerEl.style.transform = "";
@@ -2181,7 +2236,7 @@ function drawSvgLineChart(containerEl, fullLabels, fullDatasets, opts = {}) {
   trendChartCache.set(containerEl, {
     datasetSig, yMin, yMax,
     datasets: datasets.map(d => ({ ...d, data: d.data.slice() })),
-    fullLabels: fullLabels.slice(), visible: visible.slice(),
+    fullLabels: fullLabels.slice(), visible: visible.slice(), labels: labels.slice(),
   });
 }
 
