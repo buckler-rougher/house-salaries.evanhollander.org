@@ -675,19 +675,25 @@ function renderTypeBars() {
       <span class="type-val" style="color:${col}">${fmtK(s.median)}</span>`;
     c.appendChild(row);
 
-    // Member pay by caucus (the conference a member actually sits with —
-    // not their own registration, so a nominal independent who caucuses
+    // Member: broken down by caucus (the conference a member actually sits
+    // with, not their own registration — a nominal independent who caucuses
     // with a party lands in that party's bucket instead of a meaningless
-    // third one). Only D/R show up in practice, so there's no "other" row.
-    if (type === "member") {
-      const src = currentEmployeeSource().filter(e => !e.intern && !e.shared && e.type === "member" && e.party?.caucus);
+    // third one). Leadership: broken down by which party holds each office
+    // (Speaker/Majority/Minority resolved via the Clerk's majority/minority
+    // flag, Democratic Caucus/Republican Conference named outright). Neither
+    // applies to Committee — the SOD data doesn't separate majority/minority
+    // committee staff into their own office lines, so there's no real signal
+    // to bucket on.
+    const partyKey = type === "member" ? (e => e.party?.caucus) : type === "leadership" ? (e => e.leadership_party) : null;
+    if (partyKey) {
+      const src = currentEmployeeSource().filter(e => !e.intern && !e.shared && e.type === type && partyKey(e));
       const sub = document.createElement("div"); sub.className = "type-subrows";
-      ["D", "R"].forEach(caucus => {
-        const amts = src.filter(e => e.party.caucus === caucus).map(e => e.annual_equiv);
+      ["D", "R"].forEach(party => {
+        const amts = src.filter(e => partyKey(e) === party).map(e => e.annual_equiv);
         if (!amts.length) return;
         const st = computeStatsClient(amts);
-        const ccol = caucus === "D" ? "#2563eb" : "#dc2626";
-        const label = caucus === "D" ? "Democrats" : "Republicans";
+        const ccol = party === "D" ? "#2563eb" : "#dc2626";
+        const label = party === "D" ? "Democrats" : "Republicans";
         const subRow = document.createElement("div"); subRow.className = "type-row type-subrow";
         subRow.innerHTML = `
           <div class="type-label">${label}<br><span class="type-label-sub">${st.count.toLocaleString()} staff</span></div>
@@ -2780,7 +2786,7 @@ function buildHistoricalEmployees(qId) {
   const list = (peopleData || []).reduce((acc, p) => {
     const h = p.history.find(x => x.quarter === qId);
     if (h) acc.push({
-      name: p.name, office: p.office, title: p.title, type: p.type, party: p.party,
+      name: p.name, office: p.office, title: p.title, type: p.type, party: p.party, leadership_party: p.leadership_party,
       intern: false, shared: false,
       quarterly_pay: h.quarterly_pay,
       annual_equiv: Math.round(h.quarterly_pay * 4),

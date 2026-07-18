@@ -100,7 +100,11 @@ def fetch_member_parties():
             root = ET.fromstring(resp.read())
     except Exception as e:
         print(f"  ! Member party fetch failed ({e}) — party badges will be unavailable", flush=True)
-        return {}, {}
+        return {}, {}, None, None
+
+    title_info = root.find(".//title-info")
+    majority = (title_info.findtext("majority") or "").strip() or None if title_info is not None else None
+    minority = (title_info.findtext("minority") or "").strip() or None if title_info is not None else None
 
     members = []
     for m in root.findall(".//member"):
@@ -153,13 +157,36 @@ def fetch_member_parties():
             for full in (v, f"{v} {mem['suffix']}") if mem["suffix"] else (v,):
                 by_name.setdefault(_party_norm(full), []).append(mem)
         by_last.setdefault(_party_norm(mem["last"]), []).append(mem)
-    return by_name, by_last
+    return by_name, by_last, majority, minority
+
+# Which party currently holds the majority/minority — read once from Clerk's
+# <title-info> (e.g. "R"/"D") by build_member_party_lookup(). Used to resolve
+# leadership offices like "OFFICE OF THE MAJORITY LEADER" to an actual party.
+MAJORITY_PARTY, MINORITY_PARTY = None, None
+
+def leadership_party_for(org_name):
+    """Classifies a leadership-type office name as "D"/"R" using the office
+    name itself (Speaker and Majority/Minority Leader/Whip offices aren't
+    party-named, so this needs MAJORITY_PARTY/MINORITY_PARTY; the caucus/
+    conference offices name their party outright). Returns None for anything
+    that isn't a clearly partisan leadership office."""
+    s = org_name.upper()
+    if "DEMOCRATIC" in s:
+        return "D"
+    if "REPUBLICAN" in s:
+        return "R"
+    if "MINORITY" in s:
+        return MINORITY_PARTY
+    if "MAJORITY" in s or "SPEAKER" in s:
+        return MAJORITY_PARTY
+    return None
 
 def build_member_party_lookup():
     """Builds MEMBER_PARTY_BY_ORG (org name -> party info) by matching every
     known SOD member-office name against the Clerk roster. Call once before
     processing quarters."""
-    by_name, by_last = fetch_member_parties()
+    global MAJORITY_PARTY, MINORITY_PARTY
+    by_name, by_last, MAJORITY_PARTY, MINORITY_PARTY = fetch_member_parties()
     if not by_name:
         return
 
@@ -454,6 +481,7 @@ def fetch_quarter(q):
             "office": data["org"],
             "type": otype,
             "party": party_for(strip_org_prefix(data["org"]), otype),
+            "leadership_party": leadership_party_for(data["org"]) if otype == "leadership" else None,
             "title": title,
             "intern": is_intern(title),
             "shared": vendor in shared_vendors,
@@ -506,6 +534,7 @@ def process_all(quarters_to_process=None):
         top_offices = sorted(
             [{"name": name, "type": classify_office(name),
               "party": party_for(name, classify_office(name)),
+              "leadership_party": leadership_party_for(name) if classify_office(name) == "leadership" else None,
               "total_quarterly_pay": round(by_office_pay[name]), **compute_stats(v)}
              for name, v in by_office.items()],
             key=lambda x: -x["count"]
@@ -544,6 +573,7 @@ def process_all(quarters_to_process=None):
                 p["title"] = e["title"]
                 p["type"] = e["type"]
                 p["party"] = e["party"]
+                p["leadership_party"] = e["leadership_party"]
             p["history"].append({"quarter": q["id"], "quarterly_pay": e["quarterly_pay"], "title": e["title"]})
 
         if all_employees_latest is None:
