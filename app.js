@@ -27,7 +27,7 @@ let peopleData = null, peopleLoading = false;
 let historicalEmployeesCache = {}; // quarter id -> synthesized employee rows, built from peopleData
 let viewQIdx = -1; // index into summary.quarters; -1 = latest
 let officeTypeFilter = ""; // "" = all types, else "member"|"committee"|"leadership"|"administrative"
-let partyFilter = ""; // "" = all parties, else "D"|"R"|"I" — only meaningful when officeTypeFilter === "member"
+let partyFilter = ""; // "" = all parties, else "D"|"R"|"I" — see partyOptionsFor() for which apply to which officeTypeFilter
 let inflationOn = false; // when true, historical dollar figures are scaled to the latest quarter's dollars
 let currentSelection = null; // { type: "title"|"person", titleName, personName, personOffice }
 const PAGE = 25;
@@ -86,7 +86,7 @@ async function loadData() {
         }
         officeTypeFilter = saved.officeTypeFilter || "";
         document.querySelectorAll(".type-filter-btn[data-type]").forEach(b => b.classList.toggle("active", (b.dataset.type || "") === officeTypeFilter));
-        partyFilter = officeTypeFilter === "member" ? (saved.partyFilter || "") : "";
+        partyFilter = partyOptionsFor(officeTypeFilter).includes(saved.partyFilter) ? saved.partyFilter : "";
         document.querySelectorAll(".party-filter-btn[data-party]").forEach(b => b.classList.toggle("active", (b.dataset.party || "") === partyFilter));
         updatePartyFilterVisibility();
         inflationOn = !!saved.inflationOn;
@@ -368,14 +368,24 @@ async function navigateQuarter(dir) {
   saveState();
 }
 
+// Member has D/R/I; Leadership only ever resolves to D/R (see
+// leadership_party_for in fetch_sod.py); everything else has no party at all.
+function partyOptionsFor(type) {
+  if (type === "member") return ["D", "R", "I"];
+  if (type === "leadership") return ["D", "R"];
+  return [];
+}
+
 function updatePartyFilterVisibility() {
-  $("party-filter-row")?.classList.toggle("visible", officeTypeFilter === "member");
+  const opts = partyOptionsFor(officeTypeFilter);
+  $("party-filter-inline")?.classList.toggle("visible", opts.length > 0);
+  $("party-filter-i-btn")?.classList.toggle("party-filter-i-hidden", !opts.includes("I"));
 }
 
 async function setOfficeTypeFilter(type) {
   officeTypeFilter = type;
   document.querySelectorAll(".type-filter-btn[data-type]").forEach(b => b.classList.toggle("active", (b.dataset.type || "") === type));
-  if (type !== "member" && partyFilter) {
+  if (partyFilter && !partyOptionsFor(type).includes(partyFilter)) {
     partyFilter = "";
     document.querySelectorAll(".party-filter-btn[data-party]").forEach(b => b.classList.toggle("active", !b.dataset.party));
   }
@@ -1582,7 +1592,7 @@ async function restoreState() {
 
   officeTypeFilter = state.officeTypeFilter || "";
   document.querySelectorAll(".type-filter-btn[data-type]").forEach(b => b.classList.toggle("active", (b.dataset.type || "") === officeTypeFilter));
-  partyFilter = officeTypeFilter === "member" ? (state.partyFilter || "") : "";
+  partyFilter = partyOptionsFor(officeTypeFilter).includes(state.partyFilter) ? state.partyFilter : "";
   document.querySelectorAll(".party-filter-btn[data-party]").forEach(b => b.classList.toggle("active", (b.dataset.party || "") === partyFilter));
   updatePartyFilterVisibility();
   inflationOn = !!state.inflationOn;
