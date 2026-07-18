@@ -1283,7 +1283,7 @@ async function showPersonInline(name, officeName) {
   const isAuthorProfile = name === "Evan M. Hollander" && officeName === "HON. JOHN B. LARSON";
   const nameBlockHtml = `
     <div class="emp-detail-name">${esc(name)}</div>
-    <div class="emp-detail-meta"><span class="office-link" data-office="${esc(officeName)}">${partyBadgeHtml((latestEmp || person)?.party)}${esc(officeName)}</span>${latestEmp ? ` · ${esc(latestEmp.title)}` : ""}</div>`;
+    <div class="emp-detail-meta"><span class="office-link" data-office="${esc(officeName)}">${esc(officeName)}${partyBadgeHtml((latestEmp || person)?.party)}</span>${latestEmp ? ` · ${esc(latestEmp.title)}` : ""}</div>`;
 
   detail.innerHTML = `
     ${isAuthorProfile
@@ -2694,7 +2694,7 @@ function renderOfficeList() {
     wrap.className = "office-wrap";
     wrap.innerHTML = `
       <div class="office-row">
-        <div class="office-name">${partyBadgeHtml(o.party)}${esc(o.name)}</div>
+        <div class="office-name">${esc(o.name)}${partyBadgeHtml(o.party)}</div>
         <span class="badge badge-${o.type}">${TYPE_LABELS[o.type]||o.type}</span>
         <span class="office-count"><span class="office-count-num">${o.count}</span><span class="office-count-label">&nbsp;staff</span></span>
         <span class="office-range">${officeRangeHtml(o, officeSortKey)}</span>
@@ -2795,7 +2795,7 @@ function renderTable() {
     const overCap = e.annual_equiv > SALARY_CAP;
     return `<tr class="emp-row" data-name="${esc(e.name)}" data-office="${esc(cleanOrg(e.office))}">
       <td class="td-name"><span class="person-link" data-name="${esc(e.name)}" data-office="${esc(cleanOrg(e.office))}">${esc(e.name)}</span></td>
-      <td class="td-office" title="${esc(e.office)}"><span class="office-link" data-office="${esc(cleanOrg(e.office))}">${partyBadgeHtml(e.party)}${esc(cleanOrg(e.office))}</span></td>
+      <td class="td-office" title="${esc(e.office)}"><span class="office-link" data-office="${esc(cleanOrg(e.office))}">${esc(cleanOrg(e.office))}${partyBadgeHtml(e.party)}</span></td>
       <td class="td-title">${esc(e.title)}</td>
       <td><span class="badge badge-${e.intern?"intern":e.shared?"shared":e.type}">${e.intern?"Intern":e.shared?"Shared":(TYPE_LABELS[e.type]||e.type)}</span></td>
       <td class="td-amt-q">${fmt(e.quarterly_pay)}</td>
