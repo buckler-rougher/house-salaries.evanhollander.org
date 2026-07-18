@@ -193,7 +193,7 @@ function fullStatsFromAmounts(amounts) {
 // isn't loaded yet or nobody qualifies.
 function positionHeaderStats(t, type) {
   if (!peopleData) return t;
-  const matches = peopleData.filter(p => p.title === t.title && (!type || p.type === type));
+  const matches = peopleData.filter(p => p.title === t.title && (!type || p.type === type) && (!partyFilter || p.party?.party === partyFilter));
   if (!matches.length) return t;
   const qId = viewedQuarter().id;
   const amounts = matches
@@ -995,7 +995,7 @@ function selectTitle(t, el, forcedTrendUI) {
   // to that older quarter's percentiles, so it's gated to isLatestQuarter()
   // below instead of rendering a mismatched list.
   const staff = isLatestQuarter() ? employees
-    .filter(e => !e.intern && !e.shared && e.title === t.title && (!officeTypeFilter || e.type === officeTypeFilter))
+    .filter(e => !e.intern && !e.shared && e.title === t.title && (!officeTypeFilter || e.type === officeTypeFilter) && (!partyFilter || e.party?.party === partyFilter))
     .sort((a,b) => b.annual_equiv - a.annual_equiv) : [];
 
   // top_titles (the fast synchronous path, available before peopleData loads)
