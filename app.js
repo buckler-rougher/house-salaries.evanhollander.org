@@ -27,6 +27,7 @@ let peopleData = null, peopleLoading = false;
 let historicalEmployeesCache = {}; // quarter id -> synthesized employee rows, built from peopleData
 let viewQIdx = -1; // index into summary.quarters; -1 = latest
 let officeTypeFilter = ""; // "" = all types, else "member"|"committee"|"leadership"|"administrative"
+let partyFilter = ""; // "" = all parties, else "D"|"R"|"I" — only meaningful when officeTypeFilter === "member"
 let inflationOn = false; // when true, historical dollar figures are scaled to the latest quarter's dollars
 let currentSelection = null; // { type: "title"|"person", titleName, personName, personOffice }
 const PAGE = 25;
@@ -45,6 +46,13 @@ function areaFillGradient(color, topOpacity) {
 }
 const TYPE_LABELS = { member:"Member", committee:"Committee", leadership:"Leadership", administrative:"Administrative" };
 const TYPE_COLORS = { member:"#2563eb", committee:"#059669", leadership:"#b45309", administrative:"#6b7280" };
+
+const PARTY_NAMES = { D: "Democrat", R: "Republican", I: "Independent" };
+function partyBadgeHtml(party) {
+  const p = party && party.party;
+  if (!p || !PARTY_NAMES[p]) return "";
+  return `<span class="party-badge party-badge-${p.toLowerCase()}" title="${PARTY_NAMES[p]}${party.state ? ` — ${esc(party.state)}` : ""}">${p}</span>`;
+}
 
 async function loadData() {
   setupSparklineTooltips();
@@ -67,6 +75,9 @@ async function loadData() {
         }
         officeTypeFilter = saved.officeTypeFilter || "";
         document.querySelectorAll(".type-filter-btn[data-type]").forEach(b => b.classList.toggle("active", (b.dataset.type || "") === officeTypeFilter));
+        partyFilter = officeTypeFilter === "member" ? (saved.partyFilter || "") : "";
+        document.querySelectorAll(".party-filter-btn[data-party]").forEach(b => b.classList.toggle("active", (b.dataset.party || "") === partyFilter));
+        updatePartyFilterVisibility();
         inflationOn = !!saved.inflationOn;
         $("inflation-toggle")?.setAttribute("aria-pressed", inflationOn ? "true" : "false");
       }
@@ -346,9 +357,18 @@ async function navigateQuarter(dir) {
   saveState();
 }
 
+function updatePartyFilterVisibility() {
+  $("party-filter-row")?.classList.toggle("visible", officeTypeFilter === "member");
+}
+
 async function setOfficeTypeFilter(type) {
   officeTypeFilter = type;
   document.querySelectorAll(".type-filter-btn[data-type]").forEach(b => b.classList.toggle("active", (b.dataset.type || "") === type));
+  if (type !== "member" && partyFilter) {
+    partyFilter = "";
+    document.querySelectorAll(".party-filter-btn[data-party]").forEach(b => b.classList.toggle("active", !b.dataset.party));
+  }
+  updatePartyFilterVisibility();
 
   renderStats();
   renderDist();
@@ -361,7 +381,23 @@ async function setOfficeTypeFilter(type) {
   applyFilters();
   renderTrend();
 
-  // Re-render whatever is open in the left panel
+  await refreshOpenSelectionAndSaveState();
+}
+
+async function setPartyFilter(party) {
+  partyFilter = party;
+  document.querySelectorAll(".party-filter-btn[data-party]").forEach(b => b.classList.toggle("active", (b.dataset.party || "") === party));
+
+  buildOfficeData();
+  renderOfficeList();
+  applyFilters();
+
+  await refreshOpenSelectionAndSaveState();
+}
+
+// Re-render whatever is open in the left panel after a global filter (office
+// type, party) changes, then persist the new filter state.
+async function refreshOpenSelectionAndSaveState() {
   if (currentSelection) {
     if (currentSelection.type === "title") {
       const t = titles.find(x => x.title === currentSelection.titleName);
@@ -1247,7 +1283,7 @@ async function showPersonInline(name, officeName) {
   const isAuthorProfile = name === "Evan M. Hollander" && officeName === "HON. JOHN B. LARSON";
   const nameBlockHtml = `
     <div class="emp-detail-name">${esc(name)}</div>
-    <div class="emp-detail-meta"><span class="office-link" data-office="${esc(officeName)}">${esc(officeName)}</span>${latestEmp ? ` · ${esc(latestEmp.title)}` : ""}</div>`;
+    <div class="emp-detail-meta"><span class="office-link" data-office="${esc(officeName)}">${partyBadgeHtml((latestEmp || person)?.party)}${esc(officeName)}</span>${latestEmp ? ` · ${esc(latestEmp.title)}` : ""}</div>`;
 
   detail.innerHTML = `
     ${isAuthorProfile
@@ -1471,6 +1507,7 @@ function saveState() {
     tab: document.querySelector(".tab-btn.active")?.dataset.tab || "dist",
     viewQIdx,
     officeTypeFilter,
+    partyFilter,
     inflationOn,
     office: {
       search: $("office-search")?.value || "",
@@ -1497,6 +1534,9 @@ async function restoreState() {
 
   officeTypeFilter = state.officeTypeFilter || "";
   document.querySelectorAll(".type-filter-btn[data-type]").forEach(b => b.classList.toggle("active", (b.dataset.type || "") === officeTypeFilter));
+  partyFilter = officeTypeFilter === "member" ? (state.partyFilter || "") : "";
+  document.querySelectorAll(".party-filter-btn[data-party]").forEach(b => b.classList.toggle("active", (b.dataset.party || "") === partyFilter));
+  updatePartyFilterVisibility();
   inflationOn = !!state.inflationOn;
   $("inflation-toggle")?.setAttribute("aria-pressed", inflationOn ? "true" : "false");
   updateInflationNote();
@@ -1548,16 +1588,16 @@ let officeData = [];
 function buildOfficeData() {
   if (isLatestQuarter()) {
     const groups = {};
-    employees.filter(e => !e.intern && !e.shared && (!officeTypeFilter || e.type === officeTypeFilter)).forEach(e => {
+    employees.filter(e => !e.intern && !e.shared && (!officeTypeFilter || e.type === officeTypeFilter) && (!partyFilter || e.party?.party === partyFilter)).forEach(e => {
       const key = cleanOrg(e.office);
-      if (!groups[key]) groups[key] = { name: key, type: e.type, amounts: [] };
+      if (!groups[key]) groups[key] = { name: key, type: e.type, party: e.party, amounts: [] };
       groups[key].amounts.push(e.annual_equiv);
     });
     officeData = Object.values(groups).map(g => {
       const s = g.amounts.slice().sort((a,b) => a-b);
       const p = pct => { const i=(s.length-1)*pct/100; const lo=Math.floor(i),hi=Math.min(lo+1,s.length-1); return s[lo]+(s[hi]-s[lo])*(i-lo); };
       const totalAnnual = Math.round(s.reduce((a,b)=>a+b,0));
-      return { name: g.name, type: g.type, count: s.length,
+      return { name: g.name, type: g.type, party: g.party, count: s.length,
         min: Math.round(s[0]), max: Math.round(s[s.length-1]),
         median: Math.round(p(50)), p25: Math.round(p(25)), p75: Math.round(p(75)),
         mean: Math.round(totalAnnual / s.length),
@@ -1567,8 +1607,9 @@ function buildOfficeData() {
     // Use pre-aggregated top_offices from that quarter's summary
     officeData = (adjQuarter(viewedQuarter()).top_offices || [])
       .filter(o => !officeTypeFilter || o.type === officeTypeFilter)
+      .filter(o => !partyFilter || o.party?.party === partyFilter)
       .map(o => ({
-        name: o.name, type: o.type, count: o.count,
+        name: o.name, type: o.type, party: o.party, count: o.count,
         min: o.min, max: o.max, median: o.median, p25: o.p25, p75: o.p75,
         mean: o.mean,
         totalAnnual: o.total_quarterly_pay != null ? o.total_quarterly_pay * 4 : null,
@@ -2653,7 +2694,7 @@ function renderOfficeList() {
     wrap.className = "office-wrap";
     wrap.innerHTML = `
       <div class="office-row">
-        <div class="office-name">${esc(o.name)}</div>
+        <div class="office-name">${partyBadgeHtml(o.party)}${esc(o.name)}</div>
         <span class="badge badge-${o.type}">${TYPE_LABELS[o.type]||o.type}</span>
         <span class="office-count"><span class="office-count-num">${o.count}</span><span class="office-count-label">&nbsp;staff</span></span>
         <span class="office-range">${officeRangeHtml(o, officeSortKey)}</span>
@@ -2708,7 +2749,7 @@ function buildHistoricalEmployees(qId) {
   const list = (peopleData || []).reduce((acc, p) => {
     const h = p.history.find(x => x.quarter === qId);
     if (h) acc.push({
-      name: p.name, office: p.office, title: p.title, type: p.type,
+      name: p.name, office: p.office, title: p.title, type: p.type, party: p.party,
       intern: false, shared: false,
       quarterly_pay: h.quarterly_pay,
       annual_equiv: Math.round(h.quarterly_pay * 4),
@@ -2738,6 +2779,7 @@ function applyFilters() {
     if (show === "staff"  &&  e.intern) return false;
     if (show === "intern" && !e.intern) return false;
     if (officeTypeFilter && e.type !== officeTypeFilter) return false;
+    if (partyFilter && e.party?.party !== partyFilter) return false;
     if (q && !fuzzyNameMatch(e.name, q) && !fuzzyNameMatch(e.office, q) && !e.title.toLowerCase().includes(q)) return false;
     return true;
   });
@@ -2753,7 +2795,7 @@ function renderTable() {
     const overCap = e.annual_equiv > SALARY_CAP;
     return `<tr class="emp-row" data-name="${esc(e.name)}" data-office="${esc(cleanOrg(e.office))}">
       <td class="td-name"><span class="person-link" data-name="${esc(e.name)}" data-office="${esc(cleanOrg(e.office))}">${esc(e.name)}</span></td>
-      <td class="td-office" title="${esc(e.office)}"><span class="office-link" data-office="${esc(cleanOrg(e.office))}">${esc(cleanOrg(e.office))}</span></td>
+      <td class="td-office" title="${esc(e.office)}"><span class="office-link" data-office="${esc(cleanOrg(e.office))}">${partyBadgeHtml(e.party)}${esc(cleanOrg(e.office))}</span></td>
       <td class="td-title">${esc(e.title)}</td>
       <td><span class="badge badge-${e.intern?"intern":e.shared?"shared":e.type}">${e.intern?"Intern":e.shared?"Shared":(TYPE_LABELS[e.type]||e.type)}</span></td>
       <td class="td-amt-q">${fmt(e.quarterly_pay)}</td>
@@ -2914,6 +2956,9 @@ document.addEventListener("DOMContentLoaded", () => {
   $("emp-type").addEventListener("change", () => { applyFilters(); saveState(); });
   document.querySelectorAll(".type-filter-btn[data-type]").forEach(btn => {
     btn.addEventListener("click", () => setOfficeTypeFilter(btn.dataset.type || ""));
+  });
+  document.querySelectorAll(".party-filter-btn[data-party]").forEach(btn => {
+    btn.addEventListener("click", () => setPartyFilter(btn.dataset.party || ""));
   });
   $("inflation-toggle")?.addEventListener("click", () => setInflationOn(!inflationOn));
 

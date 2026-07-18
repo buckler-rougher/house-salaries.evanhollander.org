@@ -557,6 +557,28 @@ tr:hover td { background: var(--bg2); }
 .badge-intern         { background: #fce7f3; color: #9d174d; }
 .badge-shared         { background: #f3f4f6; color: #6b7280; }
 
+.party-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 15px; height: 15px; border-radius: 50%;
+  font-size: .6rem; font-weight: 800; line-height: 1;
+  color: #fff; flex-shrink: 0; margin-right: 5px;
+}
+.party-badge-d { background: #2563eb; }
+.party-badge-r { background: #dc2626; }
+.party-badge-i { background: #7c3aed; }
+
+.party-filter-btn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 26px; height: 26px; border-radius: 50%;
+  border: 1px solid var(--line); background: var(--bg);
+  font-size: .68rem; font-weight: 800; color: var(--ink3); cursor: pointer;
+}
+.party-filter-btn.active.party-filter-d { background: #2563eb; border-color: #2563eb; color: #fff; }
+.party-filter-btn.active.party-filter-r { background: #dc2626; border-color: #dc2626; color: #fff; }
+.party-filter-btn.active.party-filter-i { background: #7c3aed; border-color: #7c3aed; color: #fff; }
+.party-filter-row { display: none; gap: 6px; align-items: center; margin-top: 8px; }
+.party-filter-row.visible { display: flex; }
+
 .table-footer { display: flex; justify-content: space-between; align-items: center; margin-top: 12px; font-size: .78rem; color: var(--ink3); }
 .pagination { display: flex; gap: 3px; }
 .page-btn {

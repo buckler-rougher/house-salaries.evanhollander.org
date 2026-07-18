@@ -17,7 +17,7 @@
   <link rel="icon" href="favicon.ico?v=20260715ag" sizes="any" />
   <link rel="icon" type="image/svg+xml" href="favicon.svg?v=20260715ag" />
   <link rel="apple-touch-icon" href="favicon.png?v=20260715ag" />
-  <link rel="stylesheet" href="styles.css?v=20260715as" />
+  <link rel="stylesheet" href="styles.css?v=20260718a" />
 </head>
 <body>
 
@@ -71,6 +71,14 @@
     <span class="filter-row-divider" aria-hidden="true"></span>
     <button class="type-filter-btn" id="inflation-toggle" type="button" aria-pressed="false">Adjust for inflation</button>
     <span class="inflation-note" id="inflation-note"></span>
+  </div>
+
+  <div class="party-filter-row" id="party-filter-row">
+    <span class="type-filter-label">Party:</span>
+    <button class="party-filter-btn active" data-party="" aria-label="All parties">All</button>
+    <button class="party-filter-btn party-filter-d" data-party="D" aria-label="Democrat">D</button>
+    <button class="party-filter-btn party-filter-r" data-party="R" aria-label="Republican">R</button>
+    <button class="party-filter-btn party-filter-i" data-party="I" aria-label="Independent">I</button>
   </div>
 
   <div class="body-grid">
@@ -263,6 +271,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260715as"></script>
+<script src="app.js?v=20260718a"></script>
 </body>
 </html>

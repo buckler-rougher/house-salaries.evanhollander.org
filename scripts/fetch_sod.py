@@ -9,10 +9,12 @@ Key column notes (from actual CSVs):
 - DESCRIPTION field contains job title (e.g. "LEGISLATIVE ASSISTANT", "CHIEF OF STAFF")
 - AMOUNT is the quarterly payment in dollars
 """
-import csv, json, io, re, os, sys, urllib.request
+import csv, json, io, re, os, sys, urllib.request, unicodedata
+import xml.etree.ElementTree as ET
 from collections import defaultdict
 
 BASE = "https://www.house.gov"
+MEMBER_DATA_URL = "https://clerk.house.gov/xml/lists/MemberData.xml"
 
 QUARTERS = [
     {"id": "2026Q1", "label": "Jan–Mar 2026", "year": 2026, "q": 1, "url": f"{BASE}/sites/default/files/2026-05/grids/JAN-MAR%202026%20SOD%20DETAIL%20GRID-FINAL.csv"},
@@ -71,6 +73,134 @@ def classify_office(org):
                               "REPUBLICAN STUDY"]):
         return "leadership"
     return "administrative"
+
+def _party_norm(s):
+    """Letters-only, accent-stripped, uppercase — the normal form both SOD
+    org names and Clerk member names are compared in, so spacing/punctuation
+    differences (periods, double spaces, hyphens) don't cause a miss."""
+    stripped = "".join(c for c in unicodedata.normalize("NFKD", s) if not unicodedata.combining(c))
+    return re.sub(r"[^A-Z]", "", stripped.upper())
+
+# Maps a member-office org name (post strip_org_prefix, e.g. "HON. JARED
+# MOSKOWITZ") to {"party": "D"/"R"/"I", "state": "CA", "district": "12"}.
+# Populated once per run by fetch_member_parties(); empty until then.
+MEMBER_PARTY_BY_ORG = {}
+
+def fetch_member_parties():
+    """Downloads the Clerk's current-Congress member roster and returns a
+    lookup from normalized full name -> member dict, keyed several ways
+    (with/without middle name, with/without suffix) since SOD's "HON. X"
+    org names aren't consistent about including either. Matching is exact
+    on the normalized string, not fuzzy — a false match would mislabel a
+    real person's party, so an unmatched (historical, or unusual-format)
+    office is left without a party rather than guessed at."""
+    req = urllib.request.Request(MEMBER_DATA_URL, headers={"User-Agent": "house-salaries-bot/1.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            root = ET.fromstring(resp.read())
+    except Exception as e:
+        print(f"  ! Member party fetch failed ({e}) — party badges will be unavailable", flush=True)
+        return {}, {}
+
+    members = []
+    for m in root.findall(".//member"):
+        info = m.find("member-info")
+        if info is None:
+            continue
+        state_el = info.find("state")
+        state = state_el.get("postal-code") if state_el is not None else ""
+        district = m.findtext("statedistrict") or ""
+        if (info.findtext("party") or "").strip():
+            members.append({
+                "last": (info.findtext("lastname") or "").strip(),
+                "first": (info.findtext("firstname") or "").strip(),
+                "middle": (info.findtext("middlename") or "").strip(),
+                "suffix": (info.findtext("suffix") or "").strip(),
+                "party": (info.findtext("party") or "").strip(),
+                "state": state, "district": district,
+            })
+        # A seat vacated recently (resignation/death) has no sitting member,
+        # but our SOD data can still cover quarters when it was occupied —
+        # predecessor-info carries that former member's name and party.
+        pred = m.find("predecessor-info")
+        if pred is not None and (pred.findtext("pred-party") or "").strip():
+            members.append({
+                "last": (pred.findtext("pred-lastname") or "").strip(),
+                "first": (pred.findtext("pred-firstname") or "").strip(),
+                "middle": (pred.findtext("pred-middlename") or "").strip(),
+                "suffix": "",
+                "party": (pred.findtext("pred-party") or "").strip(),
+                "state": state, "district": district,
+            })
+
+    by_name, by_last = {}, {}
+    for mem in members:
+        variants = []
+        if mem["middle"]:
+            variants.append(f"{mem['first']} {mem['middle']} {mem['last']}")
+            variants.append(f"{mem['first']} {mem['middle'][0]}. {mem['last']}")
+        variants.append(f"{mem['first']} {mem['last']}")
+        for v in variants:
+            for full in (v, f"{v} {mem['suffix']}") if mem["suffix"] else (v,):
+                by_name.setdefault(_party_norm(full), []).append(mem)
+        by_last.setdefault(_party_norm(mem["last"]), []).append(mem)
+    return by_name, by_last
+
+def build_member_party_lookup():
+    """Builds MEMBER_PARTY_BY_ORG (org name -> party info) by matching every
+    known SOD member-office name against the Clerk roster. Call once before
+    processing quarters."""
+    by_name, by_last = fetch_member_parties()
+    if not by_name:
+        return
+
+    def dedupe(hits):
+        seen, out = set(), []
+        for h in hits:
+            key = (h["last"], h["first"], h["middle"], h["district"])
+            if key not in seen:
+                seen.add(key)
+                out.append(h)
+        return out
+
+    def resolve(org_name):
+        raw = re.sub(r"^HON\.\s*", "", org_name, flags=re.I).strip()
+        hits = dedupe(by_name.get(_party_norm(raw)) or [])
+        if len(hits) == 1:
+            return hits[0]
+        # Fallback: match by last 1-2 tokens as surname + first-name-prefix
+        # disambiguation, for formats fetch_member_parties()'s variants don't
+        # cover (extra suffixes like "MD", hyphenated surnames, etc.)
+        tokens = raw.split()
+        for last_len in (2, 1):
+            if len(tokens) < last_len + 1:
+                continue
+            cs = dedupe(by_last.get(_party_norm(" ".join(tokens[-last_len:]))) or [])
+            if not cs:
+                continue
+            first_key = _party_norm(tokens[0])[:3]
+            narrowed = [c for c in cs if _party_norm(c["first"]).startswith(first_key)]
+            if len(narrowed) == 1:
+                return narrowed[0]
+            if len(cs) == 1:
+                return cs[0]
+        return None
+    global _resolve_member
+    _resolve_member = resolve
+
+_resolve_member = lambda org_name: None
+
+def party_for(org_key, office_type):
+    """org_key must already be strip_org_prefix()'d. Returns {"party","state",
+    "district"} or None (non-member office, or no confident match)."""
+    if office_type != "member":
+        return None
+    if org_key not in MEMBER_PARTY_BY_ORG:
+        mem = _resolve_member(org_key)
+        MEMBER_PARTY_BY_ORG[org_key] = (
+            {"party": mem["party"], "state": mem["state"], "district": mem["district"]} if mem else None
+        )
+    return MEMBER_PARTY_BY_ORG[org_key]
 
 NAME_SUFFIXES = {"II", "III", "IV", "V", "JR", "SR"}
 
@@ -304,10 +434,12 @@ def fetch_quarter(q):
         if total <= 0:
             continue
         title = title_case(data["title"])
+        otype = classify_office(data["org"])
         employees.append({
             "name": fmt_name(vendor),
             "office": data["org"],
-            "type": classify_office(data["org"]),
+            "type": otype,
+            "party": party_for(strip_org_prefix(data["org"]), otype),
             "title": title,
             "intern": is_intern(title),
             "shared": vendor in shared_vendors,
@@ -359,6 +491,7 @@ def process_all(quarters_to_process=None):
             by_office_pay[key] += e["quarterly_pay"]
         top_offices = sorted(
             [{"name": name, "type": classify_office(name),
+              "party": party_for(name, classify_office(name)),
               "total_quarterly_pay": round(by_office_pay[name]), **compute_stats(v)}
              for name, v in by_office.items()],
             key=lambda x: -x["count"]
@@ -396,6 +529,7 @@ def process_all(quarters_to_process=None):
                 p["office"] = org_key
                 p["title"] = e["title"]
                 p["type"] = e["type"]
+                p["party"] = e["party"]
             p["history"].append({"quarter": q["id"], "quarterly_pay": e["quarterly_pay"], "title": e["title"]})
 
         if all_employees_latest is None:
@@ -449,6 +583,9 @@ def fetch_cpi_index(start_year, end_year):
 
 def main():
     os.makedirs("data", exist_ok=True)
+
+    print("Fetching Clerk member roster for party affiliation...", flush=True)
+    build_member_party_lookup()
 
     print("Processing quarters...", flush=True)
     quarter_summaries, latest_employees, latest_id, people_list = process_all()
