@@ -562,8 +562,11 @@ tr:hover td { background: var(--bg2); }
   width: 15px; height: 15px; border-radius: 50%;
   font-size: .6rem; font-weight: 800; line-height: 1;
   color: #fff; flex-shrink: 0; margin-left: 5px;
-  vertical-align: middle; transform: translateY(-1px);
 }
+/* Wraps a name/office string plus its trailing .party-badge so the badge
+   centers on the text's actual visual height via flex alignment instead of
+   vertical-align/transform hacks, which drift off-center at other font sizes. */
+.with-party-badge { display: inline-flex; align-items: center; }
 .party-badge-d { background: #2563eb; }
 .party-badge-r { background: #dc2626; }
 .party-badge-i { background: #7c3aed; font-feature-settings: "cv08" 1; }
@@ -611,7 +614,8 @@ tr:hover td { background: var(--bg2); }
 }
 .office-row:hover { background: var(--bg2); padding-left: 6px; padding-right: 6px; margin: 0 -6px; }
 .office-row:last-child { border-bottom: none; }
-.office-name { font-size: .88rem; font-weight: 700; color: var(--ink); min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.office-name { font-size: .88rem; font-weight: 700; color: var(--ink); min-width: 0; display: flex; align-items: center; }
+.office-name-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 /* badge column: fixed width, right-align so all badges share a right edge */
 .office-row .badge { justify-self: end; }
 /* count: number right-aligns, " staff" label anchors it */
@@ -948,7 +952,8 @@ tr:hover td { background: var(--bg2); }
     align-items: center;
     gap: 6px 10px;
   }
-  .office-name { flex: 1 1 100%; white-space: normal; overflow: visible; text-overflow: clip; }
+  .office-name { flex: 1 1 100%; }
+  .office-name-text { white-space: normal; overflow: visible; text-overflow: clip; }
   .office-row .badge { justify-self: unset; order: 1; }
   .office-count { order: 2; }
   .office-range { order: 3; }
