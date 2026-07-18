@@ -45,7 +45,7 @@ function areaFillGradient(color, topOpacity) {
   return { id, defs };
 }
 const TYPE_LABELS = { member:"Member", committee:"Committee", leadership:"Leadership", administrative:"Administrative" };
-const TYPE_COLORS = { member:"#2563eb", committee:"#059669", leadership:"#b45309", administrative:"#6b7280" };
+const TYPE_COLORS = { member:"#ea580c", committee:"#b5567a", leadership:"#b8860b", administrative:"#6b7280" };
 
 const PARTY_NAMES = { D: "Democrat", R: "Republican", I: "Independent" };
 function partyBadgeHtml(party) {

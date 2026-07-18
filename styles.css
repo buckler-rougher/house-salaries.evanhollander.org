@@ -550,9 +550,9 @@ tr:hover td { background: var(--bg2); }
   letter-spacing: .06em;
   text-transform: uppercase;
 }
-.badge-member         { background: #dbeafe; color: #1e40af; }
-.badge-committee      { background: #d1fae5; color: #065f46; }
-.badge-leadership     { background: #fef3c7; color: #92400e; }
+.badge-member         { background: #ffedd5; color: #9a3412; }
+.badge-committee      { background: #f5dde6; color: #8a3b57; }
+.badge-leadership     { background: #f5e3ae; color: #6b4c05; }
 .badge-administrative { background: #f3f4f6; color: #4b5563; }
 .badge-intern         { background: #fce7f3; color: #9d174d; }
 .badge-shared         { background: #f3f4f6; color: #6b7280; }
