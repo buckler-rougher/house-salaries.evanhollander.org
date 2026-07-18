@@ -457,6 +457,18 @@ body {
 .type-needle { width: 2px; height: 18px; background: var(--accent); transform: translateX(-50%); }
 .type-val { font-size: .85rem; font-weight: 800; color: var(--accent); width: 52px; text-align: right; }
 
+.type-subrows {
+  display: flex; flex-direction: column; gap: 10px;
+  margin: -6px 0 0 8px; padding-left: 8px;
+  border-left: 2px solid var(--bg3);
+}
+/* Label is narrowed by exactly the container's indent (8+8=16px) so the
+   track-wrap (and its bar) still starts at the same x as the parent rows. */
+.type-subrow .type-label { width: 84px; font-size: .74rem; font-weight: 600; color: var(--ink2); }
+.type-subrow .type-track-wrap { height: 28px; }
+.type-subrow .type-needle { height: 14px; }
+.type-subrow .type-val { font-size: .74rem; }
+
 /* ── Trend mode switcher ── */
 .trend-mode-row { display: flex; gap: 2px; margin-bottom: 16px; background: var(--bg3); border-radius: 8px; padding: 3px; width: fit-content; }
 .trend-mode {

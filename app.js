@@ -474,6 +474,12 @@ function updateInflationNote() {
   note.textContent = `in ${latest.label} dollars`;
 }
 
+function computeStatsClient(amounts) {
+  const s = amounts.slice().sort((a, b) => a - b);
+  const pct = p => { const i = (s.length - 1) * p / 100, lo = Math.floor(i), hi = Math.min(lo + 1, s.length - 1); return s[lo] + (s[hi] - s[lo]) * (i - lo); };
+  return { count: s.length, median: Math.round(pct(50)), p25: Math.round(pct(25)), p75: Math.round(pct(75)) };
+}
+
 function computeDistributionBuckets(amounts, bucketSize = 10000, maxVal = 250000) {
   const buckets = [];
   for (let lo = 0; lo < maxVal; lo += bucketSize) {
@@ -668,6 +674,33 @@ function renderTypeBars() {
       </div>
       <span class="type-val" style="color:${col}">${fmtK(s.median)}</span>`;
     c.appendChild(row);
+
+    // Member pay by caucus (the conference a member actually sits with —
+    // not their own registration, so a nominal independent who caucuses
+    // with a party lands in that party's bucket instead of a meaningless
+    // third one). Only D/R show up in practice, so there's no "other" row.
+    if (type === "member") {
+      const src = currentEmployeeSource().filter(e => !e.intern && !e.shared && e.type === "member" && e.party?.caucus);
+      const sub = document.createElement("div"); sub.className = "type-subrows";
+      ["D", "R"].forEach(caucus => {
+        const amts = src.filter(e => e.party.caucus === caucus).map(e => e.annual_equiv);
+        if (!amts.length) return;
+        const st = computeStatsClient(amts);
+        const ccol = caucus === "D" ? "#2563eb" : "#dc2626";
+        const label = caucus === "D" ? "Democrats" : "Republicans";
+        const subRow = document.createElement("div"); subRow.className = "type-row type-subrow";
+        subRow.innerHTML = `
+          <div class="type-label">${label}<br><span class="type-label-sub">${st.count.toLocaleString()} staff</span></div>
+          <div class="type-track-wrap">
+            <div class="type-track type-bg"></div>
+            <div class="type-track type-iqr" style="left:${pct(st.p25)}%;width:${pct(st.p75)-pct(st.p25)}%;background:${ccol}"></div>
+            <div class="type-track type-needle" style="left:${pct(st.median)}%;background:${ccol}"></div>
+          </div>
+          <span class="type-val" style="color:${ccol}">${fmtK(st.median)}</span>`;
+        sub.appendChild(subRow);
+      });
+      if (sub.children.length) c.appendChild(sub);
+    }
   });
   const leg = document.createElement("div");
   leg.style.cssText = "margin-top:14px;font-size:.7rem;color:#888;display:flex;gap:16px";
@@ -675,9 +708,7 @@ function renderTypeBars() {
   c.appendChild(leg);
 }
 
-const TYPE_COLORS_TREND = {
-  member: "#2563eb", committee: "#059669", leadership: "#b45309", administrative: "#6b7280"
-};
+const TYPE_COLORS_TREND = TYPE_COLORS;
 
 function renderTrend() {
   $("chart-trend").style.display = "";

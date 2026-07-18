@@ -111,12 +111,17 @@ def fetch_member_parties():
         state = state_el.get("postal-code") if state_el is not None else ""
         district = m.findtext("statedistrict") or ""
         if (info.findtext("party") or "").strip():
+            party = (info.findtext("party") or "").strip()
             members.append({
                 "last": (info.findtext("lastname") or "").strip(),
                 "first": (info.findtext("firstname") or "").strip(),
                 "middle": (info.findtext("middlename") or "").strip(),
                 "suffix": (info.findtext("suffix") or "").strip(),
-                "party": (info.findtext("party") or "").strip(),
+                "party": party,
+                # <caucus> is the conference a member actually sits with, which
+                # can diverge from <party> (e.g. an independent who caucuses
+                # Republican) — fall back to party if caucus is blank.
+                "caucus": (info.findtext("caucus") or "").strip() or party,
                 "state": state, "district": district,
             })
         # A seat vacated recently (resignation/death) has no sitting member,
@@ -124,12 +129,16 @@ def fetch_member_parties():
         # predecessor-info carries that former member's name and party.
         pred = m.find("predecessor-info")
         if pred is not None and (pred.findtext("pred-party") or "").strip():
+            pred_party = (pred.findtext("pred-party") or "").strip()
             members.append({
                 "last": (pred.findtext("pred-lastname") or "").strip(),
                 "first": (pred.findtext("pred-firstname") or "").strip(),
                 "middle": (pred.findtext("pred-middlename") or "").strip(),
                 "suffix": "",
-                "party": (pred.findtext("pred-party") or "").strip(),
+                "party": pred_party,
+                # predecessor-info has no caucus field; party is the best
+                # available stand-in for a former member.
+                "caucus": pred_party,
                 "state": state, "district": district,
             })
 
@@ -191,14 +200,19 @@ def build_member_party_lookup():
 _resolve_member = lambda org_name: None
 
 def party_for(org_key, office_type):
-    """org_key must already be strip_org_prefix()'d. Returns {"party","state",
-    "district"} or None (non-member office, or no confident match)."""
+    """org_key must already be strip_org_prefix()'d. Returns {"party","caucus",
+    "state","district"} or None (non-member office, or no confident match).
+    party is the member's own registration (shown in the UI badge/filter);
+    caucus is which conference they actually sit with (used for D/R breakdowns
+    where a nominal-independent-but-caucuses-with-a-party case would otherwise
+    show up as a meaningless third bucket)."""
     if office_type != "member":
         return None
     if org_key not in MEMBER_PARTY_BY_ORG:
         mem = _resolve_member(org_key)
         MEMBER_PARTY_BY_ORG[org_key] = (
-            {"party": mem["party"], "state": mem["state"], "district": mem["district"]} if mem else None
+            {"party": mem["party"], "caucus": mem["caucus"], "state": mem["state"], "district": mem["district"]}
+            if mem else None
         )
     return MEMBER_PARTY_BY_ORG[org_key]
 
