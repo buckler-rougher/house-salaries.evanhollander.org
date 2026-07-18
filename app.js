@@ -54,6 +54,17 @@ function partyBadgeHtml(party) {
   return `<span class="party-badge party-badge-${p.toLowerCase()}" title="${PARTY_NAMES[p]}${party.state ? ` — ${esc(party.state)}` : ""}">${p}</span>`;
 }
 
+// Member offices carry a full {party,state,district} dict (o.party, from the
+// member's own registration). Leadership offices only carry a bare "D"/"R"
+// letter (o.leadership_party, resolved from the office name + which party
+// holds the majority) — wrap it in the same shape so one badge renderer
+// covers both.
+function officePartyBadge(o) {
+  if (o.type === "member") return partyBadgeHtml(o.party);
+  if (o.type === "leadership") return partyBadgeHtml(o.leadership_party ? { party: o.leadership_party } : null);
+  return "";
+}
+
 async function loadData() {
   setupSparklineTooltips();
   try {
@@ -1320,7 +1331,7 @@ async function showPersonInline(name, officeName) {
   const isAuthorProfile = name === "Evan M. Hollander" && officeName === "HON. JOHN B. LARSON";
   const nameBlockHtml = `
     <div class="emp-detail-name">${esc(name)}</div>
-    <div class="emp-detail-meta"><span class="office-link with-party-badge" data-office="${esc(officeName)}">${esc(officeName)}${partyBadgeHtml((latestEmp || person)?.party)}</span>${latestEmp ? ` · ${esc(latestEmp.title)}` : ""}</div>`;
+    <div class="emp-detail-meta"><span class="office-link with-party-badge" data-office="${esc(officeName)}">${esc(officeName)}${officePartyBadge(latestEmp || person || {})}</span>${latestEmp ? ` · ${esc(latestEmp.title)}` : ""}</div>`;
 
   detail.innerHTML = `
     ${isAuthorProfile
@@ -1627,14 +1638,14 @@ function buildOfficeData() {
     const groups = {};
     employees.filter(e => !e.intern && !e.shared && (!officeTypeFilter || e.type === officeTypeFilter) && (!partyFilter || e.party?.party === partyFilter)).forEach(e => {
       const key = cleanOrg(e.office);
-      if (!groups[key]) groups[key] = { name: key, type: e.type, party: e.party, amounts: [] };
+      if (!groups[key]) groups[key] = { name: key, type: e.type, party: e.party, leadership_party: e.leadership_party, amounts: [] };
       groups[key].amounts.push(e.annual_equiv);
     });
     officeData = Object.values(groups).map(g => {
       const s = g.amounts.slice().sort((a,b) => a-b);
       const p = pct => { const i=(s.length-1)*pct/100; const lo=Math.floor(i),hi=Math.min(lo+1,s.length-1); return s[lo]+(s[hi]-s[lo])*(i-lo); };
       const totalAnnual = Math.round(s.reduce((a,b)=>a+b,0));
-      return { name: g.name, type: g.type, party: g.party, count: s.length,
+      return { name: g.name, type: g.type, party: g.party, leadership_party: g.leadership_party, count: s.length,
         min: Math.round(s[0]), max: Math.round(s[s.length-1]),
         median: Math.round(p(50)), p25: Math.round(p(25)), p75: Math.round(p(75)),
         mean: Math.round(totalAnnual / s.length),
@@ -1646,7 +1657,7 @@ function buildOfficeData() {
       .filter(o => !officeTypeFilter || o.type === officeTypeFilter)
       .filter(o => !partyFilter || o.party?.party === partyFilter)
       .map(o => ({
-        name: o.name, type: o.type, party: o.party, count: o.count,
+        name: o.name, type: o.type, party: o.party, leadership_party: o.leadership_party, count: o.count,
         min: o.min, max: o.max, median: o.median, p25: o.p25, p75: o.p75,
         mean: o.mean,
         totalAnnual: o.total_quarterly_pay != null ? o.total_quarterly_pay * 4 : null,
@@ -2731,7 +2742,7 @@ function renderOfficeList() {
     wrap.className = "office-wrap";
     wrap.innerHTML = `
       <div class="office-row">
-        <div class="office-name"><span class="office-name-text">${esc(o.name)}</span>${partyBadgeHtml(o.party)}</div>
+        <div class="office-name"><span class="office-name-text">${esc(o.name)}</span>${officePartyBadge(o)}</div>
         <span class="badge badge-${o.type}">${TYPE_LABELS[o.type]||o.type}</span>
         <span class="office-count"><span class="office-count-num">${o.count}</span><span class="office-count-label">&nbsp;staff</span></span>
         <span class="office-range">${officeRangeHtml(o, officeSortKey)}</span>
@@ -2832,7 +2843,7 @@ function renderTable() {
     const overCap = e.annual_equiv > SALARY_CAP;
     return `<tr class="emp-row" data-name="${esc(e.name)}" data-office="${esc(cleanOrg(e.office))}">
       <td class="td-name"><span class="person-link" data-name="${esc(e.name)}" data-office="${esc(cleanOrg(e.office))}">${esc(e.name)}</span></td>
-      <td class="td-office" title="${esc(e.office)}"><span class="office-link with-party-badge" data-office="${esc(cleanOrg(e.office))}">${esc(cleanOrg(e.office))}${partyBadgeHtml(e.party)}</span></td>
+      <td class="td-office" title="${esc(e.office)}"><span class="office-link with-party-badge" data-office="${esc(cleanOrg(e.office))}">${esc(cleanOrg(e.office))}${officePartyBadge(e)}</span></td>
       <td class="td-title">${esc(e.title)}</td>
       <td><span class="badge badge-${e.intern?"intern":e.shared?"shared":e.type}">${e.intern?"Intern":e.shared?"Shared":(TYPE_LABELS[e.type]||e.type)}</span></td>
       <td class="td-amt-q">${fmt(e.quarterly_pay)}</td>
