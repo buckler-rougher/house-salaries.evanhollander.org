@@ -88,7 +88,7 @@ function memberPhotoHeaderHtml(party, officeName) {
     <img class="office-detail-photo" src="${url}" alt="${esc(officeName)}" loading="lazy" onerror="this.parentElement.remove()">
     <div>
       <div class="office-detail-member-name">${esc(officeName)}${officePartyBadge({ type: "member", party })}</div>
-      <div class="office-detail-member-meta">Representative for ${esc(party.state)}</div>
+      <div class="office-detail-member-meta">${esc(party.state)}${party.district ? "-" + esc(party.district.slice(party.state.length) || party.district) : ""}</div>
     </div>
   </div>`;
 }
