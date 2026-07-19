@@ -355,6 +355,7 @@ body {
 .type-filter-row.is-stuck { border-bottom: 1px solid var(--line); box-shadow: 0 2px 8px rgba(0,0,0,.06); }
 .type-filter-label { font-size: .72rem; font-weight: 700; color: var(--ink3); margin-right: 2px; text-transform: uppercase; letter-spacing: .04em; }
 .type-filter-btn {
+  position: relative; z-index: 2; /* paints over party-filter-inline's overlapping left edge */
   padding: 5px 14px;
   border-radius: 999px;
   border: 1.5px solid var(--line);
@@ -555,7 +556,6 @@ tr:hover td { background: var(--bg2); }
 .td-office { font-size: .75rem; color: var(--ink3); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .td-title { font-size: .78rem; color: var(--ink2); }
 .td-amt { font-weight: 800; color: var(--ink); }
-.td-amt-q { color: var(--ink3); }
 
 .badge {
   display: inline-block;
@@ -588,9 +588,10 @@ tr:hover td { background: var(--bg2); }
 .party-badge-i { background: #7c3aed; font-feature-settings: "cv08" 1; }
 
 .party-filter-inline {
+  position: relative; z-index: 1; /* sits under the type button it's attached to (see .type-filter-btn) */
   display: none; align-items: center; gap: 4px;
-  padding: 3px 5px; border-radius: 20px; background: var(--bg3);
-  margin-left: -4px; /* tucks it right up against the Member/Leadership pill it belongs to */
+  padding: 3px 6px 3px 18px; border-radius: 20px; background: var(--bg3);
+  margin-left: -14px; /* the left half of this pill hides behind the previous type button */
 }
 .party-filter-inline.visible { display: inline-flex; }
 .party-filter-btn {
@@ -599,6 +600,7 @@ tr:hover td { background: var(--bg2); }
   border: 1px solid var(--line); background: var(--bg);
   font-size: .64rem; font-weight: 800; color: var(--ink3); cursor: pointer;
 }
+.party-filter-btn.active.party-filter-all { background: var(--accent); border-color: var(--accent); color: #fff; }
 .party-filter-btn.active.party-filter-d { background: #2563eb; border-color: #2563eb; color: #fff; }
 .party-filter-btn.active.party-filter-r { background: #dc2626; border-color: #dc2626; color: #fff; }
 .party-filter-btn.party-filter-i { font-feature-settings: "cv08" 1; }

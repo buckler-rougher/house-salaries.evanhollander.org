@@ -59,6 +59,18 @@ function partyBadgeHtml(party) {
 // letter (o.leadership_party, resolved from the office name + which party
 // holds the majority) — wrap it in the same shape so one badge renderer
 // covers both.
+// Same shape mismatch as officePartyBadge, but for comparing against
+// partyFilter: member items carry item.party.party, leadership items carry
+// a bare item.leadership_party. Every partyFilter comparison must go through
+// this — comparing item.party?.party directly silently never matches
+// leadership items (they have no .party at all), making the filter look
+// like it does nothing for Leadership.
+function partyValueOf(item) {
+  if (item.type === "member") return item.party?.party;
+  if (item.type === "leadership") return item.leadership_party;
+  return null;
+}
+
 function officePartyBadge(o) {
   if (o.type === "member") return partyBadgeHtml(o.party);
   if (o.type === "leadership") return partyBadgeHtml(o.leadership_party ? { party: o.leadership_party } : null);
@@ -193,7 +205,7 @@ function fullStatsFromAmounts(amounts) {
 // isn't loaded yet or nobody qualifies.
 function positionHeaderStats(t, type) {
   if (!peopleData) return t;
-  const matches = peopleData.filter(p => p.title === t.title && (!type || p.type === type) && (!partyFilter || p.party?.party === partyFilter));
+  const matches = peopleData.filter(p => p.title === t.title && (!type || p.type === type) && (!partyFilter || partyValueOf(p) === partyFilter));
   if (!matches.length) return t;
   const qId = viewedQuarter().id;
   const amounts = matches
@@ -210,6 +222,19 @@ function viewedQuarter() {
 
 function statsFor(q) {
   const aq = adjQuarter(q);
+  // by_type is pre-aggregated with no party breakdown, so a party filter has
+  // to be computed client-side from the actual employee rows instead — same
+  // idea as positionHeaderStats(), just for the whole population rather than
+  // one title.
+  if (partyFilter) {
+    const isLatest = q.id === summary.quarters[summary.quarters.length - 1].id;
+    const f = cpiFactorForQuarter(q);
+    const rows = isLatest ? employees : buildHistoricalEmployees(q.id);
+    const amounts = rows
+      .filter(e => !e.intern && !e.shared && (!officeTypeFilter || e.type === officeTypeFilter) && partyValueOf(e) === partyFilter)
+      .map(e => e.annual_equiv * f);
+    return fullStatsFromAmounts(amounts) || { median: null, mean: null, count: 0 };
+  }
   return officeTypeFilter ? (aq.by_type[officeTypeFilter] || { median: null, mean: null, count: 0 }) : aq.overall;
 }
 
@@ -378,8 +403,16 @@ function partyOptionsFor(type) {
 
 function updatePartyFilterVisibility() {
   const opts = partyOptionsFor(officeTypeFilter);
-  $("party-filter-inline")?.classList.toggle("visible", opts.length > 0);
+  const inline = $("party-filter-inline");
+  inline?.classList.toggle("visible", opts.length > 0);
   $("party-filter-i-btn")?.classList.toggle("party-filter-i-hidden", !opts.includes("I"));
+  // Keep the pill physically next to whichever type button it's describing
+  // (Member or Leadership), not stranded after Administrative regardless of
+  // which one is active.
+  if (inline && opts.length > 0) {
+    const activeTypeBtn = document.querySelector(`.type-filter-btn[data-type="${officeTypeFilter}"]`);
+    activeTypeBtn?.insertAdjacentElement("afterend", inline);
+  }
 }
 
 async function setOfficeTypeFilter(type) {
@@ -409,9 +442,16 @@ async function setPartyFilter(party) {
   partyFilter = party;
   document.querySelectorAll(".party-filter-btn[data-party]").forEach(b => b.classList.toggle("active", (b.dataset.party || "") === party));
 
+  renderStats();
+  renderDist();
+  buildTitles();
+  renderPosResults($("pos-search")?.value || "");
   buildOfficeData();
   renderOfficeList();
+  $("type-bars").innerHTML = ""; renderTypeBars();
+  if (!isLatestQuarter()) await loadPeople();
   applyFilters();
+  renderTrend();
 
   await refreshOpenSelectionAndSaveState();
 }
@@ -826,7 +866,7 @@ function renderPosResults(query) {
     const hs = positionHeaderStats(t, officeTypeFilter);
     const key = esc(t.title);
     const el = document.createElement("div"); el.className = "pos-row pos-row-in"; el.dataset.key = key;
-    el.innerHTML = `<span class="pos-row-name">${esc(t.title)}</span><span class="pos-row-count">${t.count.toLocaleString()} staff</span><span class="pos-row-median" title="Median annual equivalent · full-time staff">${fmtK(hs.median)}</span>`;
+    el.innerHTML = `<span class="pos-row-name">${esc(t.title)}</span><span class="pos-row-count">${hs.count.toLocaleString()} staff</span><span class="pos-row-median" title="Median annual equivalent · full-time staff">${fmtK(hs.median)}</span>`;
     el.addEventListener("click", async () => {
       // selectTitle() always prefers peopleData for the trend chart now, so
       // load it first rather than opening with the top_titles fallback and
@@ -846,7 +886,7 @@ function renderPosResults(query) {
       const t = hits.find(x => esc(x.title) === row.dataset.key);
       if (!t) return;
       const hs = positionHeaderStats(t, officeTypeFilter);
-      animatePositionNumberText(row.querySelector(".pos-row-count"), prior.count, t.count, v => `${Math.round(v).toLocaleString()} staff`);
+      animatePositionNumberText(row.querySelector(".pos-row-count"), prior.count, hs.count, v => `${Math.round(v).toLocaleString()} staff`);
       animatePositionNumberText(row.querySelector(".pos-row-median"), prior.median, hs.median, fmtK);
     });
   }
@@ -1005,7 +1045,7 @@ function selectTitle(t, el, forcedTrendUI) {
   // to that older quarter's percentiles, so it's gated to isLatestQuarter()
   // below instead of rendering a mismatched list.
   const staff = isLatestQuarter() ? employees
-    .filter(e => !e.intern && !e.shared && e.title === t.title && (!officeTypeFilter || e.type === officeTypeFilter) && (!partyFilter || e.party?.party === partyFilter))
+    .filter(e => !e.intern && !e.shared && e.title === t.title && (!officeTypeFilter || e.type === officeTypeFilter) && (!partyFilter || partyValueOf(e) === partyFilter))
     .sort((a,b) => b.annual_equiv - a.annual_equiv) : [];
 
   // top_titles (the fast synchronous path, available before peopleData loads)
@@ -1646,7 +1686,7 @@ let officeData = [];
 function buildOfficeData() {
   if (isLatestQuarter()) {
     const groups = {};
-    employees.filter(e => !e.intern && !e.shared && (!officeTypeFilter || e.type === officeTypeFilter) && (!partyFilter || e.party?.party === partyFilter)).forEach(e => {
+    employees.filter(e => !e.intern && !e.shared && (!officeTypeFilter || e.type === officeTypeFilter) && (!partyFilter || partyValueOf(e) === partyFilter)).forEach(e => {
       const key = cleanOrg(e.office);
       if (!groups[key]) groups[key] = { name: key, type: e.type, party: e.party, leadership_party: e.leadership_party, amounts: [] };
       groups[key].amounts.push(e.annual_equiv);
@@ -1665,7 +1705,7 @@ function buildOfficeData() {
     // Use pre-aggregated top_offices from that quarter's summary
     officeData = (adjQuarter(viewedQuarter()).top_offices || [])
       .filter(o => !officeTypeFilter || o.type === officeTypeFilter)
-      .filter(o => !partyFilter || o.party?.party === partyFilter)
+      .filter(o => !partyFilter || partyValueOf(o) === partyFilter)
       .map(o => ({
         name: o.name, type: o.type, party: o.party, leadership_party: o.leadership_party, count: o.count,
         min: o.min, max: o.max, median: o.median, p25: o.p25, p75: o.p75,
@@ -2892,7 +2932,7 @@ function applyFilters() {
     if (show === "staff"  &&  e.intern) return false;
     if (show === "intern" && !e.intern) return false;
     if (officeTypeFilter && e.type !== officeTypeFilter) return false;
-    if (partyFilter && e.party?.party !== partyFilter) return false;
+    if (partyFilter && partyValueOf(e) !== partyFilter) return false;
     if (q && !fuzzyNameMatch(e.name, q) && !fuzzyNameMatch(e.office, q) && !e.title.toLowerCase().includes(q)) return false;
     return true;
   });
@@ -2911,12 +2951,11 @@ function renderTable() {
       <td class="td-office" title="${esc(e.office)}"><span class="office-link with-party-badge" data-office="${esc(cleanOrg(e.office))}">${esc(cleanOrg(e.office))}${officePartyBadge(e)}</span></td>
       <td class="td-title">${esc(e.title)}</td>
       <td><span class="badge badge-${e.intern?"intern":e.shared?"shared":e.type}">${e.intern?"Intern":e.shared?"Shared":(TYPE_LABELS[e.type]||e.type)}</span></td>
-      <td class="td-amt-q">${fmt(e.quarterly_pay)}</td>
       <td class="td-amt">${overCap ? `<span class="cap-warn" title="Exceeds $228k staff salary cap — may include a bonus or lump-sum payment">⚠</span> ` : ""}${fmt(e.annual_equiv)}</td>
       <td class="td-chevron"><span class="emp-row-chevron">›</span></td>
     </tr>
     <tr class="emp-detail-row" style="display:none">
-      <td colspan="7"><div class="emp-detail" id="emp-detail-${esc(e.name).replace(/\s+/g,"-").toLowerCase()}"></div></td>
+      <td colspan="6"><div class="emp-detail" id="emp-detail-${esc(e.name).replace(/\s+/g,"-").toLowerCase()}"></div></td>
     </tr>`;
   }).join("");
   $("table-info").textContent = `${filtered.length.toLocaleString()} employees`;
