@@ -590,8 +590,13 @@ tr:hover td { background: var(--bg2); }
 .party-filter-inline {
   position: relative; z-index: 1; /* sits under the type button it's attached to (see .type-filter-btn) */
   display: none; align-items: center; gap: 4px;
-  padding: 3px 6px 3px 18px; border-radius: 20px; background: var(--bg3);
-  margin-left: -14px; /* the left half of this pill hides behind the previous type button */
+  padding: 3px 6px 3px 26px;
+  /* Square left corners, not rounded — a rounded pill overlapping another
+     rounded pill always leaves a lens-shaped gap between the two curves no
+     matter how far they overlap. A flat left edge tucks fully flush under
+     the button's own curve instead. */
+  border-radius: 0 20px 20px 0; background: var(--bg3);
+  margin-left: -20px; /* reaches past the type button's own right-side curve */
 }
 .party-filter-inline.visible { display: inline-flex; }
 .party-filter-btn {

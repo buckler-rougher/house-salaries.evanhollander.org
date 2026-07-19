@@ -33,6 +33,13 @@ let currentSelection = null; // { type: "title"|"person", titleName, personName,
 const PAGE = 25;
 
 const SALARY_CAP = 228000;
+// Matches fetch_sod.py's HOUSE_MIN_ANNUAL — the backend's pre-aggregated
+// stats (aq.overall, aq.by_type, top_offices/top_titles) only ever include
+// staff at or above this floor ("full-time staff"). Any client-side
+// recomputation (party filtering, since by_type has no party breakdown) has
+// to apply the same floor, or it pulls in below-floor rows the backend
+// numbers exclude and reads inconsistently low next to them.
+const HOUSE_MIN_ANNUAL = 45000;
 const ALL_STAFF_KEY = "__ALL_STAFF__"; // sentinel titleStr for "compare to all staff" instead of one title
 
 // Charts embed their own <svg>...</svg> as raw innerHTML, often several at
@@ -211,6 +218,7 @@ function positionHeaderStats(t, type) {
   const amounts = matches
     .map(p => p.history.find(h => h.quarter === qId))
     .filter(Boolean)
+    .filter(h => h.quarterly_pay * 4 >= HOUSE_MIN_ANNUAL)
     .map(h => h.quarterly_pay * 4 * cpiFactorForId(qId));
   return fullStatsFromAmounts(amounts) || t;
 }
@@ -231,7 +239,7 @@ function statsFor(q) {
     const f = cpiFactorForQuarter(q);
     const rows = isLatest ? employees : buildHistoricalEmployees(q.id);
     const amounts = rows
-      .filter(e => !e.intern && !e.shared && (!officeTypeFilter || e.type === officeTypeFilter) && partyValueOf(e) === partyFilter)
+      .filter(e => !e.intern && !e.shared && e.annual_equiv >= HOUSE_MIN_ANNUAL && (!officeTypeFilter || e.type === officeTypeFilter) && partyValueOf(e) === partyFilter)
       .map(e => e.annual_equiv * f);
     return fullStatsFromAmounts(amounts) || { median: null, mean: null, count: 0 };
   }
@@ -563,14 +571,15 @@ function renderDist() {
   const q = viewed;
   const distLabel = $("dist-pane-label");
   const typeLabel = officeTypeFilter ? ` — ${TYPE_LABELS[officeTypeFilter]} offices` : "";
-  if (distLabel) distLabel.textContent = `Annual salary equivalent — full-time staff${typeLabel} — ${q.label}`;
+  const partyLabel = partyFilter ? ` (${PARTY_NAMES[partyFilter]}s)` : "";
+  if (distLabel) distLabel.textContent = `Annual salary equivalent — full-time staff${typeLabel}${partyLabel} — ${q.label}`;
 
   const distNote = $("dist-type-note");
-  const canFilterHere = !officeTypeFilter || isLatestQuarter();
+  const canFilterHere = (!officeTypeFilter && !partyFilter) || isLatestQuarter();
   if (distNote) distNote.style.display = canFilterHere ? "none" : "";
 
-  const dist = (officeTypeFilter && isLatestQuarter())
-    ? computeDistributionBuckets(employees.filter(e => !e.intern && !e.shared && e.type === officeTypeFilter && e.annual_equiv != null).map(e => e.annual_equiv))
+  const dist = ((officeTypeFilter || partyFilter) && isLatestQuarter())
+    ? computeDistributionBuckets(employees.filter(e => !e.intern && !e.shared && e.annual_equiv >= HOUSE_MIN_ANNUAL && (!officeTypeFilter || e.type === officeTypeFilter) && (!partyFilter || partyValueOf(e) === partyFilter)).map(e => e.annual_equiv))
     : q.distribution;
   const barColors = dist.map(b => {
     if (b.min < 50000)  return "#e8e5df";
@@ -1686,7 +1695,7 @@ let officeData = [];
 function buildOfficeData() {
   if (isLatestQuarter()) {
     const groups = {};
-    employees.filter(e => !e.intern && !e.shared && (!officeTypeFilter || e.type === officeTypeFilter) && (!partyFilter || partyValueOf(e) === partyFilter)).forEach(e => {
+    employees.filter(e => !e.intern && !e.shared && e.annual_equiv >= HOUSE_MIN_ANNUAL && (!officeTypeFilter || e.type === officeTypeFilter) && (!partyFilter || partyValueOf(e) === partyFilter)).forEach(e => {
       const key = cleanOrg(e.office);
       if (!groups[key]) groups[key] = { name: key, type: e.type, party: e.party, leadership_party: e.leadership_party, amounts: [] };
       groups[key].amounts.push(e.annual_equiv);
