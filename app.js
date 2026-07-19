@@ -191,7 +191,7 @@ function metricFromAmounts(amounts, metric) {
 // Returns null if peopleData isn't loaded yet or no one matches.
 function positionTrendByType(title, type) {
   if (!peopleData) return null;
-  const matches = peopleData.filter(p => p.title === title && (!type || p.type === type));
+  const matches = peopleData.filter(p => (p.title_group || p.title) === title && (!type || p.type === type));
   if (!matches.length) return null;
   return (metric, qf) => filteredQuarters(qf).map(q => {
     const amounts = matches
@@ -227,7 +227,7 @@ function fullStatsFromAmounts(amounts) {
 // isn't loaded yet or nobody qualifies.
 function positionHeaderStats(t, type) {
   if (!peopleData) return t;
-  const matches = peopleData.filter(p => p.title === t.title && (!type || p.type === type) && (!partyFilter || partyValueOf(p) === partyFilter));
+  const matches = peopleData.filter(p => (p.title_group || p.title) === t.title && (!type || p.type === type) && (!partyFilter || partyValueOf(p) === partyFilter));
   if (!matches.length) return t;
   const qId = viewedQuarter().id;
   const amounts = matches
@@ -1069,7 +1069,7 @@ function selectTitle(t, el, forcedTrendUI) {
   // to that older quarter's percentiles, so it's gated to isLatestQuarter()
   // below instead of rendering a mismatched list.
   const staff = isLatestQuarter() ? employees
-    .filter(e => !e.intern && !e.shared && e.title === t.title && (!officeTypeFilter || e.type === officeTypeFilter) && (!partyFilter || partyValueOf(e) === partyFilter))
+    .filter(e => !e.intern && !e.shared && (e.title_group || e.title) === t.title && (!officeTypeFilter || e.type === officeTypeFilter) && (!partyFilter || partyValueOf(e) === partyFilter))
     .sort((a,b) => b.annual_equiv - a.annual_equiv) : [];
 
   // top_titles (the fast synchronous path, available before peopleData loads)
@@ -2428,7 +2428,65 @@ function wrapTitle(title, maxWidthPx) {
 // for titles common enough that a fixed short form reads better than
 // whatever the generic word/initials rules would produce.
 const TITLE_FULL_ABBR = {
-  "legislative correspondent": "LC",
+  "administrative assistant": "Admin. Asst.", "budget director": "Budget Dir.",
+  "chief of staff": "Chief", "comm dir": "Comms. Dir.", "comm director": "Comms. Dir.",
+  "comms dir": "Comms. Dir.", "comms director": "Comms. Dir.",
+  "communications advisor": "Comms. Advisor", "communications aide": "Comms. Aide",
+  "communications assistant": "Comms. Asst.", "communications director": "Comms. Dir.",
+  "congressional aide": "Congr. Aide", "constituent liaison": "Constituent Lias.",
+  "constituent serv": "Constituent Services", "constituent service": "Constituent Services",
+  "constituent svcs rep": "Constituent Services Rep.", "dc press secretary": "DC Press Sec.",
+  "dep chief of staff": "Dep. Chief", "dep press sec": "Dep. Press Sec.",
+  "deputy chief": "Dep. Chief", "deputy chief of staff": "Dep. Chief",
+  "deputy comm dir": "Dep. Comms. Dir.", "deputy communications dir": "Dep. Comms. Dir.",
+  "deputy cos": "Dep. Chief", "deputy district director": "Dep. Dist. Dir.",
+  "deputy general counsel": "Dep. Gen. Counsel", "deputy parliamentarian": "Dep. Parli.",
+  "deputy scheduler": "Dep. Scheduler", "deputy staff dir": "Dep. Staff Dir.",
+  "digital assist": "Digital Asst.", "digital assistant": "Digital Asst.",
+  "digital dir": "Digital Dir.", "dir of operations": "Dir. of Ops.",
+  "director of casework": "Dir. of Casework", "director of coalitions": "Dir. of Coalitions",
+  "director of operations": "Dir. of Ops.", "director of outreach": "Dir. of Outreach",
+  "director of policy": "Dir. of Pol.", "director of scheduling": "Dir. of Scheduling",
+  "director operations": "Dir. of Ops.", "dist dir": "Dist. Dir.", "dist director": "Dist. Dir.",
+  "dist scheduler": "Dist. Scheduler", "district aide": "Dist. Aide",
+  "district coordinator": "Dist. Coor.", "district dir": "Dist. Dir.",
+  "district director": "Dist. Dir.", "district press": "Dist. Press",
+  "district rep": "Dist. Rep.", "district representative": "Dist. Rep.",
+  "district sched": "Dist. Scheduler", "district scheduler": "Dist. Scheduler",
+  "district staff assistant": "Dist. Staff Asst.", "do scheduler": "Dist. Scheduler",
+  "economic development": "Econ. Dev.", "exec assist": "Exec. Asst.",
+  "exec assistant": "Exec. Asst.", "exec asst": "Exec. Asst.", "executive": "Exec. Asst.",
+  "executive assist": "Exec. Asst.", "executive assistant": "Exec. Asst.",
+  "executive asst": "Exec. Asst.", "executive director": "Exec. Dir.",
+  "field director": "Field Dir.", "field r": "Field Rep.", "finance director": "Finance Dir.",
+  "general counsel": "Gen. Counsel", "grants c": "Grants Coor.", "grants coor": "Grants Coor.",
+  "grants coordinato": "Grants Coor.", "grants coordinator": "Grants Coor.",
+  "grants director": "Grants Dir.", "immigration specialist": "Imm. Spec.",
+  "lc": "LC", "ld": "LD", "leg asst": "LA", "leg corr": "LC", "leg corres": "LC",
+  "leg correspondent": "LC", "leg dir": "LD", "leg director": "LD",
+  "legis aide": "Leg. Aide", "legis assistant": "LA", "legis asst": "LA",
+  "legis corres": "LC", "legis corresp": "LC", "legis correspondent": "LC",
+  "legis dir": "LD", "legislative ai": "Leg. Aide", "legislative aide": "Leg. Aide",
+  "legislative assist": "LA", "legislative assistant": "LA", "legislative asst": "LA",
+  "legislative corr": "LC", "legislative corres": "LC", "legislative correspondent": "LC",
+  "legislative counsel": "Leg. Counsel", "legislative dir": "LD",
+  "legislative director": "LD", "operations coordinator": "Ops. Coor.",
+  "operations manager": "Ops. Manager", "ops coordinator": "Ops. Coor.",
+  "outreach coor": "Outreach Coor.", "outreach coord": "Outreach Coor.",
+  "outreach coordinator": "Outreach Coor.", "outreach director": "Outreach Dir.",
+  "policy aide": "Pol. Aide", "policy analyst": "Pol. Analyst",
+  "policy assistant": "Pol. Asst.", "press assist": "Press Asst.",
+  "press assistant": "Press Asst.", "press asst": "Press Asst.", "press sec": "Press Sec.",
+  "press secretary": "Press Sec.", "professional staff": "PSM",
+  "professional staff member": "PSM", "regional director": "Regional Dir.",
+  "research assistant": "Research Asst.", "sa": "Staff Asst.",
+  "senior advisor": "Sr. Advisor", "senior caseworker": "Sr. Caseworker",
+  "senior counsel": "Sr. Counsel", "senior policy advisor": "Sr. Pol. Advisor",
+  "special assistant": "Spec. Asst.", "sr advisor": "Sr. Advisor",
+  "sr caseworker": "Sr. Caseworker", "sr field rep": "Sr. Field Rep.",
+  "sr policy advisor": "Sr. Pol. Advisor", "staff assi": "Staff Asst.",
+  "staff assist": "Staff Asst.", "staff assistant": "Staff Asst.",
+  "staff asst": "Staff Asst.", "veterans liaison": "Veterans Lias.",
 };
 // Word-level abbreviations for titles too long to fit their column on one
 // line. Preferred over collapsing to bare initials, since acronyms like

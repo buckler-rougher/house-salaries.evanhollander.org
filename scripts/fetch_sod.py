@@ -344,6 +344,86 @@ def normalize_title(desc):
     """Normalize job title for grouping."""
     return desc.strip().upper()
 
+# Spelling/abbreviation variants that are unambiguously the same job title
+# (typo'd, truncated, or differently-abbreviated in the raw SOD data) —
+# merged for stats/comparison purposes ("Look up a position", percentile
+# calcs) via title_group_key() below, same pattern as OFFICE_NAME_FIXUPS.
+# Each entry's displayed title on a person's own card is untouched; this
+# only affects which titles get pooled together for aggregate stats.
+# Deliberately excludes cases where a short form could also be a genuine
+# distinct title (e.g. "Chief" alone vs "Chief of Staff", "Executive" alone
+# vs "Executive Assistant") — those stay separate rather than risk merging
+# two different real roles just because one happens to be a substring.
+TITLE_MERGE_ALIASES = {
+    "COMM DIR": "Communications Director",
+    "COMM DIRECTOR": "Communications Director",
+    "COMMS DIR": "Communications Director",
+    "COMMS DIRECTOR": "Communications Director",
+    "CONSTITUENT SERV": "Constituent Service",
+    "DEPUTY COMM DIR": "Deputy Communications Dir",
+    "DIGITAL ASSIST": "Digital Assistant",
+    "DIR OF OPERATIONS": "Director of Operations",
+    "DIRECTOR OPERATIONS": "Director of Operations",
+    "DIST DIR": "District Director",
+    "DIST DIRECTOR": "District Director",
+    "DIST SCHEDULER": "District Scheduler",
+    "DISTRICT DIR": "District Director",
+    "DISTRICT REP": "District Representative",
+    "DISTRICT SCHED": "District Scheduler",
+    "DO SCHEDULER": "District Scheduler",
+    "GRANTS C": "Grants Coordinator",
+    "GRANTS COOR": "Grants Coordinator",
+    "GRANTS COORDINATO": "Grants Coordinator",
+    "LC": "Legislative Correspondent",
+    "LD": "Legislative Director",
+    "LE": "Legislative",
+    "LEG ASST": "Legislative Assistant",
+    "LEG CORR": "Legislative Correspondent",
+    "LEG CORRES": "Legislative Correspondent",
+    "LEG CORRESPONDENT": "Legislative Correspondent",
+    "LEG DIR": "Legislative Director",
+    "LEG DIRECTOR": "Legislative Director",
+    "LEGI": "Legislative",
+    "LEGIS": "Legislative",
+    "LEGIS AIDE": "Legislative Aide",
+    "LEGIS ASSISTANT": "Legislative Assistant",
+    "LEGIS ASST": "Legislative Assistant",
+    "LEGIS CORRES": "Legislative Correspondent",
+    "LEGIS CORRESP": "Legislative Correspondent",
+    "LEGIS CORRESPONDENT": "Legislative Correspondent",
+    "LEGIS DIR": "Legislative Director",
+    "LEGISL": "Legislative",
+    "LEGISLA": "Legislative",
+    "LEGISLAT": "Legislative",
+    "LEGISLATI": "Legislative",
+    "LEGISLATIV": "Legislative",
+    "LEGISLATIVE AI": "Legislative Aide",
+    "LEGISLATIVE ASSIST": "Legislative Assistant",
+    "LEGISLATIVE ASST": "Legislative Assistant",
+    "LEGISLATIVE CORR": "Legislative Correspondent",
+    "LEGISLATIVE CORRES": "Legislative Correspondent",
+    "LEGISLATIVE DIR": "Legislative Director",
+    "OPS COORDINATOR": "Operations Coordinator",
+    "OUTREACH COOR": "Outreach Coordinator",
+    "OUTREACH COORD": "Outreach Coordinator",
+    "PRESS ASSIST": "Press Assistant",
+    "PRESS ASST": "Press Assistant",
+    "PRESS SEC": "Press Secretary",
+    "PROFESSIONAL STAFF": "Professional Staff Member",
+    "SA": "Staff Assistant",
+    "SR ADVISOR": "Senior Advisor",
+    "SR CASEWORKER": "Senior Caseworker",
+    "SR POLICY ADVISOR": "Senior Policy Advisor",
+    "STAFF ASSI": "Staff Assistant",
+    "STAFF ASSIST": "Staff Assistant",
+    "STAFF ASST": "Staff Assistant",
+}
+
+def title_group_key(title):
+    """Canonical title used to pool spelling/abbreviation variants for
+    stats — NOT for display. See TITLE_MERGE_ALIASES."""
+    return TITLE_MERGE_ALIASES.get(title.strip().upper(), title.strip())
+
 # Office names with an unambiguous fix — either a plain typo/abbreviation
 # ("OFCR" -> "OFFICER", a doubled letter), or multiple raw spellings that are
 # indisputably the same entity (inconsistent spacing/ampersand use around
@@ -491,6 +571,7 @@ def fetch_quarter(q):
             "party": party_for(strip_org_prefix(data["org"]), otype),
             "leadership_party": leadership_party_for(data["org"]) if otype == "leadership" else None,
             "title": title,
+            "title_group": title_group_key(title),
             "intern": is_intern(title),
             "shared": vendor in shared_vendors,
             "quarterly_pay": round(total),
@@ -505,7 +586,7 @@ def process_all(quarters_to_process=None):
     all_employees_latest = None
     latest_id = None
     # key: (fmt_name, org_key) → {meta, history:[]}
-    people_index = defaultdict(lambda: {"name":"","office":"","title":"","type":"","history":[]})
+    people_index = defaultdict(lambda: {"name":"","office":"","title":"","title_group":"","type":"","history":[]})
 
     for q in qs:
         employees = fetch_quarter(q)
@@ -522,7 +603,7 @@ def process_all(quarters_to_process=None):
         for e in staff:
             by_type[e["type"]].append(e["annual_equiv"])
             if e["title"]:
-                by_title[e["title"]].append(e["annual_equiv"])
+                by_title[e["title_group"]].append(e["annual_equiv"])
 
         # Top titles by count (min 2 staff)
         top_titles = sorted(
@@ -579,6 +660,7 @@ def process_all(quarters_to_process=None):
                 p["name"] = e["name"]
                 p["office"] = org_key
                 p["title"] = e["title"]
+                p["title_group"] = e["title_group"]
                 p["type"] = e["type"]
                 p["party"] = e["party"]
                 p["leadership_party"] = e["leadership_party"]
