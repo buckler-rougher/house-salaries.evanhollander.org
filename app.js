@@ -1405,7 +1405,7 @@ async function showPersonInline(name, officeName) {
   const isAuthorProfile = name === "Evan M. Hollander" && officeName === "HON. JOHN B. LARSON";
   const nameBlockHtml = `
     <div class="emp-detail-name">${esc(name)}</div>
-    <div class="emp-detail-meta"><span class="office-link with-party-badge" data-office="${esc(officeName)}">${esc(officeName)}${officePartyBadge(latestEmp || person || {})}</span>${latestEmp ? ` · ${esc(latestEmp.title)}` : ""}</div>`;
+    <div class="emp-detail-meta"><span class="office-link with-party-badge" data-office="${esc(officeName)}">${esc(officeName)}${officePartyBadge(latestEmp || person || {})}</span>${latestEmp ? ` · <span class="title-link" data-title="${esc(latestEmp.title)}">${esc(latestEmp.title)}</span>` : ""}</div>`;
 
   detail.innerHTML = `
     ${isAuthorProfile
@@ -2922,6 +2922,21 @@ function jumpToOffice(officeName) {
   });
 }
 
+function jumpToTitle(titleName) {
+  closePersonDetail();
+  const search = $("pos-search");
+  if (search) search.value = titleName;
+  renderPosResults(titleName);
+  saveState();
+  requestAnimationFrame(() => {
+    const row = [...document.querySelectorAll(".pos-row")].find(r => r.querySelector(".pos-row-name")?.textContent === titleName);
+    if (row) {
+      row.click();
+      row.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  });
+}
+
 // ── Table ──
 function buildHistoricalEmployees(qId) {
   if (historicalEmployeesCache[qId]) return historicalEmployeesCache[qId];
@@ -3114,6 +3129,9 @@ document.addEventListener("DOMContentLoaded", () => {
   document.addEventListener("click", e => {
     const off = e.target.closest(".office-link");
     if (off) { e.preventDefault(); e.stopPropagation(); jumpToOffice(off.dataset.office); return; }
+
+    const tl = e.target.closest(".title-link");
+    if (tl) { e.preventDefault(); e.stopPropagation(); jumpToTitle(tl.dataset.title); return; }
 
     const el = e.target.closest(".person-link");
     if (el) {
