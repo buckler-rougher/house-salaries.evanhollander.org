@@ -2424,6 +2424,12 @@ function wrapTitle(title, maxWidthPx) {
   return lines.length ? lines : [title];
 }
 
+// Whole-title overrides checked before any generic abbreviation logic —
+// for titles common enough that a fixed short form reads better than
+// whatever the generic word/initials rules would produce.
+const TITLE_FULL_ABBR = {
+  "legislative correspondent": "LC",
+};
 // Word-level abbreviations for titles too long to fit their column on one
 // line. Preferred over collapsing to bare initials, since acronyms like
 // "SLA" for "Scheduler & Legislative Aide" read as a different, unrelated
@@ -2491,13 +2497,14 @@ function titleSegmentMarkup(segments, sx, pad, ph) {
     // A few px of margin on each side of the column so two adjacent narrow
     // segments' wrapped text reads as separate labels with a real gap
     // between them, not one run-on phrase.
-    let lines = wrapTitle(s.title, colW - 8);
+    const fullAbbr = TITLE_FULL_ABBR[s.title.toLowerCase()];
+    let lines = wrapTitle(fullAbbr || s.title, colW - 8);
     // A title that doesn't fit its column on one line reads as clutter once
     // several segments are stacked. Try shortening long words first (e.g.
     // "Legislative" -> "Leg."), which keeps the label recognizable; only
     // fall back to bare initials if that's still too long. The full title
     // is always still available via the tooltip.
-    if (lines.length > 1) {
+    if (!fullAbbr && lines.length > 1) {
       const abbrLines = wrapTitle(wordAbbreviateTitle(s.title), colW - 8);
       // A recognizable two-line abbreviation ("Dep. Comms. Dir.") beats an
       // unrecognizable acronym ("DCD") — only fall back to bare initials
