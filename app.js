@@ -2424,16 +2424,27 @@ function wrapTitle(title, maxWidthPx) {
 // "SLA" for "Scheduler & Legislative Aide" read as a different, unrelated
 // term rather than a shortened version of the actual title.
 const TITLE_WORD_ABBR = {
-  legislative: "Leg.", administrative: "Admin.", correspondent: "Corresp.",
+  legislative: "Leg.", administrative: "Admin.", administrator: "Admin.",
+  correspondent: "Corresp.", correspondence: "Corresp.",
   assistant: "Asst.", scheduler: "Sched.", director: "Dir.",
   coordinator: "Coord.", representative: "Rep.", communications: "Comms.",
   deputy: "Dep.", executive: "Exec.", constituent: "Constit.",
+  secretary: "Sec.", manager: "Mgr.", special: "Spec.",
+  confidential: "Conf.", systems: "Sys.", district: "Dist.",
+  regional: "Reg.", services: "Svcs.", military: "Mil.",
+  operations: "Ops.", digital: "Dig.", policy: "Pol.",
+  outreach: "Outr.", technology: "Tech.", information: "Info.",
 };
+// Splits on whitespace and "/" while keeping the separators themselves in
+// the output, so a compound like "Clerk/Office" abbreviates each half
+// ("Clerk/Office" -> "Clerk/Office" since neither is in the dict, but
+// "Administrative/Office" -> "Admin./Office") without losing the slash.
 function wordAbbreviateTitle(title) {
-  return title.split(/\s+/).map(w => {
-    const key = w.toLowerCase().replace(/[^a-z]/g, "");
-    return TITLE_WORD_ABBR[key] || w;
-  }).join(" ");
+  return title.split(/(\s+|\/)/).map(tok => {
+    if (/^\s+$/.test(tok) || tok === "/") return tok;
+    const key = tok.toLowerCase().replace(/[^a-z]/g, "");
+    return TITLE_WORD_ABBR[key] || tok;
+  }).join("");
 }
 // Bare-initials fallback for titles that still don't fit after word-level
 // abbreviation. Small filler words are skipped.
@@ -2483,7 +2494,10 @@ function titleSegmentMarkup(segments, sx, pad, ph) {
     // is always still available via the tooltip.
     if (lines.length > 1) {
       const abbrLines = wrapTitle(wordAbbreviateTitle(s.title), colW - 8);
-      lines = abbrLines.length > 1 ? [abbreviateTitle(s.title)] : abbrLines;
+      // A recognizable two-line abbreviation ("Dep. Comms. Dir.") beats an
+      // unrecognizable acronym ("DCD") — only fall back to bare initials
+      // if word-abbreviation still doesn't fit in two lines.
+      lines = abbrLines.length > 2 ? [abbreviateTitle(s.title)] : abbrLines;
     }
     const textW = Math.max(...lines.map(l => l.length)) * charW;
     const left = cx - textW / 2, right = cx + textW / 2;
