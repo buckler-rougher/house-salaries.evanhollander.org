@@ -1327,7 +1327,7 @@ async function showPersonInline(name, officeName) {
     const sortedHist = [...person.history].sort((a, b) => a.quarter.localeCompare(b.quarter));
     for (let i = 0; i < sortedHist.length - 1; i++) {
       if (sortedHist[i].title && sortedHist[i + 1].title && sortedHist[i].title !== sortedHist[i + 1].title) {
-        entries.push({ title: sortedHist[i].title, office: officeName, until: sortedHist[i].quarter });
+        entries.push({ title: sortedHist[i].title, newTitle: sortedHist[i + 1].title, office: officeName, until: sortedHist[i].quarter });
       }
     }
     entries.reverse();
@@ -1446,7 +1446,7 @@ async function showPersonInline(name, officeName) {
     // Entries from a stint at a *different* office fall outside this chart's
     // own timeline and are silently dropped by makeMiniTrend (it only marks
     // quarter ids actually present in the current view).
-    const markerQuarters = prevRoleEntries.map(e => ({ id: e.until, label: e.title }));
+    const markerQuarters = prevRoleEntries.map(e => ({ id: e.until, label: e.newTitle ? `${e.title} → ${e.newTitle}` : e.title }));
     const controller = makeMiniTrend(detail, getPersonData, seed, firstTrackedQuarter, markerQuarters);
     lastPersonTrend = { name, office: officeName, controller };
   } else {
@@ -2400,10 +2400,18 @@ function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend 
 
   // Previous-role boundary markers — a subtle dashed vertical line at the
   // quarter a title changed, with the old title as a small label above it.
+  // Label sits just inside the top of the plot (not above it, where it'd
+  // collide with the trend-annotation text in the top-right corner) and
+  // anchors away from the right edge once the line is far enough over that
+  // a left-growing label would otherwise run off the chart. A stroked halo
+  // keeps it legible crossing gridlines/the trend line behind it.
   const markerLines = (markers || []).map(m => {
     const x = sx(m.index);
+    const nearRight = x > pad.l + pw * 0.55;
+    const anchor = nearRight ? "end" : "start";
+    const tx = nearRight ? x - 6 : x + 6;
     return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${pad.t}" y2="${(pad.t + ph).toFixed(1)}" stroke="#b8b3a9" stroke-width="1" stroke-dasharray="3,3"/>
-            <text x="${x.toFixed(1)}" y="${(pad.t - 8).toFixed(1)}" text-anchor="middle" font-size="9" fill="#999">${esc(m.label)}</text>`;
+            <text x="${tx.toFixed(1)}" y="${(pad.t + 11).toFixed(1)}" text-anchor="${anchor}" font-size="9" fill="#999" paint-order="stroke" stroke="#faf9f6" stroke-width="3" stroke-linejoin="round">${esc(m.label)}</text>`;
   }).join("");
 
   // X labels — show ~6 evenly spaced; rotate once there are enough that they'd crowd
@@ -2509,10 +2517,18 @@ function buildSparklineFrame(fullLabels, fullData, xs, opacities, padL = 54, mar
             <text x="${pad.l - 7}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
   }).join("");
 
+  // Label sits just inside the top of the plot (not above it, where it'd
+  // collide with the trend-annotation text in the top-right corner) and
+  // anchors away from the right edge once the line is far enough over that
+  // a left-growing label would otherwise run off the chart. A stroked halo
+  // keeps it legible crossing gridlines/the trend line behind it.
   const markerLines = (markers || []).map(m => {
     const x = sx(m.index);
+    const nearRight = x > pad.l + pw * 0.55;
+    const anchor = nearRight ? "end" : "start";
+    const tx = nearRight ? x - 6 : x + 6;
     return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${pad.t}" y2="${(pad.t + ph).toFixed(1)}" stroke="#b8b3a9" stroke-width="1" stroke-dasharray="3,3"/>
-            <text x="${x.toFixed(1)}" y="${(pad.t - 8).toFixed(1)}" text-anchor="middle" font-size="9" fill="#999">${esc(m.label)}</text>`;
+            <text x="${tx.toFixed(1)}" y="${(pad.t + 11).toFixed(1)}" text-anchor="${anchor}" font-size="9" fill="#999" paint-order="stroke" stroke="#faf9f6" stroke-width="3" stroke-linejoin="round">${esc(m.label)}</text>`;
   }).join("");
 
   const segs = [];
