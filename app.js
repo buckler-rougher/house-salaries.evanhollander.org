@@ -2396,7 +2396,7 @@ function shortAxisLabel(lb) {
 // Centering each label within its own segment's width means neighboring
 // labels can never collide by construction; a label that's too long for
 // its own segment is simply hidden rather than spilling into the next one.
-function titleSegmentMarkup(segments, sx, pad, ph) {
+function titleSegmentMarkup(segments, sx, sy, pad, ph, valueAt) {
   if (!segments || !segments.length) return "";
   const boundaryLines = segments.slice(0, -1).map((s, i) => {
     const x = (sx(s.toIdx) + sx(segments[i + 1].fromIdx)) / 2;
@@ -2405,8 +2405,42 @@ function titleSegmentMarkup(segments, sx, pad, ph) {
   const segLabels = segments.map(s => {
     const x0 = sx(s.fromIdx), x1 = sx(s.toIdx);
     const cx = (x0 + x1) / 2, segW = Math.max(1, x1 - x0);
-    if (s.title.length * 5.2 > segW - 4) return "";
-    return `<text x="${cx.toFixed(1)}" y="${(pad.t + 11).toFixed(1)}" text-anchor="middle" font-size="9" fill="#999" paint-order="stroke" stroke="#faf9f6" stroke-width="3" stroke-linejoin="round">${esc(s.title)}</text>`;
+    const textW = s.title.length * 5.2;
+    if (textW > segW - 4) return "";
+    // Find an actual clear vertical gap under where the label will be drawn
+    // (its own horizontal span, not the whole segment) rather than just
+    // dodging the single tallest point — a wide segment can have two or
+    // more points at similar heights, and offsetting from only the tallest
+    // one still lands the label on a neighbor. Each point blocks a small
+    // band around its own y; the label sits in the topmost band that's
+    // actually free across the whole window, or is hidden entirely if none
+    // of the bands are tall enough (better than forcing an overlap).
+    const halfText = textW / 2 + 4;
+    const blocked = [];
+    for (let i = s.fromIdx; i <= s.toIdx; i++) {
+      const v = valueAt(i);
+      if (v == null) continue;
+      const px = sx(i);
+      if (px >= cx - halfText && px <= cx + halfText) blocked.push([sy(v) - 7, sy(v) + 7]);
+    }
+    blocked.sort((a, b) => a[0] - b[0]);
+    const merged = [];
+    for (const iv of blocked) {
+      if (merged.length && iv[0] <= merged[merged.length - 1][1]) merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], iv[1]);
+      else merged.push(iv.slice());
+    }
+    const lo = pad.t + 9, hi = pad.t + ph - 2, gaps = [];
+    let cursor = lo;
+    for (const [a, b] of merged) {
+      if (a > cursor) gaps.push([cursor, Math.min(a, hi)]);
+      cursor = Math.max(cursor, b);
+      if (cursor >= hi) break;
+    }
+    if (cursor < hi) gaps.push([cursor, hi]);
+    const fit = gaps.find(([a, b]) => b - a >= 12);
+    if (!fit) return "";
+    const ty = fit[0] + 9;
+    return `<text x="${cx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="middle" font-size="9" fill="#999" paint-order="stroke" stroke="#faf9f6" stroke-width="3" stroke-linejoin="round">${esc(s.title)}</text>`;
   }).join("");
   return boundaryLines + segLabels;
 }
@@ -2436,7 +2470,7 @@ function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend 
             <text x="${pad.l - 7}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
   }).join("");
 
-  const markerLines = titleSegmentMarkup(markers, sx, pad, ph);
+  const markerLines = titleSegmentMarkup(markers, sx, sy, pad, ph, i => data[i]);
 
   // X labels — show ~6 evenly spaced; rotate once there are enough that they'd crowd
   const step = Math.max(1, Math.ceil(labels.length / 6));
@@ -2541,7 +2575,7 @@ function buildSparklineFrame(fullLabels, fullData, xs, opacities, padL = 54, mar
             <text x="${pad.l - 7}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
   }).join("");
 
-  const markerLines = titleSegmentMarkup(markers, sx, pad, ph);
+  const markerLines = titleSegmentMarkup(markers, sx, sy, pad, ph, i => fullData[i]);
 
   const segs = [];
   let cur = [];
