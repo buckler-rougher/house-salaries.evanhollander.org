@@ -1441,13 +1441,28 @@ async function showPersonInline(name, officeName) {
     });
     const seed = (lastPersonTrend && lastPersonTrend.name === name && lastPersonTrend.office === officeName)
       ? lastPersonTrend.controller.getPrev() : null;
-    // Mark where a previous role ended, on the All-quarters view only — see
-    // prevRoleEntries above (built alongside the "Previously: ..." line).
-    // Entries from a stint at a *different* office fall outside this chart's
-    // own timeline and are silently dropped by makeMiniTrend (it only marks
-    // quarter ids actually present in the current view).
-    const markerQuarters = prevRoleEntries.map(e => ({ id: e.until, label: e.newTitle ? `${e.title} → ${e.newTitle}` : e.title }));
-    const controller = makeMiniTrend(detail, getPersonData, seed, firstTrackedQuarter, markerQuarters);
+    // Title segments for the All-quarters view only — run-length-encodes
+    // this person's own tracked history by title, so each stretch of the
+    // timeline can be labeled with whichever title applied *during* it
+    // (centered in that stretch) rather than repeating "old -> new" at every
+    // transition line, which reads fine for one change but stacks into
+    // illegible repeated text with two or more. A stint at a *different*
+    // office (from the "Previously" chain) falls outside this chart's own
+    // timeline and is silently dropped by makeMiniTrend (it only keeps
+    // segments whose quarter ids are actually present in the current view).
+    const sortedForSegments = [...person.history].sort((a, b) => a.quarter.localeCompare(b.quarter));
+    const titleSegments = [];
+    for (let i = 0, segStart = 0; i <= sortedForSegments.length; i++) {
+      if (i === sortedForSegments.length || sortedForSegments[i].title !== sortedForSegments[segStart].title) {
+        titleSegments.push({
+          fromId: sortedForSegments[segStart].quarter,
+          toId: sortedForSegments[i - 1].quarter,
+          title: sortedForSegments[segStart].title,
+        });
+        segStart = i;
+      }
+    }
+    const controller = makeMiniTrend(detail, getPersonData, seed, firstTrackedQuarter, titleSegments);
     lastPersonTrend = { name, office: officeName, controller };
   } else {
     lastPersonTrend = null;
@@ -2373,6 +2388,29 @@ function shortAxisLabel(lb) {
 // full timeline), but 1 when the caller has filtered down to a single
 // calendar quarter (e.g. "Q1"), since then consecutive points are already a
 // full year apart and multiplying by 4 would inflate the trend 4x.
+// Shared by svgSparkline and buildSparklineFrame: renders dashed boundary
+// lines between title segments, each labeled with the title that applied
+// *during* that stretch (centered in its own segment's x-range) instead of
+// repeating "old -> new" at every transition — which reads fine for one
+// change but stacks into illegible overlapping text with two or more.
+// Centering each label within its own segment's width means neighboring
+// labels can never collide by construction; a label that's too long for
+// its own segment is simply hidden rather than spilling into the next one.
+function titleSegmentMarkup(segments, sx, pad, ph) {
+  if (!segments || !segments.length) return "";
+  const boundaryLines = segments.slice(0, -1).map((s, i) => {
+    const x = (sx(s.toIdx) + sx(segments[i + 1].fromIdx)) / 2;
+    return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${pad.t}" y2="${(pad.t + ph).toFixed(1)}" stroke="#b8b3a9" stroke-width="1" stroke-dasharray="3,3"/>`;
+  }).join("");
+  const segLabels = segments.map(s => {
+    const x0 = sx(s.fromIdx), x1 = sx(s.toIdx);
+    const cx = (x0 + x1) / 2, segW = Math.max(1, x1 - x0);
+    if (s.title.length * 5.2 > segW - 4) return "";
+    return `<text x="${cx.toFixed(1)}" y="${(pad.t + 11).toFixed(1)}" text-anchor="middle" font-size="9" fill="#999" paint-order="stroke" stroke="#faf9f6" stroke-width="3" stroke-linejoin="round">${esc(s.title)}</text>`;
+  }).join("");
+  return boundaryLines + segLabels;
+}
+
 function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend = null, markers = null) {
   const W = 560, H = 200;
   // Rotated x-axis labels (below) are anchored at their end and tilt up-left
@@ -2398,21 +2436,7 @@ function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend 
             <text x="${pad.l - 7}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
   }).join("");
 
-  // Previous-role boundary markers — a subtle dashed vertical line at the
-  // quarter a title changed, with the old title as a small label above it.
-  // Label sits just inside the top of the plot (not above it, where it'd
-  // collide with the trend-annotation text in the top-right corner) and
-  // anchors away from the right edge once the line is far enough over that
-  // a left-growing label would otherwise run off the chart. A stroked halo
-  // keeps it legible crossing gridlines/the trend line behind it.
-  const markerLines = (markers || []).map(m => {
-    const x = sx(m.index);
-    const nearRight = x > pad.l + pw * 0.55;
-    const anchor = nearRight ? "end" : "start";
-    const tx = nearRight ? x - 6 : x + 6;
-    return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${pad.t}" y2="${(pad.t + ph).toFixed(1)}" stroke="#b8b3a9" stroke-width="1" stroke-dasharray="3,3"/>
-            <text x="${tx.toFixed(1)}" y="${(pad.t + 11).toFixed(1)}" text-anchor="${anchor}" font-size="9" fill="#999" paint-order="stroke" stroke="#faf9f6" stroke-width="3" stroke-linejoin="round">${esc(m.label)}</text>`;
-  }).join("");
+  const markerLines = titleSegmentMarkup(markers, sx, pad, ph);
 
   // X labels — show ~6 evenly spaced; rotate once there are enough that they'd crowd
   const step = Math.max(1, Math.ceil(labels.length / 6));
@@ -2517,19 +2541,7 @@ function buildSparklineFrame(fullLabels, fullData, xs, opacities, padL = 54, mar
             <text x="${pad.l - 7}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
   }).join("");
 
-  // Label sits just inside the top of the plot (not above it, where it'd
-  // collide with the trend-annotation text in the top-right corner) and
-  // anchors away from the right edge once the line is far enough over that
-  // a left-growing label would otherwise run off the chart. A stroked halo
-  // keeps it legible crossing gridlines/the trend line behind it.
-  const markerLines = (markers || []).map(m => {
-    const x = sx(m.index);
-    const nearRight = x > pad.l + pw * 0.55;
-    const anchor = nearRight ? "end" : "start";
-    const tx = nearRight ? x - 6 : x + 6;
-    return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${pad.t}" y2="${(pad.t + ph).toFixed(1)}" stroke="#b8b3a9" stroke-width="1" stroke-dasharray="3,3"/>
-            <text x="${tx.toFixed(1)}" y="${(pad.t + 11).toFixed(1)}" text-anchor="${anchor}" font-size="9" fill="#999" paint-order="stroke" stroke="#faf9f6" stroke-width="3" stroke-linejoin="round">${esc(m.label)}</text>`;
-  }).join("");
+  const markerLines = titleSegmentMarkup(markers, sx, pad, ph);
 
   const segs = [];
   let cur = [];
@@ -2579,7 +2591,7 @@ function buildSparklineFrame(fullLabels, fullData, xs, opacities, padL = 54, mar
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%"><defs>${fillGrad.defs}</defs>${yTicks}${markerLines}${fills}${lines}${dots}${xLabels}</svg>`;
 }
 
-function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId, markerQuarters) {
+function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId, titleSegments) {
   // miniTrendHtml() already rendered the pills with the right "active" class
   // for `initial` — reading it back off the DOM (rather than trusting
   // `initial` directly) keeps this in sync even if the template and this
@@ -2590,17 +2602,18 @@ function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId, marke
   let prev = seedView || null; // { fullLabels, fullData, visible, data, labels }
   let gen = 0;
 
-  // Previous-role boundary markers (see showPersonInline) — only meaningful
-  // on the unfiltered "All quarters" view (qf===0): a Q1-only view, say,
-  // doesn't contain the actual quarter a mid-year title change happened in,
-  // so there's nothing sensible to point at. Quarter ids from a prior stint
-  // at a *different* office (outside this chart's own timeline) are dropped
-  // automatically since they won't be found in the current view's ids.
-  function markersForView(view) {
-    if (qf !== 0 || !markerQuarters || !markerQuarters.length) return null;
-    return markerQuarters
-      .map(m => ({ index: view.ids.indexOf(m.id), label: m.label }))
-      .filter(m => m.index >= 0);
+  // Title segments (see showPersonInline) — only meaningful on the
+  // unfiltered "All quarters" view (qf===0): a Q1-only view, say, doesn't
+  // contain the actual quarter a mid-year title change happened in, so
+  // there's nothing sensible to point at. A segment from a stint at a
+  // *different* office (outside this chart's own timeline) is dropped
+  // automatically since neither of its quarter ids will be found in the
+  // current view.
+  function segmentsForView(view) {
+    if (qf !== 0 || !titleSegments || !titleSegments.length) return null;
+    return titleSegments
+      .map(s => ({ fromIdx: view.ids.indexOf(s.fromId), toIdx: view.ids.indexOf(s.toId), title: s.title }))
+      .filter(s => s.fromIdx >= 0 && s.toIdx >= 0);
   }
 
   function computeView() {
@@ -2624,7 +2637,7 @@ function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId, marke
   const excludeIdxFor = view => excludeFirstQuarterId ? view.ids.indexOf(excludeFirstQuarterId) : null;
 
   function renderStatic(view) {
-    if (chartWrap) chartWrap.innerHTML = svgSparkline(view.data, view.labels, qf ? 1 : 4, excludeIdxFor(view) >= 0 ? excludeIdxFor(view) : null, markersForView(view));
+    if (chartWrap) chartWrap.innerHTML = svgSparkline(view.data, view.labels, qf ? 1 : 4, excludeIdxFor(view) >= 0 ? excludeIdxFor(view) : null, segmentsForView(view));
   }
 
   function render() {
@@ -2671,7 +2684,7 @@ function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId, marke
           if (v == null || fv == null) return t < 1 ? (t < .5 ? fv : v) : v;
           return fv + (v - fv) * e;
         });
-        chartWrap.innerHTML = svgSparkline(iData, view.labels, qf ? 1 : 4, excludeIdx >= 0 ? excludeIdx : null, markersForView(view));
+        chartWrap.innerHTML = svgSparkline(iData, view.labels, qf ? 1 : 4, excludeIdx >= 0 ? excludeIdx : null, segmentsForView(view));
         if (t < 1) requestAnimationFrame(step);
       };
       requestAnimationFrame(step);
@@ -2720,7 +2733,7 @@ function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId, marke
             if (v == null || fv == null) return v;
             return fv + (v - fv) * e;
           });
-          chartWrap.innerHTML = buildSparklineFrame(view.fullLabels, iData, xs, ops, padL, markersForView(view));
+          chartWrap.innerHTML = buildSparklineFrame(view.fullLabels, iData, xs, ops, padL, segmentsForView(view));
           if (t < 1) requestAnimationFrame(step); else onDone();
         };
         requestAnimationFrame(step);
@@ -2777,7 +2790,7 @@ function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId, marke
           if (fv == null || tv == null) return fv ?? tv;
           return fv + (tv - fv) * e;
         });
-        chartWrap.innerHTML = buildSparklineFrame(labelsForFrame, iData, xs, ops, padL, markersForView(view));
+        chartWrap.innerHTML = buildSparklineFrame(labelsForFrame, iData, xs, ops, padL, segmentsForView(view));
         if (t < 1) requestAnimationFrame(step); else renderStatic(view);
       };
       requestAnimationFrame(step);
