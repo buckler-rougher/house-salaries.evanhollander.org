@@ -86,6 +86,10 @@ function memberPhotoHeaderHtml(party, officeName) {
   const url = `https://bioguide.congress.gov/bioguide/photo/${party.bioguide[0]}/${party.bioguide}.jpg`;
   return `<div class="office-detail-member-header">
     <img class="office-detail-photo" src="${url}" alt="${esc(officeName)}" loading="lazy" onerror="this.parentElement.remove()">
+    <div>
+      <div class="office-detail-member-name">${esc(officeName)}${officePartyBadge({ type: "member", party })}</div>
+      <div class="office-detail-member-meta">Representative for ${esc(party.state)}</div>
+    </div>
   </div>`;
 }
 

@@ -657,8 +657,10 @@ tr:hover td { background: var(--bg2); }
 .office-chevron { font-size: 1rem; color: var(--ink3); transition: transform .15s; }
 
 .office-detail { background: var(--bg2); border-radius: 8px; margin: 4px 0 10px; padding: 16px 18px; }
-.office-detail-member-header { margin-bottom: 12px; }
-.office-detail-photo { width: 58px; height: 76px; object-fit: cover; border-radius: 5px; display: block; }
+.office-detail-member-header { display: flex; align-items: center; gap: 12px; margin-bottom: 14px; }
+.office-detail-photo { width: 52px; height: 52px; border-radius: 50%; object-fit: cover; flex-shrink: 0; }
+.office-detail-member-name { font-weight: 800; font-size: .95rem; color: var(--ink); display: flex; align-items: center; }
+.office-detail-member-meta { font-size: .78rem; color: var(--ink3); margin-top: 2px; }
 .office-detail-stats { display: grid; grid-template-columns: repeat(3,1fr); gap: 0; margin-bottom: 14px; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; background: var(--line); }
 .office-detail-stat { background: var(--bg); padding: 12px 14px; }
 .office-detail-val { font-size: 1.1rem; font-weight: 800; color: var(--accent); }
