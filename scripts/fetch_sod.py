@@ -355,6 +355,9 @@ def normalize_title(desc):
 # vs "Executive Assistant") — those stay separate rather than risk merging
 # two different real roles just because one happens to be a substring.
 TITLE_MERGE_ALIASES = {
+    "DEPUTY CHIEF": "Deputy Chief of Staff",
+    "DEP CHIEF OF STAFF": "Deputy Chief of Staff",
+    "DEPUTY COS": "Deputy Chief of Staff",
     "COMM DIR": "Communications Director",
     "COMM DIRECTOR": "Communications Director",
     "COMMS DIR": "Communications Director",
