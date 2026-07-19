@@ -2396,26 +2396,55 @@ function shortAxisLabel(lb) {
 // Centering each label within its own segment's width means neighboring
 // labels can never collide by construction; a label that's too long for
 // its own segment is simply hidden rather than spilling into the next one.
-function titleSegmentMarkup(segments, sx, sy, pad, ph, valueAt) {
+function titleSegmentMarkup(segments, sx, sy, pad, pw, ph, valueAt) {
   if (!segments || !segments.length) return "";
   const boundaryLines = segments.slice(0, -1).map((s, i) => {
     const x = (sx(s.toIdx) + sx(segments[i + 1].fromIdx)) / 2;
     return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${pad.t}" y2="${(pad.t + ph).toFixed(1)}" stroke="#b8b3a9" stroke-width="1" stroke-dasharray="3,3"/>`;
   }).join("");
-  const segLabels = segments.map(s => {
-    const x0 = sx(s.fromIdx), x1 = sx(s.toIdx);
-    const cx = (x0 + x1) / 2, segW = Math.max(1, x1 - x0);
-    const textW = s.title.length * 5.2;
-    if (textW > segW - 4) return "";
+
+  // A label isn't confined to its own segment's pixel width — a title held
+  // for only a quarter or two is a sliver too narrow for any label to fit
+  // if forced to stay centered inside it, which silently dropped exactly
+  // the short-lived stretches most worth calling out. Instead: estimate
+  // each label's natural width, clamp it to the plot's own edges, then
+  // place labels greedily by priority (first and last segment first, since
+  // those are the ones worth showing even when everything else has to give
+  // way — then left to right) onto whatever horizontal room is actually
+  // free once higher-priority labels have claimed theirs. A label that
+  // still doesn't fit anywhere is dropped rather than forced to overlap.
+  const plotL = pad.l + 2, plotR = pad.l + pw - 2;
+  const n = segments.length;
+  const raw = segments.map((s, i) => ({
+    i, title: s.title, fromIdx: s.fromIdx, toIdx: s.toIdx,
+    cx: (sx(s.fromIdx) + sx(s.toIdx)) / 2,
+    textW: s.title.length * 5.2,
+  }));
+  const order = raw.map(c => c.i).sort((a, b) => {
+    const pa = (a === 0 || a === n - 1) ? 0 : 1;
+    const pb = (b === 0 || b === n - 1) ? 0 : 1;
+    return pa !== pb ? pa - pb : a - b;
+  });
+
+  const placed = [];
+  for (const i of order) {
+    const c = raw[i];
+    let x0 = c.cx - c.textW / 2, x1 = c.cx + c.textW / 2;
+    if (x0 < plotL) { x1 += plotL - x0; x0 = plotL; }
+    if (x1 > plotR) { x0 -= x1 - plotR; x1 = plotR; }
+    if (x1 - x0 < Math.min(c.textW, plotR - plotL) - 1) continue; // clamping ate too much of it
+    if (placed.some(p => x0 < p.x1 + 6 && x1 > p.x0 - 6)) continue; // collides with an already-placed (higher-priority) label
+    placed.push({ ...c, x0, x1 });
+  }
+
+  const segLabels = placed.map(s => {
+    const cx = (s.x0 + s.x1) / 2, halfText = (s.x1 - s.x0) / 2 + 4;
     // Find an actual clear vertical gap under where the label will be drawn
-    // (its own horizontal span, not the whole segment) rather than just
-    // dodging the single tallest point — a wide segment can have two or
-    // more points at similar heights, and offsetting from only the tallest
-    // one still lands the label on a neighbor. Each point blocks a small
-    // band around its own y; the label sits in the topmost band that's
-    // actually free across the whole window, or is hidden entirely if none
-    // of the bands are tall enough (better than forcing an overlap).
-    const halfText = textW / 2 + 4;
+    // rather than just dodging the single tallest point in range — two or
+    // more points at similar heights near the label otherwise still collide
+    // even after avoiding the tallest one. Each point blocks a small band
+    // around its own y; the label sits in the topmost band that's actually
+    // free, or is hidden entirely if none of the bands are tall enough.
     const blocked = [];
     for (let i = s.fromIdx; i <= s.toIdx; i++) {
       const v = valueAt(i);
@@ -2470,7 +2499,7 @@ function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend 
             <text x="${pad.l - 7}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
   }).join("");
 
-  const markerLines = titleSegmentMarkup(markers, sx, sy, pad, ph, i => data[i]);
+  const markerLines = titleSegmentMarkup(markers, sx, sy, pad, pw, ph, i => data[i]);
 
   // X labels — show ~6 evenly spaced; rotate once there are enough that they'd crowd
   const step = Math.max(1, Math.ceil(labels.length / 6));
@@ -2575,7 +2604,7 @@ function buildSparklineFrame(fullLabels, fullData, xs, opacities, padL = 54, mar
             <text x="${pad.l - 7}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
   }).join("");
 
-  const markerLines = titleSegmentMarkup(markers, sx, sy, pad, ph, i => fullData[i]);
+  const markerLines = titleSegmentMarkup(markers, sx, sy, pad, pw, ph, i => fullData[i]);
 
   const segs = [];
   let cur = [];
