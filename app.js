@@ -1318,11 +1318,12 @@ async function showPersonInline(name, officeName) {
   //    year — a prior stint further back than that reads more like an
   //    unrelated same-name coincidence than an actual career move.
   let prevHtml = "";
+  const prevRoleEntries = []; // hoisted out of the `if (person)` block below so the chart-wiring code further down can mark these quarter boundaries too
   if (person) {
     const firstQuarter = p => p.history.reduce((min, h) => h.quarter < min ? h.quarter : min, p.history[0].quarter);
     const lastQuarter = p => p.history.reduce((max, h) => h.quarter > max ? h.quarter : max, p.history[0].quarter);
 
-    const entries = [];
+    const entries = prevRoleEntries;
     const sortedHist = [...person.history].sort((a, b) => a.quarter.localeCompare(b.quarter));
     for (let i = 0; i < sortedHist.length - 1; i++) {
       if (sortedHist[i].title && sortedHist[i + 1].title && sortedHist[i].title !== sortedHist[i + 1].title) {
@@ -1440,7 +1441,13 @@ async function showPersonInline(name, officeName) {
     });
     const seed = (lastPersonTrend && lastPersonTrend.name === name && lastPersonTrend.office === officeName)
       ? lastPersonTrend.controller.getPrev() : null;
-    const controller = makeMiniTrend(detail, getPersonData, seed, firstTrackedQuarter);
+    // Mark where a previous role ended, on the All-quarters view only — see
+    // prevRoleEntries above (built alongside the "Previously: ..." line).
+    // Entries from a stint at a *different* office fall outside this chart's
+    // own timeline and are silently dropped by makeMiniTrend (it only marks
+    // quarter ids actually present in the current view).
+    const markerQuarters = prevRoleEntries.map(e => ({ id: e.until, label: e.title }));
+    const controller = makeMiniTrend(detail, getPersonData, seed, firstTrackedQuarter, markerQuarters);
     lastPersonTrend = { name, office: officeName, controller };
   } else {
     lastPersonTrend = null;
@@ -2366,7 +2373,7 @@ function shortAxisLabel(lb) {
 // full timeline), but 1 when the caller has filtered down to a single
 // calendar quarter (e.g. "Q1"), since then consecutive points are already a
 // full year apart and multiplying by 4 would inflate the trend 4x.
-function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend = null) {
+function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend = null, markers = null) {
   const W = 560, H = 200;
   // Rotated x-axis labels (below) are anchored at their end and tilt up-left
   // from there, so the first tick's label — anchored right at pad.l — was
@@ -2389,6 +2396,14 @@ function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend 
     const v = minV + vRange * f, y = sy(v);
     return `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#eeece8" stroke-width="1"/>
             <text x="${pad.l - 7}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
+  }).join("");
+
+  // Previous-role boundary markers — a subtle dashed vertical line at the
+  // quarter a title changed, with the old title as a small label above it.
+  const markerLines = (markers || []).map(m => {
+    const x = sx(m.index);
+    return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${pad.t}" y2="${(pad.t + ph).toFixed(1)}" stroke="#b8b3a9" stroke-width="1" stroke-dasharray="3,3"/>
+            <text x="${x.toFixed(1)}" y="${(pad.t - 8).toFixed(1)}" text-anchor="middle" font-size="9" fill="#999">${esc(m.label)}</text>`;
   }).join("");
 
   // X labels — show ~6 evenly spaced; rotate once there are enough that they'd crowd
@@ -2539,10 +2554,10 @@ function buildSparklineFrame(fullLabels, fullData, xs, opacities, padL = 54) {
       transform="translate(${sx(i).toFixed(1)},${ty.toFixed(1)}) rotate(-45)">${shortAxisLabel(lb)}</text>`;
   }).join("");
 
-  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%"><defs>${fillGrad.defs}</defs>${yTicks}${fills}${lines}${dots}${xLabels}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%"><defs>${fillGrad.defs}</defs>${yTicks}${markerLines}${fills}${lines}${dots}${xLabels}</svg>`;
 }
 
-function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId) {
+function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId, markerQuarters) {
   // miniTrendHtml() already rendered the pills with the right "active" class
   // for `initial` — reading it back off the DOM (rather than trusting
   // `initial` directly) keeps this in sync even if the template and this
@@ -2552,6 +2567,19 @@ function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId) {
   const chartWrap = wrapEl.querySelector(".mini-chart-wrap");
   let prev = seedView || null; // { fullLabels, fullData, visible, data, labels }
   let gen = 0;
+
+  // Previous-role boundary markers (see showPersonInline) — only meaningful
+  // on the unfiltered "All quarters" view (qf===0): a Q1-only view, say,
+  // doesn't contain the actual quarter a mid-year title change happened in,
+  // so there's nothing sensible to point at. Quarter ids from a prior stint
+  // at a *different* office (outside this chart's own timeline) are dropped
+  // automatically since they won't be found in the current view's ids.
+  function markersForView(view) {
+    if (qf !== 0 || !markerQuarters || !markerQuarters.length) return null;
+    return markerQuarters
+      .map(m => ({ index: view.ids.indexOf(m.id), label: m.label }))
+      .filter(m => m.index >= 0);
+  }
 
   function computeView() {
     const allQs = summary.quarters;
@@ -2574,7 +2602,7 @@ function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId) {
   const excludeIdxFor = view => excludeFirstQuarterId ? view.ids.indexOf(excludeFirstQuarterId) : null;
 
   function renderStatic(view) {
-    if (chartWrap) chartWrap.innerHTML = svgSparkline(view.data, view.labels, qf ? 1 : 4, excludeIdxFor(view) >= 0 ? excludeIdxFor(view) : null);
+    if (chartWrap) chartWrap.innerHTML = svgSparkline(view.data, view.labels, qf ? 1 : 4, excludeIdxFor(view) >= 0 ? excludeIdxFor(view) : null, markersForView(view));
   }
 
   function render() {
@@ -2621,7 +2649,7 @@ function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId) {
           if (v == null || fv == null) return t < 1 ? (t < .5 ? fv : v) : v;
           return fv + (v - fv) * e;
         });
-        chartWrap.innerHTML = svgSparkline(iData, view.labels, qf ? 1 : 4, excludeIdx >= 0 ? excludeIdx : null);
+        chartWrap.innerHTML = svgSparkline(iData, view.labels, qf ? 1 : 4, excludeIdx >= 0 ? excludeIdx : null, markersForView(view));
         if (t < 1) requestAnimationFrame(step);
       };
       requestAnimationFrame(step);
@@ -2925,7 +2953,7 @@ function jumpToOffice(officeName) {
 function jumpToTitle(titleName) {
   closePersonDetail();
   const search = $("pos-search");
-  if (search) search.value = titleName;
+  if (search) { search.value = titleName; search.dispatchEvent(new Event("input", { bubbles: true })); }
   renderPosResults(titleName);
   saveState();
   requestAnimationFrame(() => {
