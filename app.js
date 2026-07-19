@@ -2474,7 +2474,7 @@ function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend 
     annotEl = `<text x="${(W - pad.r).toFixed(1)}" y="14" text-anchor="end" font-size="11" fill="#6b7280">${label}</text>`;
   }
 
-  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%"><defs>${fillGrad.defs}</defs>${yTicks}${fills}${lines}${trendEl}${dots}${xLabels}${annotEl}</svg>`;
+  return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%"><defs>${fillGrad.defs}</defs>${yTicks}${markerLines}${fills}${lines}${trendEl}${dots}${xLabels}${annotEl}</svg>`;
 }
 
 const MINI_EASE_CUBIC = t => t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; // value-morph
@@ -2482,7 +2482,7 @@ const MINI_EASE_ZOOM = t => -(Math.cos(Math.PI * t) - 1) / 2; // easeInOutSine �
 
 // Stripped-down sparkline frame for mid-zoom animation only — no x-axis text or
 // trend annotation (those come back once renderStatic() calls the real svgSparkline).
-function buildSparklineFrame(fullLabels, fullData, xs, opacities, padL = 54) {
+function buildSparklineFrame(fullLabels, fullData, xs, opacities, padL = 54, markers = null) {
   const W = 560, H = 200;
   // Must match svgSparkline's own pad exactly (t:22, r:16, b:56, and l
   // conditional on rotated labels) — this renders every frame *during* a
@@ -2507,6 +2507,12 @@ function buildSparklineFrame(fullLabels, fullData, xs, opacities, padL = 54) {
     const v = minV + vRange * f, y = sy(v);
     return `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#eeece8" stroke-width="1"/>
             <text x="${pad.l - 7}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
+  }).join("");
+
+  const markerLines = (markers || []).map(m => {
+    const x = sx(m.index);
+    return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${pad.t}" y2="${(pad.t + ph).toFixed(1)}" stroke="#b8b3a9" stroke-width="1" stroke-dasharray="3,3"/>
+            <text x="${x.toFixed(1)}" y="${(pad.t - 8).toFixed(1)}" text-anchor="middle" font-size="9" fill="#999">${esc(m.label)}</text>`;
   }).join("");
 
   const segs = [];
@@ -2698,7 +2704,7 @@ function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId, marke
             if (v == null || fv == null) return v;
             return fv + (v - fv) * e;
           });
-          chartWrap.innerHTML = buildSparklineFrame(view.fullLabels, iData, xs, ops, padL);
+          chartWrap.innerHTML = buildSparklineFrame(view.fullLabels, iData, xs, ops, padL, markersForView(view));
           if (t < 1) requestAnimationFrame(step); else onDone();
         };
         requestAnimationFrame(step);
@@ -2755,7 +2761,7 @@ function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId, marke
           if (fv == null || tv == null) return fv ?? tv;
           return fv + (tv - fv) * e;
         });
-        chartWrap.innerHTML = buildSparklineFrame(labelsForFrame, iData, xs, ops, padL);
+        chartWrap.innerHTML = buildSparklineFrame(labelsForFrame, iData, xs, ops, padL, markersForView(view));
         if (t < 1) requestAnimationFrame(step); else renderStatic(view);
       };
       requestAnimationFrame(step);
