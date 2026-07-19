@@ -2396,91 +2396,118 @@ function shortAxisLabel(lb) {
 // Centering each label within its own segment's width means neighboring
 // labels can never collide by construction; a label that's too long for
 // its own segment is simply hidden rather than spilling into the next one.
-function titleSegmentMarkup(segments, sx, sy, pad, pw, ph, valueAt) {
+// Greedily wraps `title` into as many lines as it takes to fit maxWidthPx
+// (estimated at ~5px/char) — each segment gets its own dedicated column
+// below the chart, so unlike the in-plot version this never has to fight
+// data points or a neighbor for room; wrapping is the only thing standing
+// between a long title and a narrow segment.
+function wrapTitle(title, maxWidthPx) {
+  const charW = 5.4;
+  const words = title.split(" ");
+  const lines = [];
+  let cur = "";
+  for (const w of words) {
+    const test = cur ? `${cur} ${w}` : w;
+    if (cur && test.length * charW > maxWidthPx) {
+      lines.push(cur);
+      cur = w;
+    } else {
+      cur = test;
+    }
+  }
+  if (cur) lines.push(cur);
+  return lines.length ? lines : [title];
+}
+
+// Word-level abbreviations for titles too long to fit their column on one
+// line. Preferred over collapsing to bare initials, since acronyms like
+// "SLA" for "Scheduler & Legislative Aide" read as a different, unrelated
+// term rather than a shortened version of the actual title.
+const TITLE_WORD_ABBR = {
+  legislative: "Leg.", administrative: "Admin.", correspondent: "Corresp.",
+  assistant: "Asst.", scheduler: "Sched.", director: "Dir.",
+  coordinator: "Coord.", representative: "Rep.", communications: "Comms.",
+  deputy: "Dep.", executive: "Exec.", constituent: "Constit.",
+};
+function wordAbbreviateTitle(title) {
+  return title.split(/\s+/).map(w => {
+    const key = w.toLowerCase().replace(/[^a-z]/g, "");
+    return TITLE_WORD_ABBR[key] || w;
+  }).join(" ");
+}
+// Bare-initials fallback for titles that still don't fit after word-level
+// abbreviation. Small filler words are skipped.
+const TITLE_ABBR_STOPWORDS = new Set(["and", "of", "the", "to", "&"]);
+function abbreviateTitle(title) {
+  const initials = title
+    .split(/\s+/)
+    .filter(w => w && !TITLE_ABBR_STOPWORDS.has(w.toLowerCase()))
+    .map(w => w[0].toUpperCase());
+  return initials.join("");
+}
+
+// Renders dashed boundary lines between title segments, each labeled with
+// the title that applied *during* that stretch — in its own row below the
+// chart (between the plot and the x-axis date labels) rather than floating
+// inside the plot, where it inevitably had to dodge both data points and
+// neighboring labels. Each segment gets its own column matching its own
+// x-range, so labels can never collide with each other by construction;
+// a title too long for its column just wraps onto more lines instead of
+// being dropped.
+function titleSegmentMarkup(segments, sx, pad, ph) {
   if (!segments || !segments.length) return "";
   const boundaryLines = segments.slice(0, -1).map((s, i) => {
     const x = (sx(s.toIdx) + sx(segments[i + 1].fromIdx)) / 2;
     return `<line x1="${x.toFixed(1)}" x2="${x.toFixed(1)}" y1="${pad.t}" y2="${(pad.t + ph).toFixed(1)}" stroke="#b8b3a9" stroke-width="1" stroke-dasharray="3,3"/>`;
   }).join("");
 
-  // A label isn't confined to its own segment's pixel width — a title held
-  // for only a quarter or two is a sliver too narrow for any label to fit
-  // if forced to stay centered inside it, which silently dropped exactly
-  // the short-lived stretches most worth calling out. Instead: estimate
-  // each label's natural width, clamp it to the plot's own edges, then
-  // place labels greedily by priority (first and last segment first, since
-  // those are the ones worth showing even when everything else has to give
-  // way — then left to right) onto whatever horizontal room is actually
-  // free once higher-priority labels have claimed theirs. A label that
-  // still doesn't fit anywhere is dropped rather than forced to overlap.
-  const plotL = pad.l + 2, plotR = pad.l + pw - 2;
-  const n = segments.length;
-  const raw = segments.map((s, i) => ({
-    i, title: s.title, fromIdx: s.fromIdx, toIdx: s.toIdx,
-    cx: (sx(s.fromIdx) + sx(s.toIdx)) / 2,
-    textW: s.title.length * 5.2,
-  }));
-  const order = raw.map(c => c.i).sort((a, b) => {
-    const pa = (a === 0 || a === n - 1) ? 0 : 1;
-    const pb = (b === 0 || b === n - 1) ? 0 : 1;
-    return pa !== pb ? pa - pb : a - b;
-  });
-
-  const placed = [];
-  for (const i of order) {
-    const c = raw[i];
-    let x0 = c.cx - c.textW / 2, x1 = c.cx + c.textW / 2;
-    if (x0 < plotL) { x1 += plotL - x0; x0 = plotL; }
-    if (x1 > plotR) { x0 -= x1 - plotR; x1 = plotR; }
-    if (x1 - x0 < Math.min(c.textW, plotR - plotL) - 1) continue; // clamping ate too much of it
-    if (placed.some(p => x0 < p.x1 + 6 && x1 > p.x0 - 6)) continue; // collides with an already-placed (higher-priority) label
-    placed.push({ ...c, x0, x1 });
-  }
-
-  const segLabels = placed.map(s => {
-    const cx = (s.x0 + s.x1) / 2, halfText = (s.x1 - s.x0) / 2 + 4;
-    // Find an actual clear vertical gap under where the label will be drawn
-    // rather than just dodging the single tallest point in range — two or
-    // more points at similar heights near the label otherwise still collide
-    // even after avoiding the tallest one. Each point blocks a small band
-    // around its own y; the label sits in the topmost band that's actually
-    // free, or is hidden entirely if none of the bands are tall enough.
-    const blocked = [];
-    for (let i = s.fromIdx; i <= s.toIdx; i++) {
-      const v = valueAt(i);
-      if (v == null) continue;
-      const px = sx(i);
-      if (px >= cx - halfText && px <= cx + halfText) blocked.push([sy(v) - 7, sy(v) + 7]);
+  // Word-abbreviation (below) keeps nearly every label to one line, so most
+  // charts only need one label row. A second, offset row only kicks in when
+  // a label's estimated rendered width would actually overlap the previous
+  // one — detected per-pair below rather than always alternating, so a
+  // chart with well-spaced segments stays visually compact.
+  const rowYs = [pad.t + ph + 18, pad.t + ph + 40];
+  const charW = 5.4;
+  let prevRight = -Infinity;
+  const segLabels = segments.map(s => {
+    const x0 = sx(s.fromIdx), x1 = sx(s.toIdx);
+    const cx = (x0 + x1) / 2, colW = Math.max(20, x1 - x0);
+    // A few px of margin on each side of the column so two adjacent narrow
+    // segments' wrapped text reads as separate labels with a real gap
+    // between them, not one run-on phrase.
+    let lines = wrapTitle(s.title, colW - 8);
+    // A title that doesn't fit its column on one line reads as clutter once
+    // several segments are stacked. Try shortening long words first (e.g.
+    // "Legislative" -> "Leg."), which keeps the label recognizable; only
+    // fall back to bare initials if that's still too long. The full title
+    // is always still available via the tooltip.
+    if (lines.length > 1) {
+      const abbrLines = wrapTitle(wordAbbreviateTitle(s.title), colW - 8);
+      lines = abbrLines.length > 1 ? [abbreviateTitle(s.title)] : abbrLines;
     }
-    blocked.sort((a, b) => a[0] - b[0]);
-    const merged = [];
-    for (const iv of blocked) {
-      if (merged.length && iv[0] <= merged[merged.length - 1][1]) merged[merged.length - 1][1] = Math.max(merged[merged.length - 1][1], iv[1]);
-      else merged.push(iv.slice());
-    }
-    const lo = pad.t + 9, hi = pad.t + ph - 2, gaps = [];
-    let cursor = lo;
-    for (const [a, b] of merged) {
-      if (a > cursor) gaps.push([cursor, Math.min(a, hi)]);
-      cursor = Math.max(cursor, b);
-      if (cursor >= hi) break;
-    }
-    if (cursor < hi) gaps.push([cursor, hi]);
-    const fit = gaps.find(([a, b]) => b - a >= 12);
-    if (!fit) return "";
-    const ty = fit[0] + 9;
-    return `<text x="${cx.toFixed(1)}" y="${ty.toFixed(1)}" text-anchor="middle" font-size="9" fill="#999" paint-order="stroke" stroke="#faf9f6" stroke-width="3" stroke-linejoin="round">${esc(s.title)}</text>`;
+    const textW = Math.max(...lines.map(l => l.length)) * charW;
+    const left = cx - textW / 2, right = cx + textW / 2;
+    const row = left < prevRight + 6 ? 1 : 0;
+    prevRight = row === 0 ? right : Math.max(prevRight, right);
+    const rowY0 = rowYs[row];
+    const text = lines.map((line, li) =>
+      `<text x="${cx.toFixed(1)}" y="${(rowY0 + li * 10).toFixed(1)}" text-anchor="middle" font-size="9" fill="#999">${esc(line)}</text>`
+    ).join("");
+    return `<g><title>${esc(s.title)}</title>${text}</g>`;
   }).join("");
   return boundaryLines + segLabels;
 }
 
 function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend = null, markers = null) {
-  const W = 560, H = 200;
+  const W = 560, H = 234;
   // Rotated x-axis labels (below) are anchored at their end and tilt up-left
   // from there, so the first tick's label — anchored right at pad.l — was
   // getting its leading character clipped by the viewBox edge. Extra left
   // padding only when there's actually a rotated label to make room for.
-  const pad = { t: 22, r: 16, b: 56, l: labels.length > 4 ? 92 : 54 };
+  // Extra 24px of bottom padding vs. the old 56 makes room for the title-
+  // segment label row between the plot and the date labels (H grew by the
+  // same 24px, so the plot itself stays the same size as before).
+  const pad = { t: 22, r: 16, b: 90, l: labels.length > 4 ? 92 : 54 };
   const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
 
   const valid = data.map((v, i) => ({ v, i })).filter(d => d.v != null);
@@ -2499,7 +2526,7 @@ function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend 
             <text x="${pad.l - 7}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
   }).join("");
 
-  const markerLines = titleSegmentMarkup(markers, sx, sy, pad, pw, ph, i => data[i]);
+  const markerLines = titleSegmentMarkup(markers, sx, pad, ph);
 
   // X labels — show ~6 evenly spaced; rotate once there are enough that they'd crowd
   const step = Math.max(1, Math.ceil(labels.length / 6));
@@ -2507,7 +2534,7 @@ function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend 
   const xLabels = labels.map((lb, i) => {
     if (i % step !== 0 && i !== labels.length - 1) return "";
     if (rotateX) {
-      const ty = pad.t + ph + 16;
+      const ty = pad.t + ph + 58;
       return `<text text-anchor="end" font-size="10" fill="#888"
         transform="translate(${sx(i).toFixed(1)},${ty.toFixed(1)}) rotate(-45)">${shortAxisLabel(lb)}</text>`;
     }
@@ -2578,13 +2605,13 @@ const MINI_EASE_ZOOM = t => -(Math.cos(Math.PI * t) - 1) / 2; // easeInOutSine �
 // Stripped-down sparkline frame for mid-zoom animation only — no x-axis text or
 // trend annotation (those come back once renderStatic() calls the real svgSparkline).
 function buildSparklineFrame(fullLabels, fullData, xs, opacities, padL = 54, markers = null) {
-  const W = 560, H = 200;
-  // Must match svgSparkline's own pad exactly (t:22, r:16, b:56, and l
+  const W = 560, H = 234;
+  // Must match svgSparkline's own pad exactly (t:22, r:16, b:80, and l
   // conditional on rotated labels) — this renders every frame *during* a
   // zoom transition, and if its plot rectangle doesn't match the static
   // frame's (svgSparkline) that bookends the animation, the chart visibly
   // jumps/resizes right as the animation starts or ends.
-  const pad = { t: 22, r: 16, b: 56, l: padL };
+  const pad = { t: 22, r: 16, b: 90, l: padL };
   const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
   const n = fullLabels.length;
 
@@ -2604,7 +2631,7 @@ function buildSparklineFrame(fullLabels, fullData, xs, opacities, padL = 54, mar
             <text x="${pad.l - 7}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
   }).join("");
 
-  const markerLines = titleSegmentMarkup(markers, sx, sy, pad, pw, ph, i => fullData[i]);
+  const markerLines = titleSegmentMarkup(markers, sx, pad, ph);
 
   const segs = [];
   let cur = [];
@@ -2646,7 +2673,7 @@ function buildSparklineFrame(fullLabels, fullData, xs, opacities, padL = 54, mar
   const xLabels = fullLabels.map((lb, i) => {
     if (i % step !== 0 && i !== n - 1) return "";
     if (op(i) <= 0.02) return "";
-    const ty = pad.t + ph + 16;
+    const ty = pad.t + ph + 58;
     return `<text text-anchor="end" font-size="10" fill="#888" opacity="${op(i).toFixed(2)}"
       transform="translate(${sx(i).toFixed(1)},${ty.toFixed(1)}) rotate(-45)">${shortAxisLabel(lb)}</text>`;
   }).join("");
