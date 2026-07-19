@@ -1350,8 +1350,13 @@ async function showPersonInline(name, officeName) {
     }
 
     if (entries.length) {
+      // Office is always shown as a hover tooltip rather than inline text —
+      // spelling out "at HON. SO-AND-SO" for every entry made the line hard
+      // to scan, especially once several title changes stack up. The
+      // office-link class keeps it clickable/navigable even though it's no
+      // longer visible by default.
       prevHtml = `<div class="emp-detail-prev">Previously: ${entries.map(e =>
-        `<strong>${esc(e.title)}</strong>${e.office !== officeName ? ` at <span class="office-link" data-office="${esc(e.office)}">${esc(e.office)}</span>` : ""} <span class="emp-detail-prev-until">(through ${labelMap[e.until] || e.until})</span>`
+        `<strong class="office-link" data-office="${esc(e.office)}" title="${esc(e.office)}">${esc(e.title)}</strong> <span class="emp-detail-prev-until">(through ${labelMap[e.until] || e.until})</span>`
       ).join(", ")}</div>`;
     }
   }
