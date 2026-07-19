@@ -127,6 +127,7 @@ def fetch_member_parties():
                 # Republican) — fall back to party if caucus is blank.
                 "caucus": (info.findtext("caucus") or "").strip() or party,
                 "state": state, "district": district,
+                "bioguide": (info.findtext("bioguideID") or "").strip(),
             })
         # A seat vacated recently (resignation/death) has no sitting member,
         # but our SOD data can still cover quarters when it was occupied —
@@ -144,6 +145,10 @@ def fetch_member_parties():
                 # available stand-in for a former member.
                 "caucus": pred_party,
                 "state": state, "district": district,
+                # pred-memindex is the predecessor's own bioguide ID (same ID
+                # format/space as bioguideID above, just a differently-named
+                # tag on this branch of the schema).
+                "bioguide": (pred.findtext("pred-memindex") or "").strip(),
             })
 
     by_name, by_last = {}, {}
@@ -228,17 +233,20 @@ _resolve_member = lambda org_name: None
 
 def party_for(org_key, office_type):
     """org_key must already be strip_org_prefix()'d. Returns {"party","caucus",
-    "state","district"} or None (non-member office, or no confident match).
-    party is the member's own registration (shown in the UI badge/filter);
-    caucus is which conference they actually sit with (used for D/R breakdowns
-    where a nominal-independent-but-caucuses-with-a-party case would otherwise
-    show up as a meaningless third bucket)."""
+    "state","district","bioguide"} or None (non-member office, or no confident
+    match). party is the member's own registration (shown in the UI badge/
+    filter); caucus is which conference they actually sit with (used for D/R
+    breakdowns where a nominal-independent-but-caucuses-with-a-party case
+    would otherwise show up as a meaningless third bucket); bioguide is their
+    Bioguide ID, used to link their official photo from the Biographical
+    Directory of the U.S. Congress (bioguide.congress.gov)."""
     if office_type != "member":
         return None
     if org_key not in MEMBER_PARTY_BY_ORG:
         mem = _resolve_member(org_key)
         MEMBER_PARTY_BY_ORG[org_key] = (
-            {"party": mem["party"], "caucus": mem["caucus"], "state": mem["state"], "district": mem["district"]}
+            {"party": mem["party"], "caucus": mem["caucus"], "state": mem["state"], "district": mem["district"],
+             "bioguide": mem["bioguide"]}
             if mem else None
         )
     return MEMBER_PARTY_BY_ORG[org_key]

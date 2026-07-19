@@ -78,6 +78,17 @@ function partyValueOf(item) {
   return null;
 }
 
+// Bioguide's photo endpoint is keyed off the Bioguide ID's first letter,
+// e.g. "P000197" -> .../photo/P/P000197.jpg — see the footer's Biographical
+// Directory of the U.S. Congress attribution for the source.
+function memberPhotoHeaderHtml(party, officeName) {
+  if (!party?.bioguide) return "";
+  const url = `https://bioguide.congress.gov/bioguide/photo/${party.bioguide[0]}/${party.bioguide}.jpg`;
+  return `<div class="office-detail-member-header">
+    <img class="office-detail-photo" src="${url}" alt="${esc(officeName)}" loading="lazy" onerror="this.parentElement.remove()">
+  </div>`;
+}
+
 function officePartyBadge(o) {
   if (o.type === "member") return partyBadgeHtml(o.party);
   if (o.type === "leadership") return partyBadgeHtml(o.leadership_party ? { party: o.leadership_party } : null);
@@ -2768,6 +2779,7 @@ function renderOfficeDetail(officeName, el) {
     const p = pct => { const i=(amts.length-1)*pct/100,lo=Math.floor(i),hi=Math.min(lo+1,amts.length-1); return amts[lo]+(amts[hi]-amts[lo])*(i-lo); };
     const median = Math.round(p(50)), p25 = Math.round(p(25)), p75 = Math.round(p(75));
     el.innerHTML = `
+      ${memberPhotoHeaderHtml(staff[0]?.party, officeName)}
       <div class="office-detail-stats">
         <div class="office-detail-stat"><div class="office-detail-val">${fmtK(p25)}</div><div class="office-detail-key">25th pct.</div></div>
         <div class="office-detail-stat"><div class="office-detail-val">${fmtK(median)}</div><div class="office-detail-key">Median</div></div>
@@ -2789,6 +2801,7 @@ function renderOfficeDetail(officeName, el) {
     const o = (qData.top_offices || []).find(o => o.name === officeName);
     if (!o) { el.innerHTML = `<div class="office-detail-empty">No data for this quarter.</div>`; return; }
     el.innerHTML = `
+      ${memberPhotoHeaderHtml(o.party, officeName)}
       <div class="office-detail-stats">
         <div class="office-detail-stat"><div class="office-detail-val">${fmtK(o.p25)}</div><div class="office-detail-key">25th pct.</div></div>
         <div class="office-detail-stat"><div class="office-detail-val">${fmtK(o.median)}</div><div class="office-detail-key">Median</div></div>
