@@ -1234,6 +1234,13 @@ async function showPerson(name, officeName) {
 
   // Show inline detail
   await showPersonInline(name, officeName);
+
+  // The detail opens correctly at this point, but without scrolling to it
+  // it renders below the fold (the page is still wherever it was before the
+  // tab switch) and looks like nothing happened — same pattern as
+  // jumpToOffice/jumpToTitle below.
+  const detailId = `emp-detail-${esc(name).replace(/\s+/g,"-").toLowerCase()}`;
+  $(detailId)?.scrollIntoView({ behavior: "smooth", block: "center" });
 }
 
 // Toggles a person's detail row open/closed directly in place — used when
