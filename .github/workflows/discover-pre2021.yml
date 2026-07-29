@@ -1,0 +1,17 @@
+name: Discover pre-2021 SOD quarters (one-off)
+
+on:
+  workflow_dispatch:
+
+jobs:
+  discover:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Discover 2016-2020 quarter CSV URLs
+        run: python scripts/discover_pre2021_quarters.py
