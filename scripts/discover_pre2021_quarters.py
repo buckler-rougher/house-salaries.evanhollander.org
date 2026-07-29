@@ -16,6 +16,7 @@ import re
 import sys
 import os
 import urllib.request
+import urllib.parse
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from fetch_sod import MONTH_TO_Q, Q_LABELS, BASE, SOD_PAGE  # noqa: E402
@@ -32,7 +33,18 @@ def fetch(url, timeout=60):
 def parse_year_quarter(path):
     """Best-effort (year, quarter) from a DETAIL grid filename/path. Handles
     both 'JAN-MAR' style month-range names and anything with a single month
-    token plus a 4-digit year. Returns None if it can't confidently tell."""
+    token plus a 4-digit year.
+
+    Must unquote %-encoding first: "%20" (an encoded space) directly abutting
+    a year, e.g. "...MAR%202026%20SOD...", is the literal digit run "202026"
+    once decoded-as-text — regex \\d{4} then greedily grabs "2020" as a false
+    4-digit token instead of the real "2026". Every %20-encoded filename whose
+    real year starts with "20" (i.e. any 2000s year) collides with the target
+    2016-2020 range this way, so this isn't a rare edge case - it silently
+    mismatches most modern-looking filenames unless decoded first.
+
+    Returns None if it can't confidently tell."""
+    path = urllib.parse.unquote(path)
     tokens = re.findall(r"[A-Z]+|\d{4}", path.upper())
     year = next((int(t) for t in tokens if len(t) == 4 and t.isdigit() and 2016 <= int(t) <= 2020), None)
     if not year:
@@ -45,7 +57,7 @@ def parse_year_quarter(path):
 
 def crawl_for_links():
     seen_pages, to_visit, links = set(), [SOD_PAGE], []
-    while to_visit and len(seen_pages) < 10:
+    while to_visit and len(seen_pages) < 20:
         page = to_visit.pop()
         if page in seen_pages:
             continue
@@ -56,15 +68,15 @@ def crawl_for_links():
             print(f"  ! failed to fetch {page}: {e}", flush=True)
             continue
         for m in re.finditer(r'href="([^"]*\.csv)"', html, re.I):
-            path = m.group(1)
+            path = urllib.parse.unquote(m.group(1))
             if re.search(r"DETAIL", path, re.I) and any(str(y) in path for y in TARGET_YEARS):
                 url = path if path.startswith("http") else BASE + path
                 if url not in links:
                     links.append(url)
-        for m in re.finditer(r'href="([^"]*(?:archive|disbursement)[^"]*)"', html, re.I):
+        for m in re.finditer(r'href="([^"]*(?:archive|disbursement|statement-of-disbursements|page=)[^"]*)"', html, re.I):
             href = m.group(1)
             full = href if href.startswith("http") else BASE + href
-            if "house.gov" in full and full not in seen_pages:
+            if "house.gov" in full and full not in seen_pages and full not in to_visit:
                 to_visit.append(full)
     return links
 
