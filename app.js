@@ -177,8 +177,20 @@ async function loadPeople() {
   if (peopleData || peopleLoading) return;
   peopleLoading = true;
   try {
-    const r = await fetch("data/people.json", { cache: "no-cache" });
-    if (r.ok) { const d = await r.json(); peopleData = d.people || []; }
+    // people.json is sharded (data/people-0.json, -1.json, ...) — a single
+    // file crossed Cloudflare Pages' 25 MiB per-file deploy limit once the
+    // 2016 backfill roughly doubled tracked history. Shard count/order
+    // don't matter to anything downstream, so just fetch every shard in
+    // parallel and concatenate.
+    const mr = await fetch("data/people-manifest.json", { cache: "no-cache" });
+    if (mr.ok) {
+      const manifest = await mr.json();
+      const shardResults = await Promise.all(
+        Array.from({ length: manifest.shards }, (_, i) =>
+          fetch(`data/people-${i}.json`, { cache: "no-cache" }).then(r => r.ok ? r.json() : { people: [] }))
+      );
+      peopleData = shardResults.flatMap(d => d.people || []);
+    }
   } catch(e) { /* non-fatal */ }
   peopleLoading = false;
 }

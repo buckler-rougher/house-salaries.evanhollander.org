@@ -9,7 +9,7 @@ Key column notes (from actual CSVs):
 - DESCRIPTION field contains job title (e.g. "LEGISLATIVE ASSISTANT", "CHIEF OF STAFF")
 - AMOUNT is the quarterly payment in dollars
 """
-import csv, json, io, re, os, sys, urllib.request, urllib.parse, unicodedata
+import csv, json, io, re, os, sys, math, urllib.request, urllib.parse, unicodedata
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 
@@ -799,9 +799,27 @@ def main():
             json.dump({"quarter": latest_id, "employees": latest_employees}, f, separators=(",", ":"))
         print(f"Wrote data/employees.json ({os.path.getsize('data/employees.json'):,} bytes)", flush=True)
 
-    with open("data/people.json", "w") as f:
-        json.dump({"people": people_list}, f, separators=(",", ":"))
-    print(f"Wrote data/people.json ({os.path.getsize('data/people.json'):,} bytes, {len(people_list):,} people)", flush=True)
+    # Cloudflare Pages rejects any deployed file over 25 MiB — a single
+    # people.json blew past that once the 2016 backfill roughly doubled the
+    # tracked history (28MB). Shard it instead, sized with headroom (8MiB
+    # target) so a few more years of quarterly growth doesn't require
+    # resharding again immediately. app.js's loadPeople() fetches the
+    # manifest, then every shard in parallel, and concatenates them — order
+    # doesn't matter since nothing depends on people_list's sort position.
+    people_bytes = len(json.dumps({"people": people_list}, separators=(",", ":")).encode("utf-8"))
+    TARGET_SHARD_BYTES = 8 * 1024 * 1024
+    n_shards = max(1, math.ceil(people_bytes / TARGET_SHARD_BYTES))
+    shard_size = math.ceil(len(people_list) / n_shards)
+    old_people_json = "data/people.json"
+    if os.path.exists(old_people_json):
+        os.remove(old_people_json)  # superseded by the shards below
+    for i in range(n_shards):
+        chunk = people_list[i*shard_size:(i+1)*shard_size]
+        with open(f"data/people-{i}.json", "w") as f:
+            json.dump({"people": chunk}, f, separators=(",", ":"))
+    with open("data/people-manifest.json", "w") as f:
+        json.dump({"shards": n_shards}, f)
+    print(f"Wrote {n_shards} people-N.json shard(s) ({people_bytes:,} bytes total, {len(people_list):,} people)", flush=True)
 
 MONTH_TO_Q = {
     "JAN": 1, "JANUARY": 1, "FEB": 1, "FEBRUARY": 1, "MAR": 1, "MARCH": 1,
