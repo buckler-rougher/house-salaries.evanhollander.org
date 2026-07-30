@@ -748,12 +748,35 @@ tr:hover td { background: var(--bg2); }
 .emp-detail-yoy { font-size: .85rem; margin: 4px 0 16px; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
 .emp-detail-yoy-label { font-size: .75rem; color: var(--ink3); }
 .emp-detail-section { font-size: .65rem; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; color: var(--ink3); margin: 18px 0 10px; }
+/* Section heading with a control parked on its right (the tenure metric
+   toggle). The row owns the heading's vertical margins so the two don't
+   stack; the heading keeps its own margins when used standalone. */
+.emp-detail-section-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin: 18px 0 10px; }
+.emp-detail-section-row .emp-detail-section { margin: 0; }
 .emp-detail-chart { height: 234px; margin-bottom: 4px; }
 .emp-detail-comp-row { display: flex; justify-content: space-between; align-items: center; font-size: .85rem; padding: 6px 0; border-bottom: 1px solid var(--line); color: var(--ink2); }
 .emp-detail-comp-row:last-child { border-bottom: none; }
 .emp-detail-comp-you { font-weight: 800; color: var(--ink); background: var(--accent2); margin: 0 -8px; padding: 6px 8px; border-radius: 4px; }
 .emp-comp-title-link { color: var(--ink2); cursor: pointer; border-bottom: 1px dashed var(--ink3); }
 .emp-comp-title-link:hover { color: var(--ink); border-color: var(--ink); }
+/* Steps the comparison back one title. Sits inside the uppercase, letter-
+   spaced section heading, so it cancels that inherited spacing — the arrow
+   glyph would otherwise sit off-centre in its own box. */
+.ed-comp-undo {
+  margin-left: 6px;
+  padding: 0 5px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ink3);
+  font-size: .78rem;
+  line-height: 1.5;
+  letter-spacing: 0;
+  cursor: pointer;
+  vertical-align: middle;
+  transition: all .12s;
+}
+.ed-comp-undo:hover { border-color: var(--ink); color: var(--ink); }
 
 .ed-comp-wrap { position: relative; margin: -4px 0 14px; }
 .ed-comp-input {

@@ -258,27 +258,109 @@ function personTenureCensored(p) {
   return !!(p?.history?.length && p.history[0].quarter === earliestTrackedQuarterId());
 }
 
-// "10+ yrs" for anyone left-censored (real tenure unknown, at least this
-// long); otherwise an exact-ish figure in years, one decimal place. People
-// with no tracked history at all (too new — see people.json's 3+ quarter
-// floor) get null, which callers must handle rather than showing "0 yrs".
-function tenureLabel(p) {
-  const q = personTenureQuarters(p);
-  if (!q) return null;
+// Quarters → "2.8 yrs". `censored` turns it into an open-ended floor
+// ("10+ yrs") for people whose history runs back to the earliest quarter we
+// track, where the real figure is unknown and at least this large.
+function fmtTenureQuarters(q, censored) {
   const years = q / 4;
-  if (personTenureCensored(p)) return `${Math.floor(years)}+ yrs`;
+  if (censored) return `${Math.floor(years)}+ yrs`;
   const rounded = Math.round(years * 10) / 10;
   return `${rounded} yr${rounded === 1 ? "" : "s"}`;
 }
 
-// Tenure-quarter counts for everyone currently loaded, optionally narrowed
-// to one job title — same pool shape positionTrendByType uses for pay, so
-// the same fullStatsFromAmounts/estimatePercentile pair works unmodified.
-function tenurePool(titleFilter) {
+// People with no tracked history at all (too new — see people.json's 3+
+// quarter floor) get null, which callers must handle rather than showing
+// "0 yrs".
+function tenureLabel(p) {
+  const q = personTenureQuarters(p);
+  if (!q) return null;
+  return fmtTenureQuarters(q, personTenureCensored(p));
+}
+
+// Position of a quarter id in the tracked timeline, for comparing two ids by
+// recency. Built once and reused — summary.quarters doesn't change after load.
+let _qOrdinals = null;
+function quarterOrdinal(id) {
+  if (!_qOrdinals) {
+    _qOrdinals = {};
+    summary.quarters.forEach((q, i) => { _qOrdinals[q.id] = i; });
+  }
+  return _qOrdinals[id];
+}
+
+// ── Role tenure ──
+// Quarters spent in the title the person holds now, as opposed to their total
+// time in the House. person.titles is server-side run-length encoding of the
+// title held over each quarter range (see fetch_sod.py), so the current title
+// is the last segment's.
+//
+// Every segment carrying that title counts, not just the trailing run. Two
+// reasons: SOD title strings are truncated and drift between quarters (the
+// same job can read "Staff Assistant" one quarter and "Staff Assistant/Intern
+// Coordin" the next), which would spuriously reset a trailing-run count; and
+// it matches how House tenure above already sums quarters present rather than
+// subtracting dates. Someone genuinely promoted away from a title and back
+// therefore reads as their combined time in it.
+//
+// A segment's from..to range can span quarters the person was absent for (RLE
+// merges across a gap when the title is unchanged), so this counts history
+// entries inside the range rather than the range's own width — same
+// quarters-actually-worked basis as personTenureQuarters.
+const _roleTenureMemo = new WeakMap();
+function personRoleTenureQuarters(p) {
+  if (!p?.history?.length || !p.titles?.length) return 0;
+  if (_roleTenureMemo.has(p)) return _roleTenureMemo.get(p);
+  const current = p.titles[p.titles.length - 1].title;
+  let n = 0;
+  for (const seg of p.titles) {
+    if (seg.title !== current) continue;
+    const lo = quarterOrdinal(seg.from), hi = quarterOrdinal(seg.to);
+    if (lo == null || hi == null) continue;
+    for (const h of p.history) {
+      const o = quarterOrdinal(h.quarter);
+      if (o >= lo && o <= hi) n++;
+    }
+  }
+  _roleTenureMemo.set(p, n);
+  return n;
+}
+
+// Only House tenure can be left-censored: it's censored when the person's
+// history starts at the earliest tracked quarter, and role tenure is censored
+// under exactly the same condition (their current title's first segment must
+// then also start there) — but only if that first segment *is* the current
+// title. Someone who reaches back to the floor under a different title has a
+// fully observed start date for the title they hold now.
+function personRoleTenureCensored(p) {
+  return !!(personTenureCensored(p) && p.titles?.[0]?.title === p.titles?.[p.titles.length - 1]?.title);
+}
+
+const TENURE_METRICS = {
+  house: { label: "On the Hill", quarters: personTenureQuarters, censored: personTenureCensored },
+  role: { label: "In current role", quarters: personRoleTenureQuarters, censored: personRoleTenureCensored },
+};
+
+// Tenure-quarter counts for the staff serving in the quarter being viewed,
+// optionally narrowed to one job title — same pool shape positionTrendByType
+// uses for pay, so the same fullStatsFromAmounts/estimatePercentile pair works
+// unmodified. `metric` picks total House time vs. time in the person's own
+// current role; under "role" each pool member is measured against their own
+// current title, which is what makes "median holder of this title has held it
+// N years" work.
+//
+// The quarter filter matters a lot: peopleData is every person tracked since
+// 2016, so pooling all of them mixes in careers that ended years ago, whose
+// tenure stopped accruing. That drags the pool down and flatters everyone
+// still serving — it moved the all-staff median from 2.8 yrs to 2.0. The
+// salary block this sits under compares against a single quarter's roster
+// too, so matching it keeps the two halves of the card on one cohort.
+function tenurePool(titleFilter, metric) {
   if (!peopleData) return [];
+  const of = (TENURE_METRICS[metric] || TENURE_METRICS.house).quarters;
+  const qId = viewedQuarter().id;
   return peopleData
-    .filter(p => !titleFilter || (p.title_group || p.title) === titleFilter)
-    .map(personTenureQuarters)
+    .filter(p => (!titleFilter || (p.title_group || p.title) === titleFilter) && p.history.some(h => h.quarter === qId))
+    .map(of)
     .filter(q => q > 0);
 }
 
@@ -1522,7 +1604,7 @@ async function showPersonInline(name, officeName) {
   const overallStats = adjQuarter(viewedQuarter()).overall;
   const compHtml = latestEmp ? `
     <div class="emp-detail-section">
-      Compare to: <span id="ed-comp-title" class="emp-comp-title-link">${esc(compTitle)}</span>
+      Compare to: <span id="ed-comp-title" class="emp-comp-title-link">${esc(compTitle)}</span><button id="ed-comp-undo" class="ed-comp-undo" type="button" style="display:none" title="Back to the previous comparison" aria-label="Back to the previous comparison">&#8592;</button>
     </div>
     <div class="ed-comp-wrap" id="ed-comp-wrap" style="display:none">
       <div class="ed-comp-allstaff" id="ed-comp-allstaff" data-title="${ALL_STAFF_KEY}">
@@ -1531,6 +1613,7 @@ async function showPersonInline(name, officeName) {
       <input id="ed-comp-search" class="ed-comp-input" placeholder="Search a title…" autocomplete="off" />
       <div id="ed-comp-results" class="ed-comp-results"></div>
     </div>
+    <div class="emp-detail-section">Salary</div>
     <div id="ed-comp-stats"></div>
     <div id="ed-tenure-stats"></div>` : "";
 
@@ -1635,38 +1718,62 @@ async function showPersonInline(name, officeName) {
     }
     renderCompStats(compTitle);
 
-    // Tenure percentile — same pattern as the salary comparison above, but
-    // pooled from peopleData's tracked-quarter counts instead of the
-    // precomputed per-title pay stats, since tenure isn't in summary.json.
-    // Skipped (not "0 percentile") for anyone without tracked history, per
-    // people.json's 3+ quarter floor for brand-new staff.
+    // Tenure — laid out exactly like the salary comparison above (25th /
+    // median / 75th of the pool, with this person's own row slotted into
+    // where they actually fall), just pooled from peopleData's tracked-quarter
+    // counts instead of the precomputed per-title pay stats, since tenure
+    // isn't in summary.json. Skipped entirely (not "0 percentile") for anyone
+    // without tracked history, per people.json's 3+ quarter floor.
     //
-    // Carries its own "Tenure" section heading rather than sitting flush
-    // against the salary rows above it: two stacks of bare label/value rows
-    // with no break between them read as one table, so the years figure
-    // looked like another salary statistic. The heading has to live in here
-    // (not in the static markup) so it disappears along with the rows for
-    // anyone with no tracked history — an orphaned heading over nothing is
-    // worse than no section at all. It also lets the rows drop the "Tenure
-    // vs." prefix the heading now carries for them.
+    // There's no "vs. all staff" row: the pool follows the same Compare-to
+    // title as the salary block, and that selector already offers All staff.
+    //
+    // The heading and its toggle live in here rather than the static markup so
+    // they disappear along with the rows for anyone with no tracked history —
+    // an orphaned heading over nothing is worse than no section at all. That
+    // means the toggle's buttons are rebuilt on every render, so the chosen
+    // metric is held out here in the closure instead of read back off the DOM.
+    let tenureMetric = "house";
+
     function renderTenureStats(titleStr) {
       const el = detail.querySelector("#ed-tenure-stats");
       if (!el) return;
-      const you = person ? personTenureQuarters(person) : 0;
-      const label = person ? tenureLabel(person) : null;
-      if (!you || !label) { el.innerHTML = ""; return; }
-      const overallTs = fullStatsFromAmounts(tenurePool());
-      const overallPct = overallTs ? estimatePercentile(you, overallTs) : null;
-      let titleRow = "";
-      if (titleStr && titleStr !== ALL_STAFF_KEY) {
-        const titleTs = fullStatsFromAmounts(tenurePool(titleStr));
-        const titlePct = titleTs ? estimatePercentile(you, titleTs) : null;
-        if (titlePct != null) titleRow = `<div class="emp-detail-comp-row"><span>vs. ${esc(titleStr)}</span><span>${ordinal(titlePct)} pct.</span></div>`;
+      const metric = TENURE_METRICS[tenureMetric];
+      const you = person ? metric.quarters(person) : 0;
+      if (!you) { el.innerHTML = ""; return; }
+
+      const titleFilter = titleStr && titleStr !== ALL_STAFF_KEY ? titleStr : null;
+      const ts = fullStatsFromAmounts(tenurePool(titleFilter, tenureMetric));
+      const pills = Object.entries(TENURE_METRICS).map(([k, m]) =>
+        `<button class="mini-pill${k === tenureMetric ? " active" : ""}" data-tenure-metric="${k}">${m.label}</button>`).join("");
+      const head = `<div class="emp-detail-section-row">
+        <div class="emp-detail-section">Tenure</div>
+        <div class="mini-pills">${pills}</div>
+      </div>`;
+
+      const wire = () => el.querySelectorAll("[data-tenure-metric]").forEach(b =>
+        b.addEventListener("click", () => { tenureMetric = b.dataset.tenureMetric; renderTenureStats(currentCompTitle); }));
+
+      if (!ts) {
+        el.innerHTML = head + `<div style="font-size:.78rem;color:var(--ink3);padding:6px 0">No tenure data for this title.</div>`;
+        wire();
+        return;
       }
-      const overallRow = overallPct != null ? `<div class="emp-detail-comp-row"><span>vs. all staff</span><span>${ordinal(overallPct)} pct.</span></div>` : "";
-      if (!titleRow && !overallRow) { el.innerHTML = ""; return; }
-      el.innerHTML = `<div class="emp-detail-section">Tenure</div>` +
-        `<div class="emp-detail-comp-row emp-detail-comp-you"><span>${esc(name)}</span><span>${label}</span></div>${titleRow}${overallRow}`;
+      const pctileNum = estimatePercentile(you, ts);
+      const pctile = pctileNum != null ? `${ordinal(pctileNum)} percentile` : "";
+      const youRow = `<div class="emp-detail-comp-row emp-detail-comp-you"><span>${esc(name)} ${pctile ? `<span style="font-weight:400;font-size:.72rem;opacity:.7">${pctile}</span>` : ""}</span><span>${fmtTenureQuarters(you, metric.censored(person))}</span></div>`;
+      const r25 = `<div class="emp-detail-comp-row"><span>25th pct.</span><span>${fmtTenureQuarters(ts.p25)}</span></div>`;
+      const rMed = `<div class="emp-detail-comp-row"><span>Median</span><span>${fmtTenureQuarters(ts.median)}</span></div>`;
+      const r75 = `<div class="emp-detail-comp-row"><span>75th pct.</span><span>${fmtTenureQuarters(ts.p75)}</span></div>`;
+      const rows = you < ts.p25
+        ? [youRow, r25, rMed, r75]
+        : you < ts.median
+          ? [r25, youRow, rMed, r75]
+          : you < ts.p75
+            ? [r25, rMed, youRow, r75]
+            : [r25, rMed, r75, youRow];
+      el.innerHTML = head + rows.join("");
+      wire();
     }
     renderTenureStats(compTitle);
 
@@ -1731,18 +1838,38 @@ async function showPersonInline(name, officeName) {
       renderCompStats(currentCompTitle);
     });
 
-    const titleEl = detail.querySelector("#ed-comp-title"), wrap = detail.querySelector("#ed-comp-wrap"), searchEl = detail.querySelector("#ed-comp-search"), resultsEl = detail.querySelector("#ed-comp-results"), allStaffEl = detail.querySelector("#ed-comp-allstaff");
+    const titleEl = detail.querySelector("#ed-comp-title"), wrap = detail.querySelector("#ed-comp-wrap"), searchEl = detail.querySelector("#ed-comp-search"), resultsEl = detail.querySelector("#ed-comp-results"), allStaffEl = detail.querySelector("#ed-comp-allstaff"), undoEl = detail.querySelector("#ed-comp-undo");
     if (titleEl) {
+      // Every comparison the card has shown, oldest first, so the ← button can
+      // walk back one step at a time. It's a stack rather than a plain "reset
+      // to their own title" because comparing across two or three titles in a
+      // row is the normal way people use this, and losing the intermediate
+      // ones would make the button useless in exactly that case. Empty stack
+      // means we're still on the person's own title, so the button hides.
+      const compHistory = [];
+      const showCompTitle = key => { titleEl.textContent = key === ALL_STAFF_KEY ? "All staff" : key; };
+      const applyCompTitle = key => {
+        wrap.style.display = "none"; resultsEl.style.display = "none";
+        showCompTitle(key);
+        renderCompStats(key);
+        renderTenureStats(key);
+        if (undoEl) undoEl.style.display = compHistory.length ? "" : "none";
+      };
+      const selectCompTitle = key => {
+        if (key === currentCompTitle) return;
+        compHistory.push(currentCompTitle);
+        applyCompTitle(key);
+      };
+
       titleEl.addEventListener("click", () => {
         wrap.style.display = wrap.style.display === "none" ? "block" : "none";
         if (wrap.style.display === "block") { searchEl.value = ""; searchEl.focus(); }
       });
-      allStaffEl?.addEventListener("click", () => {
-        titleEl.textContent = "All staff";
-        wrap.style.display = "none"; resultsEl.style.display = "none";
-        renderCompStats(ALL_STAFF_KEY);
-        renderTenureStats(ALL_STAFF_KEY);
+      undoEl?.addEventListener("click", () => {
+        if (!compHistory.length) return;
+        applyCompTitle(compHistory.pop());
       });
+      allStaffEl?.addEventListener("click", () => selectCompTitle(ALL_STAFF_KEY));
       searchEl.addEventListener("input", () => {
         const q = searchEl.value.toLowerCase().trim();
         if (!q) { resultsEl.style.display = "none"; return; }
@@ -1750,12 +1877,7 @@ async function showPersonInline(name, officeName) {
         resultsEl.innerHTML = hits.map(t => `<div class="ed-comp-result" data-title="${esc(t.title)}"><span class="ed-comp-result-title">${esc(t.title)}</span><span class="ed-comp-result-med">${fmtK(t.median)}</span></div>`).join("");
         resultsEl.style.display = hits.length ? "block" : "none";
         resultsEl.querySelectorAll(".ed-comp-result").forEach(row => {
-          row.addEventListener("click", () => {
-            titleEl.textContent = row.dataset.title;
-            wrap.style.display = "none"; resultsEl.style.display = "none";
-            renderCompStats(row.dataset.title);
-            renderTenureStats(row.dataset.title);
-          });
+          row.addEventListener("click", () => selectCompTitle(row.dataset.title));
         });
       });
     }
