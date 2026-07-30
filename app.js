@@ -1730,9 +1730,9 @@ async function showPersonInline(name, officeName) {
     //
     // The heading and its toggle live in here rather than the static markup so
     // they disappear along with the rows for anyone with no tracked history —
-    // an orphaned heading over nothing is worse than no section at all. That
-    // means the toggle's buttons are rebuilt on every render, so the chosen
-    // metric is held out here in the closure instead of read back off the DOM.
+    // an orphaned heading over nothing is worse than no section at all. The
+    // chosen metric is held in the closure rather than read back off the DOM,
+    // since the section can be torn down and rebuilt underneath it.
     let tenureMetric = "house";
 
     function renderTenureStats(titleStr) {
@@ -1744,27 +1744,51 @@ async function showPersonInline(name, officeName) {
 
       const titleFilter = titleStr && titleStr !== ALL_STAFF_KEY ? titleStr : null;
       const ts = fullStatsFromAmounts(tenurePool(titleFilter, tenureMetric));
-      const pills = Object.entries(TENURE_METRICS).map(([k, m]) =>
-        `<button class="mini-pill${k === tenureMetric ? " active" : ""}" data-tenure-metric="${k}"${m.hint ? ` title="${esc(m.hint)}"` : ""}>${m.label}</button>`).join("");
-      const head = `<div class="emp-detail-section-row">
-        <div class="emp-detail-section">Tenure</div>
-        <div class="mini-pills">${pills}</div>
-      </div>`;
 
-      const wire = () => el.querySelectorAll("[data-tenure-metric]").forEach(b =>
-        b.addEventListener("click", () => { tenureMetric = b.dataset.tenureMetric; renderTenureStats(currentCompTitle); }));
+      // The heading is built once and then only has its active class moved,
+      // rather than being re-rendered — a fresh button element would start
+      // life already in its final state, so .mini-pill's own CSS transition
+      // would never play. Same reason the chart's Q1–Q4 pills are static
+      // markup that makeMiniTrend() only toggles classes on.
+      if (!el.querySelector(".emp-detail-section-row")) {
+        const pills = Object.entries(TENURE_METRICS).map(([k, m]) =>
+          `<button class="mini-pill" data-tenure-metric="${k}"${m.hint ? ` title="${esc(m.hint)}"` : ""}>${m.label}</button>`).join("");
+        el.innerHTML = `<div class="emp-detail-section-row">
+            <div class="emp-detail-section">Tenure</div>
+            <div class="mini-pills">${pills}</div>
+          </div><div class="ed-tenure-rows"></div>`;
+        el.querySelectorAll("[data-tenure-metric]").forEach(b =>
+          b.addEventListener("click", () => { tenureMetric = b.dataset.tenureMetric; renderTenureStats(currentCompTitle); }));
+      }
+      el.querySelectorAll("[data-tenure-metric]").forEach(b =>
+        b.classList.toggle("active", b.dataset.tenureMetric === tenureMetric));
+
+      // Switching metric moves this person's row to a different rank and
+      // changes every figure, which as a straight innerHTML swap read as the
+      // whole block flickering into an unrelated state. Captured here, before
+      // the rows are replaced, so the new ones can slide from their old
+      // positions and count from their old values — the same FLIP + tween
+      // pair the position card's staff list uses.
+      const rowsEl = el.querySelector(".ed-tenure-rows");
+      const priorRects = new Map(), priorVals = new Map();
+      rowsEl.querySelectorAll("[data-key]").forEach(r => {
+        priorRects.set(r.dataset.key, r.getBoundingClientRect());
+        priorVals.set(r.dataset.key, +r.dataset.q);
+      });
 
       if (!ts) {
-        el.innerHTML = head + `<div style="font-size:.78rem;color:var(--ink3);padding:6px 0">No tenure data for this title.</div>`;
-        wire();
+        rowsEl.innerHTML = `<div style="font-size:.78rem;color:var(--ink3);padding:6px 0">No tenure data for this title.</div>`;
         return;
       }
+      const row = (key, label, q, censored, cls = "") =>
+        `<div class="emp-detail-comp-row${cls}" data-key="${key}" data-q="${q}"><span>${label}</span><span class="ed-tenure-val">${fmtTenureQuarters(q, censored)}</span></div>`;
       const pctileNum = estimatePercentile(you, ts);
       const pctile = pctileNum != null ? `${ordinal(pctileNum)} percentile` : "";
-      const youRow = `<div class="emp-detail-comp-row emp-detail-comp-you"><span>${esc(name)} ${pctile ? `<span style="font-weight:400;font-size:.72rem;opacity:.7">${pctile}</span>` : ""}</span><span>${fmtTenureQuarters(you, metric.censored(person))}</span></div>`;
-      const r25 = `<div class="emp-detail-comp-row"><span>25th pct.</span><span>${fmtTenureQuarters(ts.p25)}</span></div>`;
-      const rMed = `<div class="emp-detail-comp-row"><span>Median</span><span>${fmtTenureQuarters(ts.median)}</span></div>`;
-      const r75 = `<div class="emp-detail-comp-row"><span>75th pct.</span><span>${fmtTenureQuarters(ts.p75)}</span></div>`;
+      const youCensored = metric.censored(person);
+      const youRow = row("you", `${esc(name)} ${pctile ? `<span style="font-weight:400;font-size:.72rem;opacity:.7">${pctile}</span>` : ""}`, you, youCensored, " emp-detail-comp-you");
+      const r25 = row("p25", "25th pct.", ts.p25);
+      const rMed = row("median", "Median", ts.median);
+      const r75 = row("p75", "75th pct.", ts.p75);
       const rows = you < ts.p25
         ? [youRow, r25, rMed, r75]
         : you < ts.median
@@ -1772,8 +1796,20 @@ async function showPersonInline(name, officeName) {
           : you < ts.p75
             ? [r25, rMed, youRow, r75]
             : [r25, rMed, r75, youRow];
-      el.innerHTML = head + rows.join("");
-      wire();
+      rowsEl.innerHTML = rows.join("");
+
+      if (priorRects.size) {
+        morphKeyedRows(rowsEl, ".emp-detail-comp-row", priorRects);
+        if (!window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+          rowsEl.querySelectorAll("[data-key]").forEach(r => {
+            const from = priorVals.get(r.dataset.key);
+            // A censored figure is a floor ("10+ yrs"), not a quantity to
+            // count through — it stays put while the others tween.
+            if (from == null || (r.dataset.key === "you" && youCensored)) return;
+            animatePositionNumberText(r.querySelector(".ed-tenure-val"), from, +r.dataset.q, q => fmtTenureQuarters(q));
+          });
+        }
+      }
     }
     renderTenureStats(compTitle);
 
@@ -2021,33 +2057,64 @@ async function restoreState() {
 // ── By Office ──
 let officeData = [];
 
-function buildOfficeData() {
-  if (isLatestQuarter()) {
-    // Only used for the tenure sort option — built once per call rather
-    // than per-office, since scanning all of peopleData per office would be
-    // quadratic in office count for no benefit.
-    const tenureByPerson = new Map();
-    if (peopleData) peopleData.forEach(p => tenureByPerson.set(`${p.name}|${p.office}`, personTenureQuarters(p)));
+// Median tenure per office among the staff serving in `qId`, measured as of
+// that quarter — history *after* it doesn't count, so stepping back through
+// quarters shows what tenure looked like then rather than today's figure
+// pinned onto an old roster.
+//
+// Only summary.json's pre-aggregated top_offices exists for past quarters and
+// it carries no tenure, which is why the whole thing is derived from
+// peopleData here instead. Both the latest and historical branches of
+// buildOfficeData() go through this so the number doesn't jump for reasons
+// other than the quarter change when you step across the boundary.
+//
+// Cached per quarter: the office type/party filters drop whole offices rather
+// than individual staff within one, so a filtered rebuild never changes any
+// surviving office's median.
+const _officeTenureCache = new Map();
+function officeMedianTenureFor(qId) {
+  if (_officeTenureCache.has(qId)) return _officeTenureCache.get(qId);
+  const out = new Map();
+  const cutoff = quarterOrdinal(qId);
+  if (!peopleData || cutoff == null) return out; // not cached — peopleData may still be in flight
+  const byOffice = new Map();
+  for (const p of peopleData) {
+    let n = 0, present = false;
+    for (const h of p.history) {
+      if (quarterOrdinal(h.quarter) <= cutoff) n++;
+      if (h.quarter === qId) present = true;
+    }
+    if (!present) continue;
+    const arr = byOffice.get(p.office);
+    if (arr) arr.push(n); else byOffice.set(p.office, [n]);
+  }
+  for (const [office, arr] of byOffice) {
+    arr.sort((a, b) => a - b);
+    const m = arr.length % 2 ? arr[(arr.length - 1) / 2] : (arr[arr.length / 2 - 1] + arr[arr.length / 2]) / 2;
+    out.set(office, m);
+  }
+  _officeTenureCache.set(qId, out);
+  return out;
+}
 
+function buildOfficeData() {
+  const tenureByOffice = officeMedianTenureFor(viewedQuarter().id);
+  if (isLatestQuarter()) {
     const groups = {};
     employees.filter(e => !e.intern && !e.shared && e.annual_equiv >= HOUSE_MIN_ANNUAL && (!officeTypeFilter || e.type === officeTypeFilter) && (!partyFilter || partyValueOf(e) === partyFilter)).forEach(e => {
       const key = cleanOrg(e.office);
-      if (!groups[key]) groups[key] = { name: key, type: e.type, party: e.party, leadership_party: e.leadership_party, amounts: [], tenures: [] };
+      if (!groups[key]) groups[key] = { name: key, type: e.type, party: e.party, leadership_party: e.leadership_party, amounts: [] };
       groups[key].amounts.push(e.annual_equiv);
-      const t = tenureByPerson.get(`${e.name}|${key}`);
-      if (t) groups[key].tenures.push(t);
     });
     officeData = Object.values(groups).map(g => {
       const s = g.amounts.slice().sort((a,b) => a-b);
       const p = pct => { const i=(s.length-1)*pct/100; const lo=Math.floor(i),hi=Math.min(lo+1,s.length-1); return s[lo]+(s[hi]-s[lo])*(i-lo); };
       const totalAnnual = Math.round(s.reduce((a,b)=>a+b,0));
-      const tq = g.tenures.slice().sort((a,b) => a-b);
-      const medianTenureQuarters = tq.length ? (tq.length % 2 ? tq[(tq.length-1)/2] : (tq[tq.length/2 - 1] + tq[tq.length/2]) / 2) : null;
       return { name: g.name, type: g.type, party: g.party, leadership_party: g.leadership_party, count: s.length,
         min: Math.round(s[0]), max: Math.round(s[s.length-1]),
         median: Math.round(p(50)), p25: Math.round(p(25)), p75: Math.round(p(75)),
         mean: Math.round(totalAnnual / s.length),
-        totalAnnual, medianTenureQuarters };
+        totalAnnual, medianTenureQuarters: tenureByOffice.get(g.name) ?? null };
     });
   } else {
     // Use pre-aggregated top_offices from that quarter's summary
@@ -2059,6 +2126,7 @@ function buildOfficeData() {
         min: o.min, max: o.max, median: o.median, p25: o.p25, p75: o.p75,
         mean: o.mean,
         totalAnnual: o.total_quarterly_pay != null ? o.total_quarterly_pay * 4 : null,
+        medianTenureQuarters: tenureByOffice.get(o.name) ?? null,
       }));
   }
 }
