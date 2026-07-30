@@ -364,6 +364,32 @@ function tenurePool(titleFilter, metric) {
     .filter(q => q > 0);
 }
 
+// Below this many people in the pool, a percentile isn't describing anything —
+// it's just restating where one of three or four numbers happens to sit. The
+// salary side gets this for free (summary.json's top_titles only includes
+// titles with 2+ staff), but tenure pools are built here from raw peopleData
+// with no such floor, so 17% of current staff — the sole holder of their
+// title — were being ranked against a pool consisting only of themselves.
+const TENURE_MIN_POOL = 5;
+
+// Percentile of `v` within a raw sample, counting ties at v as half a rank
+// each (the standard midrank convention).
+//
+// estimatePercentile() can't do this and isn't wrong to: it only ever sees
+// precomputed p25/median/p75, because summary.json ships pay aggregates
+// without the underlying sample, so it interpolates between them and reports
+// anyone at or below the minimum as 0th. That's fine for dollar salaries,
+// where exact ties across a pool are vanishingly rare. Tenure is whole
+// quarters, so ties are the norm — 12% of current staff sit exactly on their
+// title pool's floor, and over half of those share it with someone — and
+// tenure has the actual sample in hand here, so it can rank properly.
+function midrankPercentile(v, sample) {
+  if (!sample.length) return null;
+  let below = 0, tied = 0;
+  for (const x of sample) { if (x < v) below++; else if (x === v) tied++; }
+  return Math.round(100 * (below + tied / 2) / sample.length);
+}
+
 // The header stats (bar/trio/min-max/count) for a position card, preferring
 // the same tenure-filtered peopleData cohort the trend chart uses — that
 // excludes each quarter's brand-new hires, which is a *more* accurate read of
@@ -1743,7 +1769,8 @@ async function showPersonInline(name, officeName) {
       if (!you) { el.innerHTML = ""; return; }
 
       const titleFilter = titleStr && titleStr !== ALL_STAFF_KEY ? titleStr : null;
-      const ts = fullStatsFromAmounts(tenurePool(titleFilter, tenureMetric));
+      const pool = tenurePool(titleFilter, tenureMetric);
+      const ts = pool.length >= TENURE_MIN_POOL ? fullStatsFromAmounts(pool) : null;
 
       // The heading is built once and then only has its active class moved,
       // rather than being re-rendered — a fresh button element would start
@@ -1776,27 +1803,33 @@ async function showPersonInline(name, officeName) {
         priorVals.set(r.dataset.key, +r.dataset.q);
       });
 
-      if (!ts) {
-        rowsEl.innerHTML = `<div style="font-size:.78rem;color:var(--ink3);padding:6px 0">No tenure data for this title.</div>`;
-        return;
-      }
       const row = (key, label, q, censored, cls = "") =>
         `<div class="emp-detail-comp-row${cls}" data-key="${key}" data-q="${q}"><span>${label}</span><span class="ed-tenure-val">${fmtTenureQuarters(q, censored)}</span></div>`;
-      const pctileNum = estimatePercentile(you, ts);
-      const pctile = pctileNum != null ? `${ordinal(pctileNum)} percentile` : "";
       const youCensored = metric.censored(person);
-      const youRow = row("you", `${esc(name)} ${pctile ? `<span style="font-weight:400;font-size:.72rem;opacity:.7">${pctile}</span>` : ""}`, you, youCensored, " emp-detail-comp-you");
-      const r25 = row("p25", "25th pct.", ts.p25);
-      const rMed = row("median", "Median", ts.median);
-      const r75 = row("p75", "75th pct.", ts.p75);
-      const rows = you < ts.p25
-        ? [youRow, r25, rMed, r75]
-        : you < ts.median
-          ? [r25, youRow, rMed, r75]
-          : you < ts.p75
-            ? [r25, rMed, youRow, r75]
-            : [r25, rMed, r75, youRow];
-      rowsEl.innerHTML = rows.join("");
+
+      // Too few others to rank against — but the person's own figure is worth
+      // showing on its own, and switching Compare to back to All staff always
+      // gives a pool big enough, so say which of the two it is rather than
+      // dropping the section.
+      if (!ts) {
+        rowsEl.innerHTML = row("you", esc(name), you, youCensored, " emp-detail-comp-you") +
+          `<div style="font-size:.78rem;color:var(--ink3);padding:6px 0">Too few staff${titleFilter ? " with this title" : ""} to rank against.</div>`;
+      } else {
+        const pctileNum = midrankPercentile(you, pool);
+        const pctile = pctileNum != null ? `${ordinal(pctileNum)} percentile` : "";
+        const youRow = row("you", `${esc(name)} ${pctile ? `<span style="font-weight:400;font-size:.72rem;opacity:.7">${pctile}</span>` : ""}`, you, youCensored, " emp-detail-comp-you");
+        const r25 = row("p25", "25th pct.", ts.p25);
+        const rMed = row("median", "Median", ts.median);
+        const r75 = row("p75", "75th pct.", ts.p75);
+        const rows = you < ts.p25
+          ? [youRow, r25, rMed, r75]
+          : you < ts.median
+            ? [r25, youRow, rMed, r75]
+            : you < ts.p75
+              ? [r25, rMed, youRow, r75]
+              : [r25, rMed, r75, youRow];
+        rowsEl.innerHTML = rows.join("");
+      }
 
       if (priorRects.size) {
         morphKeyedRows(rowsEl, ".emp-detail-comp-row", priorRects);
