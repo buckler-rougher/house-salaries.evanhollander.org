@@ -336,7 +336,7 @@ function personRoleTenureCensored(p) {
 }
 
 const TENURE_METRICS = {
-  house: { label: "On the Hill", quarters: personTenureQuarters, censored: personTenureCensored },
+  house: { label: "In the House", hint: "Overall length of service", quarters: personTenureQuarters, censored: personTenureCensored },
   role: { label: "In current role", quarters: personRoleTenureQuarters, censored: personRoleTenureCensored },
 };
 
@@ -1745,7 +1745,7 @@ async function showPersonInline(name, officeName) {
       const titleFilter = titleStr && titleStr !== ALL_STAFF_KEY ? titleStr : null;
       const ts = fullStatsFromAmounts(tenurePool(titleFilter, tenureMetric));
       const pills = Object.entries(TENURE_METRICS).map(([k, m]) =>
-        `<button class="mini-pill${k === tenureMetric ? " active" : ""}" data-tenure-metric="${k}">${m.label}</button>`).join("");
+        `<button class="mini-pill${k === tenureMetric ? " active" : ""}" data-tenure-metric="${k}"${m.hint ? ` title="${esc(m.hint)}"` : ""}>${m.label}</button>`).join("");
       const head = `<div class="emp-detail-section-row">
         <div class="emp-detail-section">Tenure</div>
         <div class="mini-pills">${pills}</div>
