@@ -1678,7 +1678,7 @@ async function showPersonInline(name, officeName) {
     // timeline and is silently dropped by makeMiniTrend (it only keeps
     // segments whose quarter ids are actually present in the current view).
     const titleSegments = (person.titles || []).map(t => ({ fromId: t.from, toId: t.to, title: t.title }));
-    const controller = makeMiniTrend(detail, getPersonData, seed, firstTrackedQuarter, titleSegments);
+    const controller = makeMiniTrend(detail, getPersonData, seed, firstTrackedQuarter, titleSegments, true);
     lastPersonTrend = { name, office: officeName, controller };
   } else {
     lastPersonTrend = null;
@@ -3062,7 +3062,7 @@ function buildSparklineFrame(fullLabels, fullData, xs, opacities, padL = 54, mar
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%"><defs>${fillGrad.defs}</defs>${yTicks}${markerLines}${fills}${lines}${dots}${xLabels}</svg>`;
 }
 
-function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId, titleSegments) {
+function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId, titleSegments, trimToData) {
   // miniTrendHtml() already rendered the pills with the right "active" class
   // for `initial` — reading it back off the DOM (rather than trusting
   // `initial` directly) keeps this in sync even if the template and this
@@ -3087,11 +3087,33 @@ function makeMiniTrend(wrapEl, getDataFn, seedView, excludeFirstQuarterId, title
       .filter(s => s.fromIdx >= 0 && s.toIdx >= 0);
   }
 
+  // With the timeline now reaching back to 2016, a series that only covers the
+  // recent end of it — a person hired in 2024, say — was being drawn squashed
+  // into the right quarter of the plot with years of blank axis to its left.
+  // `trimToData` clips the timeline to the span the series actually covers.
+  //
+  // Interior nulls are deliberately kept: a gap in the middle is someone
+  // leaving and coming back, which the chart should show as a gap. Only the
+  // empty leading and trailing runs go.
+  //
+  // The bounds come from the unfiltered (qf=0) series, so the Q1–Q4 filters
+  // all clip to the same span rather than each finding their own — otherwise
+  // switching between them would rescale the axis under the user.
+  function trimBounds(allData) {
+    const lo = allData.findIndex(v => v != null);
+    if (!trimToData || lo < 0) return [0, allData.length - 1];
+    let hi = allData.length - 1;
+    while (hi > lo && allData[hi] == null) hi--;
+    return [lo, hi];
+  }
+
   function computeView() {
-    const allQs = summary.quarters;
+    const allData = getDataFn(metric, 0); // qf=0 -> every quarter, aligned with summary.quarters
+    const [lo, hi] = trimBounds(allData);
+    const allQs = summary.quarters.slice(lo, hi + 1);
+    const fullData = allData.slice(lo, hi + 1);
     const fullLabels = allQs.map(q => q.label);
     const visible = allQs.map(q => !qf || q.quarter === qf);
-    const fullData = getDataFn(metric, 0); // qf=0 -> every quarter, aligned with fullLabels
     const visIdx = [];
     for (let i = 0; i < fullLabels.length; i++) if (visible[i]) visIdx.push(i);
     return {
