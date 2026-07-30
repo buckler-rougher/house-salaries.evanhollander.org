@@ -1640,6 +1640,15 @@ async function showPersonInline(name, officeName) {
     // precomputed per-title pay stats, since tenure isn't in summary.json.
     // Skipped (not "0 percentile") for anyone without tracked history, per
     // people.json's 3+ quarter floor for brand-new staff.
+    //
+    // Carries its own "Tenure" section heading rather than sitting flush
+    // against the salary rows above it: two stacks of bare label/value rows
+    // with no break between them read as one table, so the years figure
+    // looked like another salary statistic. The heading has to live in here
+    // (not in the static markup) so it disappears along with the rows for
+    // anyone with no tracked history — an orphaned heading over nothing is
+    // worse than no section at all. It also lets the rows drop the "Tenure
+    // vs." prefix the heading now carries for them.
     function renderTenureStats(titleStr) {
       const el = detail.querySelector("#ed-tenure-stats");
       if (!el) return;
@@ -1652,11 +1661,12 @@ async function showPersonInline(name, officeName) {
       if (titleStr && titleStr !== ALL_STAFF_KEY) {
         const titleTs = fullStatsFromAmounts(tenurePool(titleStr));
         const titlePct = titleTs ? estimatePercentile(you, titleTs) : null;
-        if (titlePct != null) titleRow = `<div class="emp-detail-comp-row"><span>Tenure vs. ${esc(titleStr)}</span><span>${ordinal(titlePct)} pct.</span></div>`;
+        if (titlePct != null) titleRow = `<div class="emp-detail-comp-row"><span>vs. ${esc(titleStr)}</span><span>${ordinal(titlePct)} pct.</span></div>`;
       }
-      const overallRow = overallPct != null ? `<div class="emp-detail-comp-row"><span>Tenure vs. all staff</span><span>${ordinal(overallPct)} pct.</span></div>` : "";
+      const overallRow = overallPct != null ? `<div class="emp-detail-comp-row"><span>vs. all staff</span><span>${ordinal(overallPct)} pct.</span></div>` : "";
       if (!titleRow && !overallRow) { el.innerHTML = ""; return; }
-      el.innerHTML = `<div class="emp-detail-comp-row emp-detail-comp-you"><span>Tenure</span><span>${label}</span></div>${titleRow}${overallRow}`;
+      el.innerHTML = `<div class="emp-detail-section">Tenure</div>` +
+        `<div class="emp-detail-comp-row emp-detail-comp-you"><span>${esc(name)}</span><span>${label}</span></div>${titleRow}${overallRow}`;
     }
     renderTenureStats(compTitle);
 
