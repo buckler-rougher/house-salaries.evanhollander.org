@@ -17,7 +17,7 @@
   <link rel="icon" href="favicon.ico?v=20260715ag" sizes="any" />
   <link rel="icon" type="image/svg+xml" href="favicon.svg?v=20260715ag" />
   <link rel="apple-touch-icon" href="favicon.png?v=20260715ag" />
-  <link rel="stylesheet" href="styles.css?v=20260719v" />
+  <link rel="stylesheet" href="styles.css?v=20260719x" />
 </head>
 <body>
 
@@ -123,6 +123,7 @@
             <option value="mean">Sort by average pay</option>
             <option value="total">Sort by total payroll</option>
             <option value="count">Sort by staff count</option>
+            <option value="tenure">Sort by staff tenure</option>
             <option value="name">Sort alphabetically</option>
           </select>
         </div>
@@ -160,6 +161,9 @@
         <div id="trend-q-note" class="trend-q-note">Q4 (Oct–Dec) often includes year-end bonuses and lump-sum payments that inflate salaries. Comparing Q1–Q3 across years gives a cleaner picture.</div>
 
         <div class="chart-wrap tall"><div id="chart-trend" class="chart-svg-wrap"></div></div>
+
+        <div class="emp-detail-section" style="margin-top:20px">Salary by tenure · latest quarter</div>
+        <div class="chart-wrap" id="chart-tenure-wrap"><div id="chart-tenure" class="chart-svg-wrap"></div></div>
       </div>
 
       <div class="tab-pane" id="tab-table">
@@ -268,6 +272,6 @@
   </div>
 </div>
 
-<script src="app.js?v=20260719v"></script>
+<script src="app.js?v=20260719x"></script>
 </body>
 </html>

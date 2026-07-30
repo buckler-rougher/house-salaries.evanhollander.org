@@ -144,7 +144,17 @@ async function loadData() {
     // preview numbers match what the card actually shows once you click
     // in (positionHeaderStats() prefers this tenure-filtered data over the
     // raw roster snapshot the moment it's available).
-    loadPeople().then(() => renderPosResults($("pos-search")?.value || ""));
+    loadPeople().then(() => {
+      renderPosResults($("pos-search")?.value || "");
+      // Both depend on tenure, which only exists once peopleData lands —
+      // buildOfficeData() ran before that on the initial render, so the
+      // office list's tenure sort and the tenure-by-bucket chart would
+      // otherwise show "no tenure data" until some unrelated action
+      // happened to rebuild them.
+      buildOfficeData();
+      renderOfficeList();
+      renderTenureChart();
+    });
   } catch(e) {
     // render() removes #loading as its first step, so if anything after that
     // point throws (restoreState, restoreHash, ...) #loading is already gone
@@ -215,6 +225,49 @@ function fullStatsFromAmounts(amounts) {
     median: pctOf(50), p10: pctOf(10), p25: pctOf(25), p75: pctOf(75), p90: pctOf(90),
     mean: s.reduce((a,b) => a+b, 0) / s.length,
   };
+}
+
+// ── Tenure ──
+// Tenure = count of tracked quarters worked, not last-first — staff who
+// leave and come back accumulate gaps, and summing quarters present handles
+// that correctly where a date subtraction wouldn't.
+function personTenureQuarters(p) {
+  return p?.history?.length || 0;
+}
+
+// summary.quarters is oldest-first; index 0 is the earliest quarter this
+// site has ever tracked. If a person's own history reaches back to it, their
+// *real* start could be earlier still — SOD data before that point simply
+// isn't loaded, not evidence they started exactly then.
+function earliestTrackedQuarterId() {
+  return summary.quarters[0]?.id;
+}
+function personTenureCensored(p) {
+  return !!(p?.history?.length && p.history[0].quarter === earliestTrackedQuarterId());
+}
+
+// "10+ yrs" for anyone left-censored (real tenure unknown, at least this
+// long); otherwise an exact-ish figure in years, one decimal place. People
+// with no tracked history at all (too new — see people.json's 3+ quarter
+// floor) get null, which callers must handle rather than showing "0 yrs".
+function tenureLabel(p) {
+  const q = personTenureQuarters(p);
+  if (!q) return null;
+  const years = q / 4;
+  if (personTenureCensored(p)) return `${Math.floor(years)}+ yrs`;
+  const rounded = Math.round(years * 10) / 10;
+  return `${rounded} yr${rounded === 1 ? "" : "s"}`;
+}
+
+// Tenure-quarter counts for everyone currently loaded, optionally narrowed
+// to one job title — same pool shape positionTrendByType uses for pay, so
+// the same fullStatsFromAmounts/estimatePercentile pair works unmodified.
+function tenurePool(titleFilter) {
+  if (!peopleData) return [];
+  return peopleData
+    .filter(p => !titleFilter || (p.title_group || p.title) === titleFilter)
+    .map(personTenureQuarters)
+    .filter(q => q > 0);
 }
 
 // The header stats (bar/trio/min-max/count) for a position card, preferring
@@ -828,6 +881,71 @@ function renderTrend() {
     }));
     drawSvgLineChart($("chart-trend"), labels, datasets, { legend: true, ...hlOpts });
   }
+  renderTenureChart();
+}
+
+const TENURE_BUCKETS = [
+  { label: "<1 yr",    min: 0,  max: 4 },
+  { label: "1–3 yrs",  min: 4,  max: 12 },
+  { label: "3–5 yrs",  min: 12, max: 20 },
+  { label: "5–10 yrs", min: 20, max: 40 },
+  { label: "10+ yrs",  min: 40, max: Infinity },
+];
+
+// Median pay by tenure bucket, latest quarter only — peopleData (which has
+// tenure) only covers non-intern/non-shared staff with 3+ tracked quarters,
+// same population the buckets are drawn from, so nobody with 0-2 quarters
+// (too new to have a tenure figure at all) silently lands in "<1 yr".
+function renderTenureChart() {
+  const wrap = $("chart-tenure-wrap");
+  if (!wrap) return;
+  if (!peopleData) { wrap.innerHTML = `<div style="padding:24px 0;color:var(--ink3);font-size:.85rem">Loading…</div>`; return; }
+
+  const tenureByPerson = new Map();
+  peopleData.forEach(p => tenureByPerson.set(`${p.name}|${p.office}`, personTenureQuarters(p)));
+
+  const buckets = TENURE_BUCKETS.map(b => ({ ...b, amounts: [] }));
+  employees.filter(e => !e.intern && !e.shared && e.annual_equiv >= HOUSE_MIN_ANNUAL && (!officeTypeFilter || e.type === officeTypeFilter) && (!partyFilter || partyValueOf(e) === partyFilter)).forEach(e => {
+    const q = tenureByPerson.get(`${e.name}|${cleanOrg(e.office)}`);
+    if (!q) return;
+    const bucket = buckets.find(b => q >= b.min && q < b.max);
+    if (bucket) bucket.amounts.push(e.annual_equiv);
+  });
+
+  if (!buckets.some(b => b.amounts.length)) {
+    wrap.innerHTML = `<div style="padding:24px 0;color:var(--ink3);font-size:.85rem">No tenure data for the current filters.</div>`;
+    return;
+  }
+
+  const stats = buckets.map(b => ({ ...b, stats: fullStatsFromAmounts(b.amounts) }));
+  const W = 680, H = 240;
+  const pad = { t: 16, r: 16, b: 40, l: 52 };
+  const pw = W - pad.l - pad.r, ph = H - pad.t - pad.b;
+  const maxMedian = Math.max(...stats.map(s => s.stats?.median || 0)) || 1;
+  const yStep = Math.ceil(maxMedian / 5 / 10000) * 10000 || 10000;
+  const yMax = yStep * 5;
+  const sy = v => pad.t + ph - (v / yMax) * ph;
+
+  const yTicks = Array.from({ length: 6 }, (_, i) => {
+    const v = i * yStep, y = sy(v);
+    return `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#eeece8" stroke-width="1"/>
+            <text x="${(pad.l - 6).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#888">$${Math.round(v/1000)}k</text>`;
+  }).join("");
+
+  const barW = pw / stats.length;
+  const barGap = Math.max(1, barW * 0.18);
+  const bars = stats.map((s, i) => {
+    const median = s.stats?.median || 0;
+    const bh = (median / yMax) * ph;
+    const x = pad.l + i * barW + barGap / 2;
+    const w = barW - barGap;
+    const y = pad.t + ph - bh;
+    return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${bh.toFixed(1)}" fill="#1b6f2c" rx="2"/>
+      <text x="${(x + w/2).toFixed(1)}" y="${(pad.t + ph + 16).toFixed(1)}" text-anchor="middle" font-size="11" fill="#888">${s.label}</text>
+      <text x="${(x + w/2).toFixed(1)}" y="${(y - 6).toFixed(1)}" text-anchor="middle" font-size="10" fill="#555">${s.stats ? fmtK(median) : "—"}</text>`;
+  }).join("");
+
+  wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:100%">${yTicks}${bars}</svg>`;
 }
 
 // ── Position lookup ──
@@ -1401,7 +1519,8 @@ async function showPersonInline(name, officeName) {
       <input id="ed-comp-search" class="ed-comp-input" placeholder="Search a title…" autocomplete="off" />
       <div id="ed-comp-results" class="ed-comp-results"></div>
     </div>
-    <div id="ed-comp-stats"></div>` : "";
+    <div id="ed-comp-stats"></div>
+    <div id="ed-tenure-stats"></div>` : "";
 
   const salaryBlockHtml = latestEmp ? `
     <div class="emp-detail-salary-row">
@@ -1504,6 +1623,31 @@ async function showPersonInline(name, officeName) {
     }
     renderCompStats(compTitle);
 
+    // Tenure percentile — same pattern as the salary comparison above, but
+    // pooled from peopleData's tracked-quarter counts instead of the
+    // precomputed per-title pay stats, since tenure isn't in summary.json.
+    // Skipped (not "0 percentile") for anyone without tracked history, per
+    // people.json's 3+ quarter floor for brand-new staff.
+    function renderTenureStats(titleStr) {
+      const el = detail.querySelector("#ed-tenure-stats");
+      if (!el) return;
+      const you = person ? personTenureQuarters(person) : 0;
+      const label = person ? tenureLabel(person) : null;
+      if (!you || !label) { el.innerHTML = ""; return; }
+      const overallTs = fullStatsFromAmounts(tenurePool());
+      const overallPct = overallTs ? estimatePercentile(you, overallTs) : null;
+      let titleRow = "";
+      if (titleStr && titleStr !== ALL_STAFF_KEY) {
+        const titleTs = fullStatsFromAmounts(tenurePool(titleStr));
+        const titlePct = titleTs ? estimatePercentile(you, titleTs) : null;
+        if (titlePct != null) titleRow = `<div class="emp-detail-comp-row"><span>Tenure vs. ${esc(titleStr)}</span><span>${ordinal(titlePct)} pct.</span></div>`;
+      }
+      const overallRow = overallPct != null ? `<div class="emp-detail-comp-row"><span>Tenure vs. all staff</span><span>${ordinal(overallPct)} pct.</span></div>` : "";
+      if (!titleRow && !overallRow) { el.innerHTML = ""; return; }
+      el.innerHTML = `<div class="emp-detail-comp-row emp-detail-comp-you"><span>Tenure</span><span>${label}</span></div>${titleRow}${overallRow}`;
+    }
+    renderTenureStats(compTitle);
+
     // Salary editing — click the salary figure itself to turn it into a
     // number input, right where it already sits. Every keystroke updates
     // the comparison below immediately (no separate "commit" step to learn),
@@ -1575,6 +1719,7 @@ async function showPersonInline(name, officeName) {
         titleEl.textContent = "All staff";
         wrap.style.display = "none"; resultsEl.style.display = "none";
         renderCompStats(ALL_STAFF_KEY);
+        renderTenureStats(ALL_STAFF_KEY);
       });
       searchEl.addEventListener("input", () => {
         const q = searchEl.value.toLowerCase().trim();
@@ -1587,6 +1732,7 @@ async function showPersonInline(name, officeName) {
             titleEl.textContent = row.dataset.title;
             wrap.style.display = "none"; resultsEl.style.display = "none";
             renderCompStats(row.dataset.title);
+            renderTenureStats(row.dataset.title);
           });
         });
       });
@@ -1733,21 +1879,31 @@ let officeData = [];
 
 function buildOfficeData() {
   if (isLatestQuarter()) {
+    // Only used for the tenure sort option — built once per call rather
+    // than per-office, since scanning all of peopleData per office would be
+    // quadratic in office count for no benefit.
+    const tenureByPerson = new Map();
+    if (peopleData) peopleData.forEach(p => tenureByPerson.set(`${p.name}|${p.office}`, personTenureQuarters(p)));
+
     const groups = {};
     employees.filter(e => !e.intern && !e.shared && e.annual_equiv >= HOUSE_MIN_ANNUAL && (!officeTypeFilter || e.type === officeTypeFilter) && (!partyFilter || partyValueOf(e) === partyFilter)).forEach(e => {
       const key = cleanOrg(e.office);
-      if (!groups[key]) groups[key] = { name: key, type: e.type, party: e.party, leadership_party: e.leadership_party, amounts: [] };
+      if (!groups[key]) groups[key] = { name: key, type: e.type, party: e.party, leadership_party: e.leadership_party, amounts: [], tenures: [] };
       groups[key].amounts.push(e.annual_equiv);
+      const t = tenureByPerson.get(`${e.name}|${key}`);
+      if (t) groups[key].tenures.push(t);
     });
     officeData = Object.values(groups).map(g => {
       const s = g.amounts.slice().sort((a,b) => a-b);
       const p = pct => { const i=(s.length-1)*pct/100; const lo=Math.floor(i),hi=Math.min(lo+1,s.length-1); return s[lo]+(s[hi]-s[lo])*(i-lo); };
       const totalAnnual = Math.round(s.reduce((a,b)=>a+b,0));
+      const tq = g.tenures.slice().sort((a,b) => a-b);
+      const medianTenureQuarters = tq.length ? (tq.length % 2 ? tq[(tq.length-1)/2] : (tq[tq.length/2 - 1] + tq[tq.length/2]) / 2) : null;
       return { name: g.name, type: g.type, party: g.party, leadership_party: g.leadership_party, count: s.length,
         min: Math.round(s[0]), max: Math.round(s[s.length-1]),
         median: Math.round(p(50)), p25: Math.round(p(25)), p75: Math.round(p(75)),
         mean: Math.round(totalAnnual / s.length),
-        totalAnnual };
+        totalAnnual, medianTenureQuarters };
     });
   } else {
     // Use pre-aggregated top_offices from that quarter's summary
@@ -3072,6 +3228,11 @@ function officeRangeHtml(o, sortKey) {
   if (sortKey === "median") return `${fmtK(o.median)}<span class="office-range-tag">median</span>`;
   if (sortKey === "mean")   return `${fmtK(o.mean)}<span class="office-range-tag">avg</span>`;
   if (sortKey === "total")  return `${fmtTotal(o.totalAnnual)}<span class="office-range-tag">total</span>`;
+  if (sortKey === "tenure") {
+    if (o.medianTenureQuarters == null) return `<span class="office-range-tag">no tenure data</span>`;
+    const years = Math.round(o.medianTenureQuarters / 4 * 10) / 10;
+    return `${years} yr${years === 1 ? "" : "s"}<span class="office-range-tag">median tenure</span>`;
+  }
   return `${fmtK(o.min)}<span class="office-range-sep">–</span>${fmtK(o.max)}`;
 }
 
@@ -3091,6 +3252,7 @@ function renderOfficeList() {
     if (officeSortKey === "median") return b.median - a.median;
     if (officeSortKey === "mean")   return b.mean - a.mean;
     if (officeSortKey === "total")  return (b.totalAnnual||0) - (a.totalAnnual||0);
+    if (officeSortKey === "tenure") return (b.medianTenureQuarters ?? -1) - (a.medianTenureQuarters ?? -1);
     return b.max - a.max;
   });
 
