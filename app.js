@@ -1313,9 +1313,9 @@ async function showPersonInline(name, officeName) {
   }
 
   // "Previously" — two sources, newest first:
-  // 1. Title changes within this same office — each history entry now
-  //    carries its own quarter's title, so a promotion/lateral move that
-  //    never left this office shows up directly.
+  // 1. Title changes within this same office — person.titles is the
+  //    server-side run-length-encoded title history, so a promotion/lateral
+  //    move that never left this office shows up directly.
   // 2. Walking backward through every peopleData entry sharing this name,
   //    each time picking the one whose whole tracked stint ended most
   //    recently before the current stint's start, so a person who moved
@@ -1331,11 +1331,12 @@ async function showPersonInline(name, officeName) {
     const lastQuarter = p => p.history.reduce((max, h) => h.quarter > max ? h.quarter : max, p.history[0].quarter);
 
     const entries = prevRoleEntries;
-    const sortedHist = [...person.history].sort((a, b) => a.quarter.localeCompare(b.quarter));
-    for (let i = 0; i < sortedHist.length - 1; i++) {
-      if (sortedHist[i].title && sortedHist[i + 1].title && sortedHist[i].title !== sortedHist[i + 1].title) {
-        entries.push({ title: sortedHist[i].title, newTitle: sortedHist[i + 1].title, office: officeName, until: sortedHist[i].quarter });
-      }
+    // person.titles is precomputed server-side as run-length-encoded title
+    // segments (see fetch_sod.py) — every entry but the last is a completed
+    // same-office title change.
+    const titleSegs = person.titles || [];
+    for (let i = 0; i < titleSegs.length - 1; i++) {
+      entries.push({ title: titleSegs[i].title, newTitle: titleSegs[i + 1].title, office: officeName, until: titleSegs[i].to });
     }
     entries.reverse();
 
@@ -1462,18 +1463,7 @@ async function showPersonInline(name, officeName) {
     // office (from the "Previously" chain) falls outside this chart's own
     // timeline and is silently dropped by makeMiniTrend (it only keeps
     // segments whose quarter ids are actually present in the current view).
-    const sortedForSegments = [...person.history].sort((a, b) => a.quarter.localeCompare(b.quarter));
-    const titleSegments = [];
-    for (let i = 0, segStart = 0; i <= sortedForSegments.length; i++) {
-      if (i === sortedForSegments.length || sortedForSegments[i].title !== sortedForSegments[segStart].title) {
-        titleSegments.push({
-          fromId: sortedForSegments[segStart].quarter,
-          toId: sortedForSegments[i - 1].quarter,
-          title: sortedForSegments[segStart].title,
-        });
-        segStart = i;
-      }
-    }
+    const titleSegments = (person.titles || []).map(t => ({ fromId: t.from, toId: t.to, title: t.title }));
     const controller = makeMiniTrend(detail, getPersonData, seed, firstTrackedQuarter, titleSegments);
     lastPersonTrend = { name, office: officeName, controller };
   } else {

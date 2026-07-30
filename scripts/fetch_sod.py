@@ -9,7 +9,7 @@ Key column notes (from actual CSVs):
 - DESCRIPTION field contains job title (e.g. "LEGISLATIVE ASSISTANT", "CHIEF OF STAFF")
 - AMOUNT is the quarterly payment in dollars
 """
-import csv, json, io, re, os, sys, urllib.request, unicodedata
+import csv, json, io, re, os, sys, urllib.request, urllib.parse, unicodedata
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 
@@ -38,6 +38,26 @@ QUARTERS = [
     {"id": "2021Q3", "label": "Jul–Sep 2021", "year": 2021, "q": 3, "url": f"{BASE}/sites/default/files/uploads/documents/SODs/2021q3/JULY-2021-SOD-DETAIL-GRID-FINAL.csv"},
     {"id": "2021Q2", "label": "Apr–Jun 2021", "year": 2021, "q": 2, "url": f"{BASE}/sites/default/files/uploads/documents/SODs/2021q2/APR-JUN%202021%20SOD%20DETAIL%20GRID_FINAL.csv"},
     {"id": "2021Q1", "label": "Jan–Mar 2021", "year": 2021, "q": 1, "url": f"{BASE}/sites/default/files/uploads/documents/SODs/2021q1/JAN_MAR_2021_SOD_DETAIL_GRID_FINAL.csv"},
+    {"id": "2020Q4", "label": "Oct–Dec 2020", "year": 2020, "q": 4, "url": f"{BASE}/sites/default/files/uploads/documents/SODs/2020q4/OCT-DEC 2020 SOD DETAIL GRID_FINAL.csv"},
+    {"id": "2020Q3", "label": "Jul–Sep 2020", "year": 2020, "q": 3, "url": f"{BASE}/sites/default/files/uploads/documents/SODs/2020q3/JULY-SEPT-2020-SOD-DETAIL-GRID-FINAL.csv"},
+    {"id": "2020Q2", "label": "Apr–Jun 2020", "year": 2020, "q": 2, "url": f"{BASE}/sites/default/files/uploads/documents/SODs/APR-JUN-2020-SOD-DETAIL-GRID_FINAL.csv"},
+    {"id": "2020Q1", "label": "Jan–Mar 2020", "year": 2020, "q": 1, "url": f"{BASE}/sites/default/files/uploads/documents/SODs/JAN-MAR-2020-SOD-DETAIL-GRID_FINAL.csv"},
+    {"id": "2019Q4", "label": "Oct–Dec 2019", "year": 2019, "q": 4, "url": f"{BASE}/sites/default/files/uploads/documents/SODs/OCT-DEC-2019-SOD-DETAIL-GRID.csv"},
+    {"id": "2019Q3", "label": "Jul–Sep 2019", "year": 2019, "q": 3, "url": f"{BASE}/sites/default/files/uploads/documents/SODs/JUL-SEPT 2019 SOD DETAIL GRID.csv"},
+    {"id": "2019Q2", "label": "Apr–Jun 2019", "year": 2019, "q": 2, "url": f"{BASE}/sites/default/files/uploads/documents/SODs/APR-JUN 2019 SOD DETAIL GRID.csv"},
+    {"id": "2019Q1", "label": "Jan–Mar 2019", "year": 2019, "q": 1, "url": f"{BASE}/sites/default/files/uploads/documents/SODs/JAN-MAR 2019 SOD DETAIL GRID.CSV"},
+    {"id": "2018Q4", "label": "Oct–Dec 2018", "year": 2018, "q": 4, "url": f"{BASE}/sites/default/files/uploads/documents/SODs/OCT-DEC 2018 SOD DETAIL GRID.csv"},
+    {"id": "2018Q3", "label": "Jul–Sep 2018", "year": 2018, "q": 3, "url": f"{BASE}/sites/default/files/uploads/documents/SODs/JULY-SEPTEMBER 2018 SOD DETAIL GRID.csv"},
+    {"id": "2018Q2", "label": "Apr–Jun 2018", "year": 2018, "q": 2, "url": f"{BASE}/sites/default/files/uploads/documents/SODs/APR-JUNE-2018-SOD-DETAIL-GRID.csv"},
+    {"id": "2018Q1", "label": "Jan–Mar 2018", "year": 2018, "q": 1, "url": f"{BASE}/sites/default/files/uploads/documents/JAN-MAR 2018 SOD DETAIL GRID.csv"},
+    {"id": "2017Q4", "label": "Oct–Dec 2017", "year": 2017, "q": 4, "url": f"{BASE}/sites/default/files/uploads/documents/SODs/OCT-DEC 2017 SOD DETAIL GRID.csv"},
+    {"id": "2017Q3", "label": "Jul–Sep 2017", "year": 2017, "q": 3, "url": f"{BASE}/sites/default/files/uploads/documents/SODs/JUL-SEPT 2017 SOD DETAIL GRID.csv"},
+    {"id": "2017Q2", "label": "Apr–Jun 2017", "year": 2017, "q": 2, "url": f"{BASE}/sites/default/files/uploads/documents/APR-JUN 2017 DETAIL GRID.csv"},
+    {"id": "2017Q1", "label": "Jan–Mar 2017", "year": 2017, "q": 1, "url": f"{BASE}/sites/default/files/uploads/documents/SODs/JAN-MAR 2017 DETAIL GRID.csv"},
+    {"id": "2016Q4", "label": "Oct–Dec 2016", "year": 2016, "q": 4, "url": f"{BASE}/sites/default/files/uploads/documents/OCT-DEC 2016 DETAIL GRID.csv"},
+    {"id": "2016Q3", "label": "Jul–Sep 2016", "year": 2016, "q": 3, "url": f"{BASE}/sites/default/files/uploads/documents/JULY-SEPT-2016-SOD-DETAIL-GRID.csv"},
+    {"id": "2016Q2", "label": "Apr–Jun 2016", "year": 2016, "q": 2, "url": f"{BASE}/sites/default/files/uploads/documents/APR-JUNE-2016-SOD-DETAIL-GRID-REVISE-9_26_16.csv"},
+    {"id": "2016Q1", "label": "Jan–Mar 2016", "year": 2016, "q": 1, "url": f"{BASE}/sites/default/files/uploads/documents/JAN-MAR-2016-SOD-DETAIL-GRID_REVISED_9_26_16.csv"},
 ]
 
 HOUSE_MIN_ANNUAL = 45000  # House minimum salary (set 2022)
@@ -514,7 +534,13 @@ def distribution_buckets(amounts, bucket_size=10000, max_val=250000):
 
 def fetch_quarter(q):
     print(f"  Fetching {q['id']} ({q['label']})...", flush=True)
-    req = urllib.request.Request(q["url"], headers={"User-Agent": "house-salaries-bot/1.0"})
+    # Some pre-2021 filenames contain literal spaces (house.gov never
+    # percent-encoded them) — urlopen rejects those as control characters,
+    # so re-encode the path defensively. `safe="/%"` leaves already-encoded
+    # URLs (the common case) unchanged instead of double-encoding them.
+    parts = urllib.parse.urlsplit(q["url"])
+    safe_url = urllib.parse.urlunsplit((parts.scheme, parts.netloc, urllib.parse.quote(parts.path, safe="/%"), parts.query, parts.fragment))
+    req = urllib.request.Request(safe_url, headers={"User-Agent": "house-salaries-bot/1.0"})
     try:
         with urllib.request.urlopen(req, timeout=90) as resp:
             raw = resp.read().decode("utf-8", errors="replace")
@@ -676,10 +702,31 @@ def process_all(quarters_to_process=None):
         print(f"    → {len(employees)} employees, median annual equiv ${summary['overall']['median']:,}", flush=True)
 
     # Only keep people who appear in 3+ quarters (history is in reverse-chron order from QUARTERS list)
-    people_list = [
-        {**v, "history": list(reversed(v["history"]))}
-        for v in people_index.values() if len(v["history"]) >= 3
-    ]
+    people_list = []
+    for v in people_index.values():
+        if len(v["history"]) < 3:
+            continue
+        chron = list(reversed(v["history"]))  # oldest first
+        # Per-quarter title repeats heavily — most staff hold 1-3 titles
+        # across dozens of quarters — so it's run-length-encoded into a
+        # separate `titles` array (title + the quarter range it covered)
+        # instead of stored on every single history entry. Same shape the
+        # frontend's chart-segment code used to compute client-side; doing
+        # it once here both shrinks the payload and removes that client
+        # computation. `history` itself keeps every quarter's pay, since
+        # both the personal chart and cross-person title-trend aggregation
+        # need the full quarterly series, not just recent quarters.
+        titles = []
+        for h in chron:
+            if titles and titles[-1]["title"] == h["title"]:
+                titles[-1]["to"] = h["quarter"]
+            else:
+                titles.append({"from": h["quarter"], "to": h["quarter"], "title": h["title"]})
+        people_list.append({
+            **v,
+            "history": [{"quarter": h["quarter"], "quarterly_pay": h["quarterly_pay"]} for h in chron],
+            "titles": titles,
+        })
     people_list.sort(key=lambda p: p["name"])
 
     return quarter_summaries, all_employees_latest, latest_id, people_list
