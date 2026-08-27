@@ -1754,8 +1754,12 @@ async function showPersonInline(name, officeName) {
         happens until you click it.</p>
         <form class="ed-optout-form" id="ed-optout-form" novalidate>
           <input type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" class="ed-optout-hp" />
+          <!-- No example address here on purpose: spelling out the House
+               address format would hand a would-be spammer the recipe for
+               deriving an address from any name on the site. Anyone with a
+               real one already knows their own. -->
           <input type="email" id="ed-optout-email" class="ed-optout-input"
-                 placeholder="first.last@mail.house.gov" autocomplete="email" required />
+                 placeholder="Your House email address" autocomplete="email" required />
           <button type="submit" class="ed-optout-submit" id="ed-optout-submit">Send link</button>
         </form>
         <div class="ed-optout-msg" id="ed-optout-msg" style="display:none"></div>
