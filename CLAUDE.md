@@ -13,7 +13,13 @@
 - External API calls and curl are allowed for research and data fetching
 
 ## Architecture
-- Cloudflare Pages (fully static) — no Worker needed
+- Cloudflare Pages — static except for `functions/`, which are Pages Functions
+  (the opt-out endpoints; everything else is prebuilt JSON read by the browser)
+- Pages env vars: `HMAC` (suppression pepper + derived link-signing key),
+  `smtp` (Proton SMTP token), `GITHUB_TOKEN` (commits opt-outs). Production and
+  Preview are separate scopes — variables set on one do not exist on the other.
+- `SUPPRESSION_PEPPER` in GitHub Actions secrets must equal Cloudflare's `HMAC`,
+  or the build can't tell who opted out and fails rather than republishing them
 - Data pipeline: `scripts/fetch_sod.py` downloads SOD CSVs from house.gov, outputs `data/summary.json` and `data/employees.json`
 - GitHub Actions (`update-data.yml`) runs the pipeline quarterly and commits updated JSON
 - Frontend reads pre-built JSON — no backend at runtime
