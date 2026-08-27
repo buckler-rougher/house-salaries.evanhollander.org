@@ -6,7 +6,7 @@
 // exists, and nothing is recorded here — only clicking the link, which
 // requires reading that mailbox, does anything. Nothing is stored between the
 // two steps either: the request travels inside the signed token.
-import { SMTP, SITE, HOUSE_DOMAIN, LINK_TTL_SECONDS, emailMatchesName, signToken, json, claimSource, claimRecipient } from '../_lib.js';
+import { SMTP, HOUSE_DOMAIN, LINK_TTL_SECONDS, emailMatchesName, signToken, json, claimSource, claimRecipient } from '../_lib.js';
 import { sendMail } from '../_smtp.js';
 
 const ALLOWED_ORIGINS = ['https://house-salaries.evanhollander.org'];
@@ -51,11 +51,15 @@ export async function onRequestPost({ env, request }) {
     // Limits are claimed only after the name/address gate passes, so a
     // scripted sweep of bad guesses can't burn a legitimate person's daily
     // allowance before they get to use it.
+    // Origin of whatever host is serving — production or a preview deploy —
+    // so verification links and cache keys both point back at the same build
+    // that issued them.
+    const origin = new URL(request.url).origin;
     const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
-    if (!(await claimSource(ip, env.HMAC))) {
+    if (!(await claimSource(origin, ip, env.HMAC))) {
       return json({ success: false, error: 'Too many requests from here. Try again later.', manual: true }, 429, h);
     }
-    if (!(await claimRecipient(email, env.HMAC))) {
+    if (!(await claimRecipient(origin, email, env.HMAC))) {
       // Same wording as success, deliberately. Saying "already sent today"
       // would confirm to a third party that this address had been used —
       // and the person who genuinely just requested one has a link already,
@@ -70,7 +74,7 @@ export async function onRequestPost({ env, request }) {
       x: Math.floor(Date.now() / 1000) + LINK_TTL_SECONDS,
     }, env.HMAC);
 
-    const link = `${SITE}/api/optout/confirm?t=${encodeURIComponent(token)}`;
+    const link = `${origin}/api/optout/confirm?t=${encodeURIComponent(token)}`;
 
     await sendMail({
       server: SMTP.server,
@@ -81,7 +85,7 @@ export async function onRequestPost({ env, request }) {
       fromLabel: 'House Staff Salaries',
       subject: 'Confirm removing your listing',
       body: [
-        `Someone asked to remove this listing from ${SITE}:`,
+        `Someone asked to remove this listing from ${origin}:`,
         '',
         `    ${name.trim()}`,
         `    ${office.trim()}`,

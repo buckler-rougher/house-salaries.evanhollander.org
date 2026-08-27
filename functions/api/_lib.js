@@ -140,18 +140,19 @@ export function emailMatchesName(email, name) {
 //
 // Keys are digests, not addresses: cache keys shouldn't hold the mail
 // addresses of people asking for privacy.
-const RL_PREFIX = `${SITE}/__ratelimit/`;
-
-async function rlKey(kind, value, pepper) {
+// Keyed against the origin actually serving the request, not a hardcoded one:
+// the Cache API rejects keys outside the domain the worker is serving, so a
+// preview deployment on *.pages.dev needs its own origin here.
+async function rlKey(origin, kind, value, pepper) {
   const d = hex(await hmacRaw(enc.encode(pepper), `rl:${kind}:${value}`));
-  return new Request(`${RL_PREFIX}${kind}-${d}`);
+  return new Request(`${origin}/__ratelimit/${kind}-${d}`);
 }
 
 /** One verification email per address per day. The important limit: it caps
  *  what any single staffer can be made to receive, no matter who asks. */
-export async function claimRecipient(email, pepper, ttl = 86400) {
+export async function claimRecipient(origin, email, pepper, ttl = 86400) {
   const cache = caches.default;
-  const req = await rlKey('to', email.toLowerCase(), pepper);
+  const req = await rlKey(origin, 'to', email.toLowerCase(), pepper);
   if (await cache.match(req)) return false;
   await cache.put(req, new Response('1', { headers: { 'Cache-Control': `max-age=${ttl}` } }));
   return true;
@@ -159,9 +160,9 @@ export async function claimRecipient(email, pepper, ttl = 86400) {
 
 /** A handful of requests per source per hour, so one client can't walk the
  *  roster even though each individual address is only hit once. */
-export async function claimSource(ip, pepper, limit = 5, ttl = 3600) {
+export async function claimSource(origin, ip, pepper, limit = 5, ttl = 3600) {
   const cache = caches.default;
-  const req = await rlKey('ip', ip, pepper);
+  const req = await rlKey(origin, 'ip', ip, pepper);
   const hit = await cache.match(req);
   const n = hit ? parseInt(await hit.text(), 10) || 0 : 0;
   if (n >= limit) return false;
