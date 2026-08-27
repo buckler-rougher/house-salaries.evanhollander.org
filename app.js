@@ -1535,6 +1535,8 @@ function closePersonDetail() {
 async function showPerson(name, officeName) {
   currentSelection = { type: "person", personName: name, personOffice: officeName };
   setHash({ person: name + "|" + officeName });
+  const missingEl = $("person-missing");
+  if (missingEl) missingEl.style.display = "none";
 
   // Switch to All Staff tab
   const tabBtn = document.querySelector('.tab-btn[data-tab="table"]');
@@ -1545,6 +1547,23 @@ async function showPerson(name, officeName) {
   if (searchEl) {
     searchEl.value = name;
     applyFilters();
+  }
+
+  // A link to someone who isn't in the data any more — an opted-out listing,
+  // or just a stale link — otherwise lands on an empty table with their name
+  // sitting in the search box, which reads as the site being broken.
+  //
+  // The wording stays neutral rather than saying "removed at request". Two
+  // reasons: it can't tell an opt-out from a link that was always wrong, and
+  // confirming a removal to whoever holds the URL isn't its job. Anyone who
+  // needs to know why a name isn't here can read the note under the table.
+  if (!employees.some(e => e.name === name && cleanOrg(e.office) === officeName)) {
+    const notice = $("person-missing");
+    if (notice) {
+      notice.textContent = "No listing found for that link. It may be out of date.";
+      notice.style.display = "";
+    }
+    return;
   }
 
   // Show inline detail
@@ -3738,6 +3757,10 @@ function currentEmployeeSource() {
 }
 
 function applyFilters() {
+  // Any fresh search clears the stale-link notice — it's about one specific
+  // link, not about whatever the user types next.
+  const missingEl = $("person-missing");
+  if (missingEl) missingEl.style.display = "none";
   const q = $("emp-search").value.toLowerCase().trim();
   const show = $("emp-type").value;
   filtered = currentEmployeeSource().filter(e => {

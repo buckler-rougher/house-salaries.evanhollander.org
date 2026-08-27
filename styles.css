@@ -757,6 +757,13 @@ tr:hover td { background: var(--bg2); }
 .emp-detail-comp-row { display: flex; justify-content: space-between; align-items: center; font-size: .85rem; padding: 6px 0; border-bottom: 1px solid var(--line); color: var(--ink2); }
 .emp-detail-comp-row:last-child { border-bottom: none; }
 .emp-detail-comp-you { font-weight: 800; color: var(--ink); background: var(--accent2); margin: 0 -8px; padding: 6px 8px; border-radius: 4px; }
+.person-missing {
+  margin-bottom: 12px; padding: 10px 14px;
+  border: 1px solid var(--line); border-radius: 8px;
+  background: var(--paper, transparent);
+  font-size: .85rem; color: var(--ink2);
+}
+
 /* Opt-out. Kept visually quiet so it doesn't compete with the data above it,
    but on every card rather than hidden in a policy page. */
 .emp-detail-optout { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line); }
