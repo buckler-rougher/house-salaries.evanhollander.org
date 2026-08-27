@@ -1,14 +1,5 @@
 {
-  "entries": [
-    {
-      "id": "939ed71c0494",
-      "hashes": [
-        "939ed71c0494bed0a2607314d1ee09527339d84979263bd1f192e7141fbaa6af"
-      ],
-      "added": "2026-08-27",
-      "via": "auto"
-    }
-  ],
-  "note": "Opaque HMAC-SHA256 digests of (normalized name, office) for people who asked to be left off the site. Not reversible without the secret pepper. Managed by scripts/suppress.py — see scripts/suppression.py.",
+  "entries": [],
+  "note": "Opaque HMAC-SHA256 digests of (normalized name, office) for people who asked to be left off the site. Not reversible without the secret pepper. Managed by scripts/suppress.py \u2014 see scripts/suppression.py.",
   "version": 1
 }

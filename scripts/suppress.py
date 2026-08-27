@@ -185,11 +185,14 @@ def main():
     doc = suppression.load()
     if args.list:
         return cmd_list(doc)
+    # Reversal doesn't need the pepper — it deletes an entry by id and never
+    # computes a digest. Gating it behind the secret only meant that undoing a
+    # mistaken suppression was harder than making one, which is backwards.
+    if args.remove:
+        return cmd_remove(doc, args.remove)
     pepper = suppression.get_pepper()
     if args.recheck:
         return cmd_recheck(doc, pepper)
-    if args.remove:
-        return cmd_remove(doc, args.remove)
     if not args.query:
         ap.print_help()
         return 2
