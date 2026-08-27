@@ -20,6 +20,11 @@ jobs:
           python-version: "3.12"
 
       - name: Discover new quarters, fetch and process SOD data
+        # SUPPRESSION_PEPPER keys the opt-out digests in data/suppressed.json.
+        # Without it the build cannot tell who opted out, so it fails rather
+        # than quietly republishing them (see apply_suppressions).
+        env:
+          SUPPRESSION_PEPPER: ${{ secrets.SUPPRESSION_PEPPER }}
         run: python scripts/fetch_sod.py
 
       - name: Commit updated data

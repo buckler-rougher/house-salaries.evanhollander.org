@@ -13,6 +13,10 @@ import csv, json, io, re, os, sys, math, urllib.request, urllib.parse, unicodeda
 import xml.etree.ElementTree as ET
 from collections import defaultdict
 
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import suppression
+from suppression import normalize_name
+
 BASE = "https://www.house.gov"
 MEMBER_DATA_URL = "https://clerk.house.gov/xml/lists/MemberData.xml"
 
@@ -679,11 +683,22 @@ def process_all(quarters_to_process=None):
         # then, so someone who's since changed titles is filed under their
         # current one, not whatever they held furthest back in history.
         # history still accumulates every quarter regardless of title.
+        #
+        # The key normalizes the name rather than using it raw. SOD spelling
+        # drifts between quarters — most often a middle initial gaining or
+        # losing its period — and the 2016-2020 backfill sits on the wrong
+        # side of one such shift, so keying on the raw string split 1,301
+        # careers in two and handed each half a fragment of the history.
+        # That understated tenure for 472 current staff by a median of 9
+        # quarters (worst: 20), which fed straight through to the tenure
+        # percentile, the office tenure sort and the salary-vs-tenure chart.
+        # Display still uses e["name"] below, so the most recent spelling is
+        # what's shown; only the identity key is normalized.
         for e in employees:
             if e["intern"] or e["shared"]:
                 continue
             org_key = strip_org_prefix(e["office"])
-            pk = (e["name"], person_merge_key(org_key))
+            pk = (normalize_name(e["name"]), person_merge_key(org_key))
             p = people_index[pk]
             if not p["history"]:
                 p["name"] = e["name"]
@@ -765,6 +780,49 @@ def fetch_cpi_index(start_year, end_year):
                 cpi_by_q[(year, q)] = round(sum(vals) / len(vals), 3)
     return cpi_by_q
 
+def apply_suppressions(latest_employees, people_list):
+    """Remove opted-out people from the row-level outputs.
+
+    A stale entry — one whose digests match nobody — is fatal, not a warning.
+    It means a person who asked to be left off is about to be published again,
+    most likely because their name is spelled differently in newer source
+    data than when they opted out. Failing the build leaves the previous
+    deploy (which still honors the opt-out) in place; continuing would push
+    their row back onto the live site. scripts/suppress.py --recheck resolves
+    it by re-scanning for the spellings now present.
+    """
+    doc = suppression.load()
+    if not doc.get("entries"):
+        return latest_employees, people_list
+
+    pepper = suppression.get_pepper()
+    matched = set()
+
+    if latest_employees:
+        latest_employees, m = suppression.apply(
+            latest_employees, doc, pepper,
+            name_of=lambda e: e["name"],
+            office_of=lambda e: person_merge_key(strip_org_prefix(e["office"])))
+        matched |= m
+
+    people_list, m = suppression.apply(
+        people_list, doc, pepper,
+        name_of=lambda p: p["name"],
+        office_of=lambda p: person_merge_key(p["office"]))
+    matched |= m
+
+    stale = suppression.check_stale(doc, matched)
+    if stale:
+        added = ", ".join(e.get("added", "?") for e in stale)
+        raise SystemExit(
+            f"FATAL: {len(stale)} suppression entry/entries matched nobody (added: {added}).\n"
+            "Someone who opted out would be republished. Run\n"
+            "  python scripts/suppress.py --recheck\n"
+            "to pick up their current spelling, then rebuild.")
+
+    print(f"Applied {len(doc['entries'])} opt-out suppression(s) to row-level data.", flush=True)
+    return latest_employees, people_list
+
 def main():
     os.makedirs("data", exist_ok=True)
 
@@ -775,6 +833,14 @@ def main():
     quarter_summaries, latest_employees, latest_id, people_list = process_all()
 
     quarter_summaries.sort(key=lambda q: (q["year"], q["quarter"]))
+
+    # Opt-outs are applied HERE, deliberately after process_all() has already
+    # computed every aggregate in quarter_summaries. Medians, percentiles and
+    # distributions are therefore calculated over the full roster and don't
+    # move when someone opts out — only the row-level files below lose them.
+    # Reversing this order would mean the site's statistics quietly degraded
+    # with each request honored.
+    latest_employees, people_list = apply_suppressions(latest_employees, people_list)
 
     if quarter_summaries:
         years = [q["year"] for q in quarter_summaries]
