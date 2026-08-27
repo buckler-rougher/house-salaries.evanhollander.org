@@ -150,11 +150,7 @@ async function rlKey(origin, kind, value, pepper) {
 
 /** One verification email per address per day. The important limit: it caps
  *  what any single staffer can be made to receive, no matter who asks. */
-// TEMPORARY: shortened from 86400 so the email template can be retested
-// against a real mail client. Restore to 86400 once that's done — the per-IP
-// limit still applies meanwhile, so this isn't open season, but a 2-minute
-// window is not the protection this is supposed to provide.
-export async function claimRecipient(origin, email, pepper, ttl = 120) {
+export async function claimRecipient(origin, email, pepper, ttl = 86400) {
   const cache = caches.default;
   const req = await rlKey(origin, 'to', email.toLowerCase(), pepper);
   if (await cache.match(req)) return false;
