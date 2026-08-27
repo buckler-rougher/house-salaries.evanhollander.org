@@ -42,6 +42,80 @@ export function verificationText({ name, office, link, origin }) {
   ].join('\r\n');
 }
 
+export function removedText({ name, office, origin }) {
+  return [
+    'Your removal request has been recorded. This listing:',
+    '',
+    `    ${name}`,
+    `    ${office}`,
+    '',
+    `will be gone from ${origin} within about ten minutes, once the`,
+    "site's data rebuilds.",
+    '',
+    'No further action is needed, and no more email will be sent about',
+    'this.',
+    '',
+    '--',
+    'House staff salaries are published by law in the quarterly Statement',
+    'of Disbursements. This removes you from that site only — it does not',
+    'remove you from house.gov, which stays the official public record.',
+  ].join('\r\n');
+}
+
+export function removedHtml({ name, office, origin }) {
+  const host = origin.replace(/^https?:\/\//, '');
+  return [
+    '<!doctype html>',
+    '<html><head><meta charset="utf-8">',
+    '<meta name="viewport" content="width=device-width,initial-scale=1">',
+    '<title>Your listing has been removed</title>',
+    '</head>',
+    `<body style="margin:0;padding:0;background:${PAPER};">`,
+    '<div style="display:none;max-height:0;overflow:hidden;opacity:0;">',
+    'Recorded. Your listing comes down within about ten minutes.',
+    '</div>',
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"`,
+    ` border="0" style="background:${PAPER};padding:32px 12px;">`,
+    '<tr><td align="center">',
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0"`,
+    ` border="0" style="max-width:520px;background:#ffffff;border:1px solid ${LINE};`,
+    ' border-radius:10px;font-family:-apple-system,BlinkMacSystemFont,',
+    'Segoe UI,Helvetica,Arial,sans-serif;">',
+
+    `<tr><td style="padding:24px 28px 0;font-size:12px;letter-spacing:.1em;`,
+    ` text-transform:uppercase;font-weight:700;color:${INK3};">`,
+    'House Staff Salaries</td></tr>',
+
+    `<tr><td style="padding:14px 28px 0;font-size:17px;line-height:1.5;`,
+    ` color:${INK};font-weight:700;">Your removal request is recorded</td></tr>`,
+
+    '<tr><td style="padding:16px 28px 0;">',
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"`,
+    ` style="background:${PAPER};border:1px solid ${LINE};border-radius:8px;">`,
+    `<tr><td style="padding:14px 16px;font-size:15px;line-height:1.5;color:${INK};`,
+    ' font-weight:700;">',
+    esc(name),
+    `<div style="font-size:13px;font-weight:400;color:${INK3};padding-top:2px;">`,
+    esc(office),
+    '</div></td></tr></table></td></tr>',
+
+    `<tr><td style="padding:16px 28px 0;font-size:14px;line-height:1.6;color:${INK2};">`,
+    `This listing will be gone from ${esc(host)} within about ten minutes,`,
+    " once the site's data rebuilds. No further action is needed, and no more",
+    ' email will be sent about this.</td></tr>',
+
+    `<tr><td style="padding:18px 28px 24px;">`,
+    `<div style="border-top:1px solid ${LINE};padding-top:14px;font-size:12px;`,
+    ` line-height:1.6;color:${INK3};">`,
+    'House staff salaries are published by law in the quarterly Statement of',
+    ' Disbursements. This removes you from that site only — it does not remove',
+    ' you from house.gov, which stays the official public record.',
+    '</div></td></tr>',
+
+    '</table></td></tr></table></body></html>',
+  ].join('\r\n');
+}
+
 export function verificationHtml({ name, office, link, origin }) {
   const host = origin.replace(/^https?:\/\//, '');
   return [

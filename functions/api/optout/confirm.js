@@ -10,7 +10,9 @@
 // re-runs and filters them out — which is why update-data.yml also triggers
 // on pushes to data/suppressed.json. The chain is:
 //     confirm -> commit -> workflow -> regenerated data -> deploy
-import { verifyToken, suppressionDigest, json } from '../_lib.js';
+import { verifyToken, suppressionDigest, SMTP } from '../_lib.js';
+import { sendMail } from '../_smtp.js';
+import { removedText, removedHtml } from '../_email.js';
 
 const REPO = 'buckler-rougher/house-salaries.evanhollander.org';
 const FILE = 'data/suppressed.json';
@@ -67,8 +69,17 @@ export async function onRequestGet({ env, request }) {
       const res = await gh(env, `contents/${FILE}?ref=${BRANCH}`);
       if (!res.ok) throw new Error(`read ${res.status}`);
       const meta = await res.json();
-      const doc = JSON.parse(atob(meta.content.replace(/\n/g, '')));
+      // atob yields a binary string, one char per byte. Handing that straight
+      // to JSON.parse reads UTF-8 sequences as Latin-1 and mojibakes anything
+      // non-ASCII — it turned the em dash in this file's note into "Ã¢ÂÂ".
+      const raw = Uint8Array.from(atob(meta.content.replace(/\n/g, '')), (c) => c.charCodeAt(0));
+      const doc = JSON.parse(new TextDecoder().decode(raw));
 
+      // Guards against double-recording. Worth noting this fires more often
+      // than a user double-clicking: mail clients and security scanners
+      // routinely fetch links in messages, so a confirmation URL can be hit
+      // several times within seconds of delivery without the recipient doing
+      // anything twice.
       const already = (doc.entries || []).some((e) => (e.hashes || []).includes(digest));
       if (already) return page('Already removed', donePara(), 200);
 
@@ -79,7 +90,12 @@ export async function onRequestGet({ env, request }) {
         via: 'auto',
       }];
 
-      const body = new TextEncoder().encode(JSON.stringify(doc, Object.keys(doc).sort(), 2) + '\n');
+      // JSON.stringify's second argument must be null here. Passing an array
+      // makes it a property allowlist applied RECURSIVELY — an earlier attempt
+      // to sort top-level keys with Object.keys(doc).sort() silently stripped
+      // every field from the nested entry objects, writing `{}` for each and
+      // destroying the digests. Key order doesn't matter; the data does.
+      const body = new TextEncoder().encode(JSON.stringify(doc, null, 2) + '\n');
       const put = await gh(env, `contents/${FILE}`, {
         method: 'PUT',
         body: JSON.stringify({
@@ -91,7 +107,32 @@ export async function onRequestGet({ env, request }) {
           branch: BRANCH,
         }),
       });
-      if (put.ok) return page('Removed', donePara(), 200);
+      if (put.ok) {
+        // Confirmation email. The address is in the signed token, so nothing
+        // had to be stored between the request and this click — retaining the
+        // mail addresses of people asking for privacy is exactly what the
+        // digest-only suppression file exists to avoid.
+        //
+        // Sent only on a successful commit, and only past the `already` check
+        // above, so a mail scanner fetching the link a second time can't
+        // produce a second message. Failure to send is swallowed: the opt-out
+        // is already recorded, and throwing here would show an error page for
+        // work that actually succeeded.
+        try {
+          const mail = { name: payload.n, office: payload.o, origin: new URL(request.url).origin };
+          await sendMail({
+            server: SMTP.server, port: SMTP.port, username: SMTP.username, token: env.smtp,
+            to: payload.e,
+            fromLabel: 'House Staff Salaries',
+            subject: 'Your listing has been removed',
+            body: removedText(mail),
+            html: removedHtml(mail),
+          });
+        } catch (e) {
+          console.error('optout/confirm mail:', e?.message ?? e);
+        }
+        return page('Removed', donePara(), 200);
+      }
       if (put.status !== 409) throw new Error(`write ${put.status}`);
       // 409 = someone else committed first; re-read and retry.
     }
@@ -111,9 +152,9 @@ export async function onRequestGet({ env, request }) {
 const donePara = () => `
   <p>Your listing will disappear from House Staff Salaries within about ten
      minutes, once the site's data is rebuilt.</p>
-  <p>To be straightforward about the limits of this: House salary data is
-     published by law in the quarterly Statement of Disbursements. This
-     removes you from this site only — it does not remove you from house.gov,
-     which remains the official public record, and it does not change the
-     site's overall statistics, which are calculated before removals.</p>
+  <p>House salary data is published by law in the quarterly Statement of
+     Disbursements. This removes you from this site only — it does not remove
+     you from house.gov, which remains the official public record, and it does
+     not change the site's overall statistics, which are calculated before
+     removals.</p>
   <p><a href="/">Back to House Staff Salaries</a></p>`;

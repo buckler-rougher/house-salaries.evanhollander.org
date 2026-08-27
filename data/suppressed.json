@@ -1,9 +1,5 @@
 {
-  "entries": [
-    {},
-    {},
-    {}
-  ],
-  "note": "Opaque HMAC-SHA256 digests of (normalized name, office) for people who asked to be left off the site. Not reversible without the secret pepper. Managed by scripts/suppress.py Ã¢ÂÂ see scripts/suppression.py.",
+  "entries": [],
+  "note": "Opaque HMAC-SHA256 digests of (normalized name, office) for people who asked to be left off the site. Not reversible without the secret pepper. Managed by scripts/suppress.py \u2014 see scripts/suppression.py.",
   "version": 1
 }
