@@ -96,8 +96,14 @@ def cmd_add(args, doc, pepper):
     # a future variant it can't fold (a legal name change, a corrected typo)
     # would otherwise break the match silently.
     hashes = sorted({suppression.digest(n, g["office"], pepper) for n in g["names"]})
-    if set(hashes) & suppression.all_hashes(doc):
-        raise SystemExit("Already suppressed.")
+    existing = next((e for e in doc.get("entries", []) if set(e.get("hashes", [])) & set(hashes)), None)
+    if existing:
+        # Reporting the id matters: --list deliberately shows no names, so
+        # searching by name is the only way to find out which entry belongs to
+        # a person who now wants to be listed again.
+        raise SystemExit(
+            f"Already suppressed as entry {existing['id']} (added {existing.get('added','?')}).\n"
+            f"To undo:  python3 scripts/suppress.py --remove {existing['id']}")
 
     if input("Suppress this person? [y/N] ").strip().lower() != "y":
         raise SystemExit("Cancelled.")
