@@ -20,6 +20,7 @@
   Preview are separate scopes — variables set on one do not exist on the other.
 - `SUPPRESSION_PEPPER` in GitHub Actions secrets must equal Cloudflare's `HMAC`,
   or the build can't tell who opted out and fails rather than republishing them
+- Handling a removal request by hand: see `OPTOUT.md`
 - Data pipeline: `scripts/fetch_sod.py` downloads SOD CSVs from house.gov, outputs `data/summary.json` and `data/employees.json`
 - GitHub Actions (`update-data.yml`) runs the pipeline quarterly and commits updated JSON
 - Frontend reads pre-built JSON — no backend at runtime
