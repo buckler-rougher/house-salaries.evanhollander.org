@@ -6,7 +6,7 @@
 // exists, and nothing is recorded here — only clicking the link, which
 // requires reading that mailbox, does anything. Nothing is stored between the
 // two steps either: the request travels inside the signed token.
-import { SMTP, SITE, HOUSE_DOMAIN, LINK_TTL_SECONDS, emailMatchesName, signToken, json } from '../_lib.js';
+import { SMTP, SITE, HOUSE_DOMAIN, LINK_TTL_SECONDS, emailMatchesName, signToken, json, claimSource, claimRecipient } from '../_lib.js';
 import { sendMail } from '../_smtp.js';
 
 const ALLOWED_ORIGINS = ['https://house-salaries.evanhollander.org'];
@@ -46,6 +46,21 @@ export async function onRequestPost({ env, request }) {
         error: `That doesn't look like a @${HOUSE_DOMAIN} address for this name.`,
         manual: true,
       }, 400, h);
+    }
+
+    // Limits are claimed only after the name/address gate passes, so a
+    // scripted sweep of bad guesses can't burn a legitimate person's daily
+    // allowance before they get to use it.
+    const ip = request.headers.get('CF-Connecting-IP') ?? 'unknown';
+    if (!(await claimSource(ip, env.HMAC))) {
+      return json({ success: false, error: 'Too many requests from here. Try again later.', manual: true }, 429, h);
+    }
+    if (!(await claimRecipient(email, env.HMAC))) {
+      // Same wording as success, deliberately. Saying "already sent today"
+      // would confirm to a third party that this address had been used —
+      // and the person who genuinely just requested one has a link already,
+      // so the advice is identical either way.
+      return json({ success: true }, 200, h);
     }
 
     const token = await signToken({

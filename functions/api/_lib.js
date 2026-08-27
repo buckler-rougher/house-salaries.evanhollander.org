@@ -122,6 +122,53 @@ export function emailMatchesName(email, name) {
   return localWords.every((w) => nameWords.has(w));
 }
 
+// Rate limiting, built on the Workers Cache API.
+//
+// The name/address gate proves an address belongs to the person being
+// claimed; it does nothing about volume. Every name on the site is public, so
+// a script can derive first.last@mail.house.gov for all ~8,600 staff and
+// submit every one — each passes the gate, because each really is that
+// person's address. That's thousands of unrequested emails from one Proton
+// account, which is both a spam incident and a good way to lose the account.
+//
+// Cache API rather than KV because it needs no namespace, binding or extra
+// configuration. The tradeoff is that it's per-datacenter rather than global,
+// so a distributed attacker could get one allowance per colo. That's fine
+// against the realistic threat — one person with a script hits one colo — and
+// it beats shipping with nothing while waiting on setup. Move to KV if this
+// ever gets abused for real.
+//
+// Keys are digests, not addresses: cache keys shouldn't hold the mail
+// addresses of people asking for privacy.
+const RL_PREFIX = `${SITE}/__ratelimit/`;
+
+async function rlKey(kind, value, pepper) {
+  const d = hex(await hmacRaw(enc.encode(pepper), `rl:${kind}:${value}`));
+  return new Request(`${RL_PREFIX}${kind}-${d}`);
+}
+
+/** One verification email per address per day. The important limit: it caps
+ *  what any single staffer can be made to receive, no matter who asks. */
+export async function claimRecipient(email, pepper, ttl = 86400) {
+  const cache = caches.default;
+  const req = await rlKey('to', email.toLowerCase(), pepper);
+  if (await cache.match(req)) return false;
+  await cache.put(req, new Response('1', { headers: { 'Cache-Control': `max-age=${ttl}` } }));
+  return true;
+}
+
+/** A handful of requests per source per hour, so one client can't walk the
+ *  roster even though each individual address is only hit once. */
+export async function claimSource(ip, pepper, limit = 5, ttl = 3600) {
+  const cache = caches.default;
+  const req = await rlKey('ip', ip, pepper);
+  const hit = await cache.match(req);
+  const n = hit ? parseInt(await hit.text(), 10) || 0 : 0;
+  if (n >= limit) return false;
+  await cache.put(req, new Response(String(n + 1), { headers: { 'Cache-Control': `max-age=${ttl}` } }));
+  return true;
+}
+
 export const json = (obj, status = 200, extra = {}) =>
   new Response(JSON.stringify(obj), {
     status,
