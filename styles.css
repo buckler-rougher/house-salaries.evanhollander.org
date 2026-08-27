@@ -757,6 +757,41 @@ tr:hover td { background: var(--bg2); }
 .emp-detail-comp-row { display: flex; justify-content: space-between; align-items: center; font-size: .85rem; padding: 6px 0; border-bottom: 1px solid var(--line); color: var(--ink2); }
 .emp-detail-comp-row:last-child { border-bottom: none; }
 .emp-detail-comp-you { font-weight: 800; color: var(--ink); background: var(--accent2); margin: 0 -8px; padding: 6px 8px; border-radius: 4px; }
+/* Opt-out. Kept visually quiet so it doesn't compete with the data above it,
+   but on every card rather than hidden in a policy page. */
+.emp-detail-optout { margin-top: 22px; padding-top: 14px; border-top: 1px solid var(--line); }
+.ed-optout-open {
+  background: none; border: 0; padding: 0; cursor: pointer;
+  font-size: .78rem; color: var(--ink3); text-decoration: underline;
+  text-underline-offset: 3px; text-decoration-color: var(--line);
+}
+.ed-optout-open:hover, .ed-optout-open.open { color: var(--ink2); text-decoration-color: currentColor; }
+.ed-optout-panel { margin-top: 12px; font-size: .8rem; color: var(--ink2); line-height: 1.6; }
+.ed-optout-panel p { margin: 0 0 10px; }
+.ed-optout-form { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; }
+.ed-optout-input {
+  flex: 1 1 15rem; min-width: 0; padding: 7px 10px;
+  border: 1px solid var(--line); border-radius: 6px;
+  background: var(--bg); color: var(--ink); font-size: .82rem; font-family: inherit;
+}
+.ed-optout-input:focus { outline: none; border-color: var(--accent); }
+.ed-optout-submit {
+  padding: 7px 14px; border: 1px solid var(--accent); border-radius: 6px;
+  background: var(--accent); color: #fff; font-size: .78rem; font-weight: 700;
+  cursor: pointer; font-family: inherit;
+}
+.ed-optout-submit:disabled { opacity: .55; cursor: default; }
+/* Honeypot: off-screen rather than display:none, which some bots skip. */
+.ed-optout-hp { position: absolute; left: -9999px; width: 1px; height: 1px; opacity: 0; }
+.ed-optout-msg { margin-top: 12px; font-size: .8rem; line-height: 1.6; }
+.ed-optout-ok { color: var(--ink2); }
+.ed-optout-err { color: #b3261e; }
+@media (prefers-color-scheme: dark) { .ed-optout-err { color: #f2b8b5; } }
+.ed-optout-manual {
+  display: inline; background: none; border: 0; padding: 0; cursor: pointer;
+  font: inherit; color: var(--accent); text-decoration: underline; text-underline-offset: 2px;
+}
+
 .emp-comp-title-link { color: var(--ink2); cursor: pointer; border-bottom: 1px dashed var(--ink3); }
 .emp-comp-title-link:hover { color: var(--ink); border-color: var(--ink); }
 /* Steps the comparison back one title. Sits inside the uppercase, letter-

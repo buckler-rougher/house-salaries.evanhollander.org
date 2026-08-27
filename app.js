@@ -239,6 +239,83 @@ function fullStatsFromAmounts(amounts) {
   };
 }
 
+// Opens the suggestion drawer pre-filled — assigned during init, since the
+// drawer's handlers live in the DOMContentLoaded closure. Used as the manual
+// fallback when someone's address can't be matched automatically.
+let openSuggestPrefilled = null;
+
+// Wires the opt-out panel on a person's card. The card is rebuilt from scratch
+// on all sorts of unrelated events (quarter nav, inflation toggle), so this
+// re-runs each time and must not accumulate state anywhere outside `detail`.
+function wireOptOut(detail, name, officeName) {
+  const openBtn = detail.querySelector("#ed-optout-open");
+  const panel = detail.querySelector("#ed-optout-panel");
+  const form = detail.querySelector("#ed-optout-form");
+  const msg = detail.querySelector("#ed-optout-msg");
+  if (!openBtn || !panel || !form) return;
+
+  openBtn.addEventListener("click", () => {
+    const open = panel.style.display !== "none";
+    panel.style.display = open ? "none" : "";
+    openBtn.classList.toggle("open", !open);
+    if (!open) detail.querySelector("#ed-optout-email")?.focus();
+  });
+
+  // The manual route. Roughly 5% of names don't reduce to a first.last
+  // address, and former staff have no House mailbox at all — that second
+  // group has the strongest claim to removal and the automated lane can
+  // never serve them, so this can't be a dead end.
+  const manualLink = () =>
+    `<button type="button" class="ed-optout-manual">Request removal by hand instead</button>`;
+
+  const showMsg = (html, kind) => {
+    msg.className = `ed-optout-msg ed-optout-${kind}`;
+    msg.innerHTML = html;
+    msg.style.display = "";
+    msg.querySelector(".ed-optout-manual")?.addEventListener("click", () => {
+      openSuggestPrefilled?.(
+        "House Salaries — Removal request",
+        `I'm asking to have this listing removed:\n\n  ${name}\n  ${officeName}\n\n` +
+        `I can't use the automatic option because:\n\n`
+      );
+    });
+  };
+
+  form.addEventListener("submit", async e => {
+    e.preventDefault();
+    const email = detail.querySelector("#ed-optout-email").value.trim();
+    const submit = detail.querySelector("#ed-optout-submit");
+    if (!email) return;
+    submit.disabled = true;
+    submit.textContent = "Sending…";
+    msg.style.display = "none";
+    try {
+      const res = await fetch("/api/optout", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name, office: officeName, email,
+          website: form.querySelector('[name="website"]').value,
+        }),
+      });
+      const json = await res.json().catch(() => ({}));
+      if (json.success) {
+        form.style.display = "none";
+        showMsg(`Check <strong>${esc(email)}</strong> for a confirmation link. It's
+          good for 48 hours, and nothing changes until you click it.`, "ok");
+      } else {
+        showMsg(`${esc(json.error || "Something went wrong.")} ${json.manual ? manualLink() : ""}`, "err");
+        submit.disabled = false;
+        submit.textContent = "Send link";
+      }
+    } catch {
+      showMsg(`Couldn't reach the server. ${manualLink()}`, "err");
+      submit.disabled = false;
+      submit.textContent = "Send link";
+    }
+  });
+}
+
 // ── Tenure ──
 // Tenure = count of tracked quarters worked, not last-first — staff who
 // leave and come back accumulate gaps, and summing quarters present handles
@@ -1661,6 +1738,30 @@ async function showPersonInline(name, officeName) {
     <div class="emp-detail-name">${esc(name)}</div>
     <div class="emp-detail-meta"><span class="office-link with-party-badge" data-office="${esc(officeName)}">${esc(officeName)}${officePartyBadge(latestEmp || person || {})}</span>${latestEmp ? ` · <span class="title-link" data-title="${esc(latestEmp.title)}">${esc(latestEmp.title)}</span>` : ""}</div>`;
 
+  // Opt-out entry point. Deliberately quiet — a plain text link at the foot of
+  // the card rather than a button competing with the data — but present on
+  // every listing rather than buried in a policy page, since someone who
+  // objects to being listed shouldn't have to go hunting for the remedy.
+  const optOutHtml = `
+    <div class="emp-detail-optout">
+      <button type="button" class="ed-optout-open" id="ed-optout-open">Is this you? Request removal</button>
+      <div class="ed-optout-panel" id="ed-optout-panel" style="display:none">
+        <p>House staff salaries are published by law in the quarterly Statement of
+        Disbursements. Removing your listing here takes you off this site only — it
+        does not remove you from house.gov, which stays the official public record,
+        and it does not change this site's overall statistics.</p>
+        <p>Enter your House address and we'll email you a link to confirm. Nothing
+        happens until you click it.</p>
+        <form class="ed-optout-form" id="ed-optout-form" novalidate>
+          <input type="text" name="website" tabindex="-1" autocomplete="off" aria-hidden="true" class="ed-optout-hp" />
+          <input type="email" id="ed-optout-email" class="ed-optout-input"
+                 placeholder="first.last@mail.house.gov" autocomplete="email" required />
+          <button type="submit" class="ed-optout-submit" id="ed-optout-submit">Send link</button>
+        </form>
+        <div class="ed-optout-msg" id="ed-optout-msg" style="display:none"></div>
+      </div>
+    </div>`;
+
   detail.innerHTML = `
     ${isAuthorProfile
       ? `<div class="emp-detail-header-row"><img class="emp-detail-photo" src="https://cdn.evanhollander.org/profile.webp" alt="" /><div>${nameBlockHtml}</div></div>`
@@ -1669,7 +1770,10 @@ async function showPersonInline(name, officeName) {
     ${salaryBlockHtml}
     ${yoyHtml}
     ${chartHtml}
-    ${compHtml}`;
+    ${compHtml}
+    ${optOutHtml}`;
+
+  wireOptOut(detail, name, officeName);
 
   // Wire chart — makeMiniTrend() is the same value-morph/zoom-transition
   // engine already used for the position card and office trend charts, so
@@ -3835,6 +3939,18 @@ document.addEventListener("DOMContentLoaded", () => {
     drawer.setAttribute("aria-hidden", "true");
     overlay.style.display = "none";
   };
+  // Lets the opt-out panel hand off to this drawer with the person's details
+  // already filled in, so a manual request doesn't make someone retype who
+  // they are into a blank box.
+  openSuggestPrefilled = (subject, body) => {
+    const subjEl = $("suggest-form")?.querySelector('[name="subject"]');
+    if (subjEl) subjEl.value = subject;
+    const msgEl = $("suggest-message");
+    if (msgEl) msgEl.value = body;
+    openDrawer();
+    if (msgEl) msgEl.setSelectionRange(msgEl.value.length, msgEl.value.length);
+  };
+
   $("suggest-fab").addEventListener("click", openDrawer);
   $("suggest-close").addEventListener("click", closeDrawer);
   overlay.addEventListener("click", closeDrawer);
