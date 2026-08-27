@@ -18,7 +18,38 @@ function mimeWord(s) {
   return `=?UTF-8?B?${btoa(String.fromCharCode(...bytes))}?=`;
 }
 
-export async function sendMail({ server, port, username, token, to, subject, body, fromLabel }) {
+/** Builds the message body. With `html` supplied it's multipart/alternative,
+ *  so clients that don't render HTML (or users who've turned it off) still get
+ *  the readable plain-text part rather than a wall of markup — the text part
+ *  is the real fallback, not a courtesy.
+ *
+ *  SMTP caps a line at 1000 bytes including CRLF, and there's no
+ *  quoted-printable encoding here, so callers must keep HTML lines short. The
+ *  templates are hand-wrapped for that reason. */
+function buildBody(text, html) {
+  if (!html) return { headers: ['Content-Type: text/plain; charset=UTF-8'], body: text };
+  const b = `_b${crypto.randomUUID().replace(/-/g, '')}`;
+  return {
+    headers: [`Content-Type: multipart/alternative; boundary="${b}"`],
+    body: [
+      `--${b}`,
+      'Content-Type: text/plain; charset=UTF-8',
+      'Content-Transfer-Encoding: 8bit',
+      '',
+      text,
+      '',
+      `--${b}`,
+      'Content-Type: text/html; charset=UTF-8',
+      'Content-Transfer-Encoding: 8bit',
+      '',
+      html,
+      '',
+      `--${b}--`,
+    ].join('\r\n'),
+  };
+}
+
+export async function sendMail({ server, port, username, token, to, subject, body, html, fromLabel }) {
   const directTLS = port === 465;
   let socket = connect({ hostname: server, port }, { secureTransport: directTLS ? 'on' : 'starttls' });
 
@@ -88,16 +119,18 @@ export async function sendMail({ server, port, username, token, to, subject, bod
     await send('DATA');
     await readResp(); // 354
 
+    const part = buildBody(body, html);
+
     // Dot-stuffing: a line starting with "." would otherwise end the message.
-    const safeBody = body.split('\r\n').map((l) => (l.startsWith('.') ? '.' + l : l)).join('\r\n');
+    const safeBody = part.body.split('\r\n').map((l) => (l.startsWith('.') ? '.' + l : l)).join('\r\n');
 
     const msg = [
       `From: "${fromLabel}" <${username}>`,
       `To: <${to}>`,
       `Subject: ${mimeWord(subject)}`,
       'MIME-Version: 1.0',
-      'Content-Type: text/plain; charset=UTF-8',
-      'Content-Transfer-Encoding: 8bit',
+      ...part.headers,
+      ...(html ? [] : ['Content-Transfer-Encoding: 8bit']),
       '',
       safeBody,
     ].join('\r\n');

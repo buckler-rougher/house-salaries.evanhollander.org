@@ -8,6 +8,7 @@
 // two steps either: the request travels inside the signed token.
 import { SMTP, HOUSE_DOMAIN, LINK_TTL_SECONDS, emailMatchesName, signToken, json, claimSource, claimRecipient } from '../_lib.js';
 import { sendMail } from '../_smtp.js';
+import { verificationText, verificationHtml } from '../_email.js';
 
 const ALLOWED_ORIGINS = ['https://house-salaries.evanhollander.org'];
 
@@ -75,6 +76,7 @@ export async function onRequestPost({ env, request }) {
     }, env.HMAC);
 
     const link = `${origin}/api/optout/confirm?t=${encodeURIComponent(token)}`;
+    const mail = { name: name.trim(), office: office.trim(), link, origin };
 
     await sendMail({
       server: SMTP.server,
@@ -84,24 +86,8 @@ export async function onRequestPost({ env, request }) {
       to: email.trim(),
       fromLabel: 'House Staff Salaries',
       subject: 'Confirm removing your listing',
-      body: [
-        `Someone asked to remove this listing from ${origin}:`,
-        '',
-        `    ${name.trim()}`,
-        `    ${office.trim()}`,
-        '',
-        'If that was you, confirm with this link (good for 48 hours):',
-        '',
-        `    ${link}`,
-        '',
-        "If it wasn't you, ignore this message. Nothing has changed and no",
-        'further email will be sent.',
-        '',
-        '--',
-        'Note that House salary data is published by law in the quarterly',
-        'Statement of Disbursements. Removing your listing here does not',
-        'remove it from house.gov, which remains the official public record.',
-      ].join('\r\n'),
+      body: verificationText(mail),
+      html: verificationHtml(mail),
     });
 
     return json({ success: true }, 200, h);
