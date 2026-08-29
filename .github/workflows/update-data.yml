@@ -2,8 +2,14 @@ name: Update SOD Data
 
 on:
   schedule:
-    # Run ~60 days after each quarter ends: June 1, Sept 1, Dec 1, Mar 1
-    - cron: "0 8 1 3,6,9,12 *"
+    # Weekly rather than quarterly. The House posts a Statement of
+    # Disbursements roughly two months after the quarter ends, on no fixed
+    # date — in practice a Friday late in the month. A four-times-a-year cron
+    # had to guess that date, and any posting that slipped past a run date
+    # left the site stale until the next one, up to three months later.
+    # A weekly check costs ~90s of CI and bounds staleness at seven days;
+    # runs that find nothing new write no commit.
+    - cron: "0 8 * * 1"
   workflow_dispatch:
   # An opt-out confirmation commits to data/suppressed.json, but data/*.json
   # are committed build artifacts — the person stays in the published files

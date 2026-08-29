@@ -950,10 +950,15 @@ if __name__ == "__main__":
     new = discover_new_quarters()
     if new:
         add_quarters(new)
-        # Reload QUARTERS from the updated file so process_all sees new entries
-        import importlib, types
-        updated_src = open(os.path.abspath(__file__)).read()
-        ns = {}
-        exec(compile(updated_src, __file__, "exec"), ns)
-        QUARTERS[:] = ns["QUARTERS"]
+        # Splice the new entries into the in-memory list directly rather than
+        # re-executing the rewritten source to pick them up. The old approach
+        # ran exec() against a bare namespace, which has no __file__ — so the
+        # moment this module grew a line using __file__ at import time, the
+        # reload died with a NameError. Worse, that path only runs when a new
+        # quarter is actually found, so the breakage stayed invisible from the
+        # day it was introduced until the next quarterly publication.
+        #
+        # add_quarters() writes them newest-first at the top of QUARTERS, so
+        # prepending the same sorted list reproduces the file exactly.
+        QUARTERS[:] = sorted(new, key=lambda x: (x["year"], x["q"]), reverse=True) + QUARTERS
     main()
