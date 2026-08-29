@@ -21,6 +21,7 @@ BASE = "https://www.house.gov"
 MEMBER_DATA_URL = "https://clerk.house.gov/xml/lists/MemberData.xml"
 
 QUARTERS = [
+    {"id": "2026Q2", "label": "Apr–Jun 2026", "year": 2026, "q": 2, "url": f"{BASE}/sites/default/files/2026-08/grids/APRIL-JUNE%202026%20SOD%20DETAIL%20GRID-FINAL.csv"},
     {"id": "2026Q1", "label": "Jan–Mar 2026", "year": 2026, "q": 1, "url": f"{BASE}/sites/default/files/2026-05/grids/JAN-MAR%202026%20SOD%20DETAIL%20GRID-FINAL.csv"},
     {"id": "2025Q4", "label": "Oct–Dec 2025", "year": 2025, "q": 4, "url": f"{BASE}/sites/default/files/2026-02/OCT-DEC-2025-SOD-DETAIL-GRID-FINAL.csv"},
     {"id": "2025Q3", "label": "Jul–Sep 2025", "year": 2025, "q": 3, "url": f"{BASE}/sites/default/files/2025-11/grids/JULY-SEPTEMBER%202025%20SOD%20DETAIL%20GRID-FINAL.csv"},
