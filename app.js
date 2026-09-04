@@ -2015,7 +2015,14 @@ async function showPersonInline(name, officeName) {
       salaryInput.placeholder = Math.round(startVal).toLocaleString();
       salaryValBtn.style.display = "none";
       salaryInputWrap.style.display = "";
-      salaryInput.focus();
+      // Calling focus() in the same synchronous tick as the display:none -> ""
+      // flip is unreliable in Firefox and Safari — they can leave the field
+      // *looking* focused (caret blinking, our CSS applied) while keyboard
+      // events never actually reach it, because the browser hasn't finished
+      // laying the just-unhidden element out yet. Chromium tolerates this;
+      // the others don't. Waiting a frame, so the display change has been
+      // flushed, before calling focus() makes it stick everywhere.
+      requestAnimationFrame(() => salaryInput.focus());
     }
     salaryInput.addEventListener("input", () => {
       const digits = salaryInput.value.replace(/[^\d]/g, "");
