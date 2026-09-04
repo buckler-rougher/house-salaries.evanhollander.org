@@ -370,6 +370,53 @@ body {
 .type-filter-btn:not(.active):hover { border-color: var(--ink); color: var(--ink); }
 .type-filter-btn[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 #inflation-toggle[aria-pressed="true"]:hover { border-color: var(--accent); color: #fff; }
+
+/* --- "Adjust for inflation": inflates to enable, pops to disable ---------
+   The green lives on a pseudo-element rather than on the button's own
+   background, so it can grow from nothing at the centre out to fill the pill.
+   Only transform and opacity are animated, and that's deliberate: this
+   button's handler re-renders the entire page (renderStats, buildTitles,
+   buildOfficeData, applyFilters, sometimes an await loadPeople()), blocking
+   the main thread for longer than the animation itself lasts. Compositor
+   properties keep running through that block; anything layout- or paint-bound
+   would stutter to a halt halfway. The button already establishes a stacking
+   context (position:relative + z-index:2), so z-index:-1 keeps the fill
+   behind the label without any extra isolation. */
+#inflation-toggle { transition: border-color .18s ease, color .12s ease; }
+/* Hold the label grey until the fill has actually reached it. The delay is
+   only on the pressed rule, and transitions are read from the destination
+   state, so switching back off drops to grey immediately rather than leaving
+   white text stranded on a pale background for a sixth of a second. */
+#inflation-toggle[aria-pressed="true"] {
+  background: transparent;
+  transition: border-color .18s ease, color .12s ease .16s;
+}
+#inflation-toggle::before {
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  border-radius: inherit; background: var(--accent);
+  transform: scale(0);
+}
+#inflation-toggle[aria-pressed="true"]::before { transform: scale(1); }
+
+/* Deliberately unclipped (no overflow:hidden): the overshoot letting the fill
+   swell a little past the border reads as over-inflating before it settles,
+   and the burst has to escape the pill to look like a burst at all. */
+@keyframes inflationFill   { 0% { transform: scale(0); }   62% { transform: scale(1.12); } 82% { transform: scale(.97); } 100% { transform: scale(1); } }
+@keyframes inflationPump   { 0% { transform: scale(1,1); } 45% { transform: scale(1.06,1.09); } 72% { transform: scale(.99,.97); } 100% { transform: scale(1,1); } }
+@keyframes inflationBurst  { 0% { transform: scale(1); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+@keyframes inflationRecoil { 0% { transform: scale(1); }   22% { transform: scale(1.13); } 55% { transform: scale(.95); } 100% { transform: scale(1); } }
+
+/* Paired durations per state, so whichever of the two finishes first the
+   other is done too — nothing gets cut off mid-flight. */
+#inflation-toggle.is-inflating::before { animation: inflationFill   520ms cubic-bezier(.34,1.4,.64,1) both; }
+#inflation-toggle.is-inflating         { animation: inflationPump   520ms cubic-bezier(.34,1.4,.64,1) both; }
+#inflation-toggle.is-popping::before   { animation: inflationBurst  300ms cubic-bezier(.3,0,.7,1) both; }
+#inflation-toggle.is-popping           { animation: inflationRecoil 300ms cubic-bezier(.36,1.5,.5,1) both; }
+
+@media (prefers-reduced-motion: reduce) {
+  #inflation-toggle.is-inflating,         #inflation-toggle.is-popping,
+  #inflation-toggle.is-inflating::before, #inflation-toggle.is-popping::before { animation: none; }
+}
 .filter-row-divider { width: 1px; height: 18px; background: var(--line); margin: 0 4px; }
 .inflation-note { font-size: .72rem; color: var(--ink3); font-style: italic; }
 

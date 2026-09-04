@@ -776,8 +776,25 @@ async function refreshOpenSelectionAndSaveState() {
 async function setInflationOn(on) {
   inflationOn = on;
   const btn = $("inflation-toggle");
-  if (btn) btn.setAttribute("aria-pressed", on ? "true" : "false");
+  if (btn) {
+    btn.setAttribute("aria-pressed", on ? "true" : "false");
+    // Drop both classes and force a reflow before re-adding, so a fast
+    // double-toggle restarts the animation from frame zero instead of being
+    // ignored as "that class is already on the element".
+    btn.classList.remove("is-inflating", "is-popping");
+    void btn.offsetWidth;
+    btn.classList.add(on ? "is-inflating" : "is-popping");
+  }
   updateInflationNote();
+
+  // Everything below re-renders the whole page and blocks the main thread for
+  // longer than the animation runs. Yield one frame first: the animation is
+  // transform/opacity only, so once the browser has committed its opening
+  // frame the compositor carries it through the block — but without this it
+  // never gets that frame, and the whole effect is swallowed by the work.
+  // (Only reached on a real click; restoring saved state sets aria-pressed
+  // directly and so stays un-animated, which is what you want on load.)
+  if (btn) await new Promise(requestAnimationFrame);
 
   renderStats();
   renderDist();
