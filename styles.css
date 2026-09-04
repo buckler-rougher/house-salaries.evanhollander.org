@@ -391,23 +391,32 @@ body {
   background: transparent;
   transition: border-color .18s ease, color .12s ease .1s;
 }
+/* A circle, not a pill. Scaling a pill-shaped fill from 0 just zooms the
+   button's own outline up from nothing — it's the same shape the whole way,
+   so it reads as a zoom rather than as anything inflating. A round balloon in
+   a pill-shaped space behaves differently: it's much taller than the button
+   is, so it meets the top and bottom walls almost immediately and then has
+   nowhere left to go but sideways into the two ends. That squeeze is the
+   whole effect, and overflow:hidden above is what supplies the walls.
+   Sized off the button's *width* so the fully inflated circle still covers
+   the far corners; everything past the pill's edge is clipped away. */
 #inflation-toggle::before {
-  content: ""; position: absolute; inset: 0; z-index: -1;
-  border-radius: inherit; background: var(--accent);
-  transform: scale(0);
+  content: ""; position: absolute; z-index: -1;
+  left: 50%; top: 50%;
+  width: 120%; aspect-ratio: 1;
+  border-radius: 50%; background: var(--accent);
+  transform: translate(-50%, -50%) scale(0);
 }
-#inflation-toggle[aria-pressed="true"]::before { transform: scale(1); }
+#inflation-toggle[aria-pressed="true"]::before { transform: translate(-50%, -50%) scale(1); }
 
-/* The button's own box never moves: the pill keeps its exact dimensions and
-   the fill is clipped to it (see overflow:hidden above), so all of this
-   happens strictly inside the existing outline. The overshoot to 1.04 is
-   swallowed by that clip — it's there to give the growth a bit of push at
-   the end, not to make anything bigger. */
-@keyframes inflationFill { 0% { transform: scale(0); } 100% { transform: scale(1); } }
-@keyframes inflationPop  { 0% { transform: scale(1); opacity: 1; } 28% { transform: scale(1.04); opacity: 1; } 100% { transform: scale(0); opacity: 0; } }
+/* The button's own box never moves — nothing here animates the button
+   element, only the clipped circle behind its label. Eased out, so it rushes
+   in and then settles as it presses into the ends. */
+@keyframes inflationFill { from { transform: translate(-50%, -50%) scale(0); } to   { transform: translate(-50%, -50%) scale(1); } }
+@keyframes inflationPop  { from { transform: translate(-50%, -50%) scale(1); opacity: 1; } to { transform: translate(-50%, -50%) scale(0); opacity: 0; } }
 
-#inflation-toggle.is-inflating::before { animation: inflationFill 340ms cubic-bezier(.22,.9,.3,1) both; }
-#inflation-toggle.is-popping::before   { animation: inflationPop  200ms cubic-bezier(.4,0,.7,1) both; }
+#inflation-toggle.is-inflating::before { animation: inflationFill 380ms cubic-bezier(.2,.85,.3,1) both; }
+#inflation-toggle.is-popping::before   { animation: inflationPop  170ms cubic-bezier(.55,0,.85,.4) both; }
 
 @media (prefers-reduced-motion: reduce) {
   #inflation-toggle.is-inflating::before, #inflation-toggle.is-popping::before { animation: none; }
