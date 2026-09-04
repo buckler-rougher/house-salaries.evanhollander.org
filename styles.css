@@ -391,32 +391,49 @@ body {
   background: transparent;
   transition: border-color .18s ease, color .12s ease .1s;
 }
-/* A circle, not a pill. Scaling a pill-shaped fill from 0 just zooms the
-   button's own outline up from nothing — it's the same shape the whole way,
-   so it reads as a zoom rather than as anything inflating. A round balloon in
-   a pill-shaped space behaves differently: it's much taller than the button
-   is, so it meets the top and bottom walls almost immediately and then has
-   nowhere left to go but sideways into the two ends. That squeeze is the
-   whole effect, and overflow:hidden above is what supplies the walls.
-   Sized off the button's *width* so the fully inflated circle still covers
-   the far corners; everything past the pill's edge is clipped away. */
+/* A balloon deforms; a ripple doesn't. That's the whole difference, and a
+   circle scaling uniformly from a point inside a clipped box is exactly the
+   Material ink-ripple, which is what this looked like for two passes.
+
+   So the fill is the button's own capsule (inset:0, fully rounded), and the
+   two axes are animated *against* each other. It opens as a small round blob,
+   gains its full height almost at once and pushes a little past it — the
+   overflow:hidden clip turns that overshoot into the look of rubber pressing
+   flat against the top and bottom — and only then squeezes out lengthwise
+   into the two ends, with the vertical bulge relaxing as it goes. The axes
+   overshoot at different moments, so it wobbles into place instead of easing
+   into it. The highlight is what sells the material: a soft off-centre
+   specular that stretches with the balloon as it fills. */
 #inflation-toggle::before {
-  content: ""; position: absolute; z-index: -1;
-  left: 50%; top: 50%;
-  width: 120%; aspect-ratio: 1;
-  border-radius: 50%; background: var(--accent);
-  transform: translate(-50%, -50%) scale(0);
+  content: ""; position: absolute; inset: 0; z-index: -1;
+  border-radius: 999px;
+  background:
+    radial-gradient(ellipse 55% 150% at 30% 20%, rgba(255,255,255,.30), rgba(255,255,255,0) 62%),
+    var(--accent);
+  transform: scale(0, 0);
 }
-#inflation-toggle[aria-pressed="true"]::before { transform: translate(-50%, -50%) scale(1); }
+#inflation-toggle[aria-pressed="true"]::before { transform: scale(1, 1); }
 
-/* The button's own box never moves — nothing here animates the button
-   element, only the clipped circle behind its label. Eased out, so it rushes
-   in and then settles as it presses into the ends. */
-@keyframes inflationFill { from { transform: translate(-50%, -50%) scale(0); } to   { transform: translate(-50%, -50%) scale(1); } }
-@keyframes inflationPop  { from { transform: translate(-50%, -50%) scale(1); opacity: 1; } to { transform: translate(-50%, -50%) scale(0); opacity: 0; } }
+@keyframes inflationFill {
+  0%   { transform: scale(0, 0); }
+  20%  { transform: scale(.18, 1.07); }   /* round, already pressing top and bottom */
+  36%  { transform: scale(.31, .94); }    /* rubber relaxes, starts to travel */
+  62%  { transform: scale(.74, 1.05); }
+  84%  { transform: scale(1.04, .97); }   /* overshoots the ends */
+  100% { transform: scale(1, 1); }
+}
+/* A real one bursts — it does not shrink back down, which reads as deflating.
+   It holds full size, strains a fraction larger, then is simply gone: the
+   opacity does nothing until the last fifth of an already short animation. */
+@keyframes inflationPop {
+  0%   { transform: scale(1, 1);       opacity: 1; }
+  55%  { transform: scale(1.05, 1.11); opacity: 1; }
+  80%  { transform: scale(1.08, 1.16); opacity: 1; }
+  100% { transform: scale(1.13, 1.22); opacity: 0; }
+}
 
-#inflation-toggle.is-inflating::before { animation: inflationFill 380ms cubic-bezier(.2,.85,.3,1) both; }
-#inflation-toggle.is-popping::before   { animation: inflationPop  170ms cubic-bezier(.55,0,.85,.4) both; }
+#inflation-toggle.is-inflating::before { animation: inflationFill 460ms cubic-bezier(.33,.68,.4,1) both; }
+#inflation-toggle.is-popping::before   { animation: inflationPop  150ms cubic-bezier(.5,.1,.9,.6) both; }
 
 @media (prefers-reduced-motion: reduce) {
   #inflation-toggle.is-inflating::before, #inflation-toggle.is-popping::before { animation: none; }
