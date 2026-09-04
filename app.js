@@ -511,14 +511,30 @@ function statsFor(q) {
   return officeTypeFilter ? (aq.by_type[officeTypeFilter] || { median: null, mean: null, count: 0 }) : aq.overall;
 }
 
-// CPI ratio to scale a quarter's nominal dollars into the latest quarter's
-// dollars — always 1 for the latest quarter itself (the base), and 1
-// whenever the toggle is off or CPI data is missing for either quarter.
+// The quarter whose dollars everything else is expressed in. This is *not*
+// simply the last quarter: the SOD is published well ahead of the BLS index,
+// so the newest one or two quarters routinely carry cpi: null until BLS
+// catches up. Anchoring on the last quarter regardless meant `!latest.cpi`
+// short-circuited every single conversion to 1 — the toggle re-rendered the
+// entire site to identical numbers while the note claimed they'd been
+// adjusted. Walk back to the most recent quarter that actually has CPI.
+function cpiBaseQuarter() {
+  for (let i = summary.quarters.length - 1; i >= 0; i--) {
+    if (summary.quarters[i].cpi) return summary.quarters[i];
+  }
+  return null;
+}
+
+// CPI ratio to scale a quarter's nominal dollars into the base quarter's
+// dollars — always 1 for the base quarter itself, and 1 whenever the toggle
+// is off or CPI data is missing for this quarter (which leaves the newest,
+// not-yet-indexed quarters at face value: they're already within a quarter
+// or two of the base, so nominal is the honest answer for them).
 function cpiFactorForQuarter(q) {
   if (!inflationOn || !q) return 1;
-  const latest = summary.quarters[summary.quarters.length - 1];
-  if (!q.cpi || !latest.cpi) return 1;
-  return latest.cpi / q.cpi;
+  const base = cpiBaseQuarter();
+  if (!base || !q.cpi) return 1;
+  return base.cpi / q.cpi;
 }
 function cpiFactorForId(qId) {
   return cpiFactorForQuarter(summary.quarters.find(q => q.id === qId));
@@ -804,8 +820,8 @@ function updateInflationNote() {
   const note = $("inflation-note");
   if (!note) return;
   if (!inflationOn) { note.textContent = ""; return; }
-  const latest = summary.quarters[summary.quarters.length - 1];
-  note.textContent = `in ${latest.label} dollars`;
+  const base = cpiBaseQuarter();
+  note.textContent = base ? `in ${base.label} dollars` : "";
 }
 
 function computeStatsClient(amounts) {
