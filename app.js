@@ -1221,7 +1221,7 @@ function renderPosResults(query) {
     const hs = positionHeaderStats(t, officeTypeFilter);
     const key = esc(t.title);
     const el = document.createElement("div"); el.className = "pos-row pos-row-in"; el.dataset.key = key;
-    el.innerHTML = `<span class="pos-row-name">${esc(t.title)}</span><span class="pos-row-count">${hs.count.toLocaleString()} staff</span><span class="pos-row-median" title="Median annual equivalent · full-time staff">${fmtK(hs.median)}</span>`;
+    el.innerHTML = `<span class="pos-row-name">${esc(t.title)}</span><span class="pos-row-count">${hs.count.toLocaleString()} staff</span><span class="pos-row-median" title="Median annualized · full-time staff">${fmtK(hs.median)}</span>`;
     el.addEventListener("click", async () => {
       // selectTitle() always prefers peopleData for the trend chart now, so
       // load it first rather than opening with the top_titles fallback and
@@ -1460,7 +1460,7 @@ function selectTitle(t, el, forcedTrendUI) {
     <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:8px">
       <div>
         <div class="range-card-title">${esc(t.title)}</div>
-        <div class="range-card-sub"><span class="range-card-count">${hs.count.toLocaleString()}</span> employees${(officeTypeFilter && isLatestQuarter()) ? ` · ${TYPE_LABELS[officeTypeFilter]} offices` : ""} · ${isLatestQuarter() ? "latest quarter" : esc(viewedQuarter().label)} · annual equivalent</div>
+        <div class="range-card-sub"><span class="range-card-count">${hs.count.toLocaleString()}</span> employees${(officeTypeFilter && isLatestQuarter()) ? ` · ${TYPE_LABELS[officeTypeFilter]} offices` : ""} · ${isLatestQuarter() ? "latest quarter" : esc(viewedQuarter().label)} · annualized</div>
       </div>
       <button onclick="clearTitle()" style="background:none;border:none;cursor:pointer;color:var(--ink3);font-size:1.1rem;line-height:1;padding:2px;flex-shrink:0;margin-top:2px">&times;</button>
     </div>
@@ -1731,7 +1731,7 @@ async function showPersonInline(name, officeName) {
         <button class="mini-q" data-q="4">Q4</button>
       </div>
     </div>`;
-    chartHtml = `<div class="emp-detail-section">Pay history · annual equivalent</div>${qFilterHtml}<div class="emp-detail-chart mini-chart-wrap" id="emp-detail-chart"></div>`;
+    chartHtml = `<div class="emp-detail-section">Pay history · annualized</div>${qFilterHtml}<div class="emp-detail-chart mini-chart-wrap" id="emp-detail-chart"></div>`;
   } else {
     chartHtml = `<div style="font-size:.82rem;color:var(--ink3);margin:16px 0">No multi-quarter history — this person may have joined recently or changed offices.</div>`;
   }
