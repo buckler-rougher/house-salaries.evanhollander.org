@@ -7,25 +7,10 @@
   font-display: swap;
 }
 
-@font-face {
-  font-family: "EMH Mono";
-  src: url('https://cdn.evanhollander.org/fonts/EMHMono.woff2') format('woff2-variations'),
-       url('https://cdn.evanhollander.org/fonts/EMHMono.woff2') format('woff2');
-  font-weight: 300 700;
-  font-style: normal;
-  font-display: swap;
-}
-
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 button, input, select, textarea { font-family: inherit; font-size: inherit; }
 
 :root {
-  /* EMH Mono tops out at wght 700, so anything set in it has to declare a
-     weight at or below that. Most display figures on this page are 800 and
-     stay in Grotesk for exactly that reason. */
-  --font-sans: "EMH Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
-  --font-mono: "EMH Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-
   --bg:     #ffffff;
   --bg2:    #f7f6f3;
   --bg3:    #eeece8;
@@ -40,7 +25,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
 
 html { font-size: 16px; }
 body {
-  font-family: var(--font-sans);
+  font-family: "EMH Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
   background: var(--bg);
   color: var(--text);
   line-height: 1.5;
@@ -674,14 +659,9 @@ tr:hover td { background: var(--bg2); }
    contain it: the cell spilled rightward across the gap and printed on top
    of the chevron. minmax() sizes the track to the widest cell instead, and
    every row still shares one right edge. */
-/* Mono here because these figures re-render on four different interactions.
-   .915rem is .88 x 1.0398: Mono's x-height is 0.525 em against Grotesk's
-   0.546, so matched font-size would set visibly smaller beside the count
-   and the badge. Its digits are slightly narrower than Grotesk's even
-   after the bump, so the column does not get wider. */
-.office-range { font-family: var(--font-mono); font-size: .915rem; font-weight: 700; color: var(--ink); white-space: nowrap; text-align: right; }
+.office-range { font-size: .88rem; font-weight: 700; color: var(--ink); white-space: nowrap; text-align: right; }
 .office-range-sep { color: var(--ink3); font-weight: 400; margin: 0 2px; }
-.office-range-tag { font-family: var(--font-sans); color: var(--ink3); font-weight: 400; font-size: .72rem; margin-left: 5px; text-transform: uppercase; letter-spacing: .02em; }
+.office-range-tag { color: var(--ink3); font-weight: 400; font-size: .72rem; margin-left: 5px; text-transform: uppercase; letter-spacing: .02em; }
 .office-chevron { font-size: 1rem; color: var(--ink3); transition: transform .15s; }
 
 .office-detail { background: var(--bg2); border-radius: 8px; margin: 4px 0 10px; padding: 16px 18px; }
@@ -729,20 +709,9 @@ tr:hover td { background: var(--bg2); }
 .ed-salary-pencil { font-size: .95rem; color: var(--ink3); transform: scaleX(-1); display: inline-block; }
 .emp-detail-salary:hover .ed-salary-pencil { color: var(--accent); }
 .emp-detail-salary-sub { font-size: .75rem; color: var(--ink3); margin-bottom: 14px; }
-/* The editing state goes Mono: these are digits you are changing in place,
-   and a fixed advance stops the number shifting under the caret as it grows.
-   Weight drops 800 -> 700 because that is Mono's ceiling, and asking for 800
-   would have the browser synthesize it. Size is bumped 1.6 -> 1.664rem
-   (x1.0398) to hold the x-height against the button it replaces. Incidentally
-   this makes the input's width: 8ch exact, since in a monospace face 1ch is
-   one character. */
 .ed-salary-input-wrap {
   border-bottom: 2px solid var(--accent) !important;
   background: var(--accent2); padding: 0 4px; cursor: text;
-  font-family: var(--font-mono); font-size: 1.664rem; font-weight: 700;
-  /* .emp-detail-salary tracks -.03em, which is tuned for Grotesk. Leaving
-     it on would squeeze the monospace grid and undo the fixed advance. */
-  letter-spacing: normal;
 }
 .ed-salary-prefix { color: var(--ink); }
 .ed-salary-input {
