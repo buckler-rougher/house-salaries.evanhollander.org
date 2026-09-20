@@ -7,10 +7,22 @@
   font-display: swap;
 }
 
+@font-face {
+  font-family: "EMH Mono";
+  src: url('https://cdn.evanhollander.org/fonts/EMHMono.woff2') format('woff2-variations'),
+       url('https://cdn.evanhollander.org/fonts/EMHMono.woff2') format('woff2');
+  font-weight: 300 700;
+  font-style: normal;
+  font-display: swap;
+}
+
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 button, input, select, textarea { font-family: inherit; font-size: inherit; }
 
 :root {
+  --font-sans: "EMH Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
+  --font-mono: "EMH Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
   --bg:     #ffffff;
   --bg2:    #f7f6f3;
   --bg3:    #eeece8;
@@ -25,7 +37,7 @@ button, input, select, textarea { font-family: inherit; font-size: inherit; }
 
 html { font-size: 16px; }
 body {
-  font-family: "EMH Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: var(--font-sans);
   background: var(--bg);
   color: var(--text);
   line-height: 1.5;
@@ -679,6 +691,36 @@ tr:hover td { background: var(--bg2); }
 .office-staff-name { font-weight: 700; color: var(--ink); }
 .office-staff-title { color: var(--ink3); font-size: .78rem; }
 .office-staff-amt { font-weight: 800; color: var(--ink); text-align: right; white-space: nowrap; }
+
+/* ── Dollar figures ───────────────────────────────────────────────────────
+   Currency only. Not staff counts, not tenure in years, not quarter labels,
+   not the labels sitting beside any of them. Carried by an explicit class
+   rather than by restyling the amount classes, because several of those are
+   shared: .hero-stat-num also sets the staff count and the quarter nav, and
+   .office-range holds "3.5 yrs" when the list is sorted by tenure.
+
+   weight 700 is stated because EMH Mono stops there. Most of these sites are
+   800, and leaving 800 in place would have the browser synthesize a weight
+   the face does not have, which is the failure this type system exists to
+   avoid.
+
+   font-size-adjust does the optical correction without touching a single
+   font-size. Mono's x-height is 0.525 em against Grotesk's 0.546, so matched
+   font-size sets visibly smaller; pinning the ratio to Grotesk's own value
+   scales Mono up by the 1.040 that closes the gap, at whatever size each
+   call site happens to declare. It is inherited, but it is a no-op on any
+   Grotesk child, since that is Grotesk's own ratio.
+
+   This rule sits after every amount class it overrides. It matches them on
+   equal specificity, so source order is what decides it. */
+.money {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  font-size-adjust: 0.546;
+  letter-spacing: normal;
+}
+/* The tag is a label, so it stays in Grotesk even inside a .money cell. */
+.office-range-tag { font-family: var(--font-sans); }
 .office-staff-more { font-size: .75rem; color: var(--ink3); padding-top: 8px; }
 .office-detail-empty { font-size: .82rem; color: var(--ink3); }
 

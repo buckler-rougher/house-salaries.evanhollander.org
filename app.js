@@ -1023,7 +1023,7 @@ function renderTypeBars() {
         <div class="type-track type-iqr" style="left:${pct(s.p25)}%;width:${pct(s.p75)-pct(s.p25)}%;background:${col}"></div>
         <div class="type-track type-needle" style="left:${pct(s.median)}%;background:${col}"></div>
       </div>
-      <span class="type-val" style="color:${col}">${fmtK(s.median)}</span>`;
+      <span class="type-val money" style="color:${col}">${fmtK(s.median)}</span>`;
     c.appendChild(row);
 
     // Member: broken down by caucus (the conference a member actually sits
@@ -1053,7 +1053,7 @@ function renderTypeBars() {
             <div class="type-track type-iqr" style="left:${pct(st.p25)}%;width:${pct(st.p75)-pct(st.p25)}%;background:${ccol}"></div>
             <div class="type-track type-needle" style="left:${pct(st.median)}%;background:${ccol}"></div>
           </div>
-          <span class="type-val" style="color:${ccol}">${fmtK(st.median)}</span>`;
+          <span class="type-val money" style="color:${ccol}">${fmtK(st.median)}</span>`;
         sub.appendChild(subRow);
       });
       if (sub.children.length) c.appendChild(sub);
@@ -1142,7 +1142,7 @@ function renderTenureChart() {
   const yTicks = Array.from({ length: 6 }, (_, i) => {
     const v = i * yStep, y = sy(v);
     return `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#eeece8" stroke-width="1"/>
-            <text x="${(pad.l - 6).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#888">$${Math.round(v/1000)}k</text>`;
+            <text class="money" x="${(pad.l - 6).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#888">$${Math.round(v/1000)}k</text>`;
   }).join("");
 
   const barW = pw / stats.length;
@@ -1155,7 +1155,7 @@ function renderTenureChart() {
     const y = pad.t + ph - bh;
     return `<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${bh.toFixed(1)}" fill="#1b6f2c" rx="2"/>
       <text x="${(x + w/2).toFixed(1)}" y="${(pad.t + ph + 16).toFixed(1)}" text-anchor="middle" font-size="11" fill="#888">${s.label}</text>
-      <text x="${(x + w/2).toFixed(1)}" y="${(y - 6).toFixed(1)}" text-anchor="middle" font-size="10" fill="#555">${s.stats ? fmtK(median) : "—"}</text>`;
+      <text class="money" x="${(x + w/2).toFixed(1)}" y="${(y - 6).toFixed(1)}" text-anchor="middle" font-size="10" fill="#555">${s.stats ? fmtK(median) : "—"}</text>`;
   }).join("");
 
   wrap.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="width:100%;height:100%">${yTicks}${bars}</svg>`;
@@ -1221,7 +1221,7 @@ function renderPosResults(query) {
     const hs = positionHeaderStats(t, officeTypeFilter);
     const key = esc(t.title);
     const el = document.createElement("div"); el.className = "pos-row pos-row-in"; el.dataset.key = key;
-    el.innerHTML = `<span class="pos-row-name">${esc(t.title)}</span><span class="pos-row-count">${hs.count.toLocaleString()} staff</span><span class="pos-row-median" title="Median annualized · full-time staff">${fmtK(hs.median)}</span>`;
+    el.innerHTML = `<span class="pos-row-name">${esc(t.title)}</span><span class="pos-row-count">${hs.count.toLocaleString()} staff</span><span class="pos-row-median money" title="Median annualized · full-time staff">${fmtK(hs.median)}</span>`;
     el.addEventListener("click", async () => {
       // selectTitle() always prefers peopleData for the trend chart now, so
       // load it first rather than opening with the top_titles fallback and
@@ -1449,7 +1449,7 @@ function selectTitle(t, el, forcedTrendUI) {
         return `<div class="range-staff-row range-staff-row-in" style="--i:${i}" data-key="${key}">
           <span class="range-staff-name person-link" data-name="${esc(e.name)}" data-office="${esc(cleanOrg(e.office))}">${esc(e.name)}</span>
           <span class="range-staff-office office-link" data-office="${esc(cleanOrg(e.office))}">${esc(cleanOrg(e.office))}</span>
-          <span class="range-staff-amt">${over?`<span class="cap-warn" title="May include bonus/lump sum">⚠</span> `:""}<span class="range-staff-amt-val">${fmt(e.annual_equiv)}</span></span>
+          <span class="range-staff-amt">${over?`<span class="cap-warn" title="May include bonus/lump sum">⚠</span> `:""}<span class="range-staff-amt-val money">${fmt(e.annual_equiv)}</span></span>
         </div>`;
       }).join("")}
       ${staff.length>30?`<div class="range-staff-more">+${staff.length-30} more</div>`:""}
@@ -1472,9 +1472,9 @@ function selectTitle(t, el, forcedTrendUI) {
       <div class="range-bar-labels"><span><span class="range-bar-label-val">${fmtSh(hs.p10)}</span> (P10)</span><span><span class="range-bar-label-val">${fmtSh(hs.p90)}</span> (P90)</span></div>
     </div>
     <div class="range-trio">
-      <div class="range-trio-cell"><div class="range-trio-val">${fmtSh(hs.p25)}</div><div class="range-trio-key">25th pct.</div></div>
-      <div class="range-trio-cell"><div class="range-trio-val">${fmtSh(hs.median)}</div><div class="range-trio-key">Median</div></div>
-      <div class="range-trio-cell"><div class="range-trio-val">${fmtSh(hs.p75)}</div><div class="range-trio-key">75th pct.</div></div>
+      <div class="range-trio-cell"><div class="range-trio-val money">${fmtSh(hs.p25)}</div><div class="range-trio-key">25th pct.</div></div>
+      <div class="range-trio-cell"><div class="range-trio-val money">${fmtSh(hs.median)}</div><div class="range-trio-key">Median</div></div>
+      <div class="range-trio-cell"><div class="range-trio-val money">${fmtSh(hs.p75)}</div><div class="range-trio-key">75th pct.</div></div>
     </div>
     <div class="range-min-max"><span>Min: ${fmtSh(hs.min)}</span><span>Max: ${fmtSh(hs.max)}</span></div>
     ${hasTrend ? miniTrendHtml("mini-pos-trend-wrap", "Salary trend", priorTrendUI) : ""}
@@ -2458,7 +2458,7 @@ function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel, xs = 
   const yTicks = Array.from({ length: 5 }, (_, i) => {
     const v = yMin + (vRange * i / 4), y = sy(v);
     return `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#eeece8" stroke-width="1"/>
-            <text x="${(pad.l - 6).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
+            <text class="money" x="${(pad.l - 6).toFixed(1)}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="11" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
   }).join("");
 
   // X labels — only for points that are (mostly) visible right now, thinned so they don't collide
@@ -3155,7 +3155,7 @@ function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend 
   const yTicks = [0, 0.33, 0.67, 1].map(f => {
     const v = minV + vRange * f, y = sy(v);
     return `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#eeece8" stroke-width="1"/>
-            <text x="${pad.l - 7}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
+            <text class="money" x="${pad.l - 7}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
   }).join("");
 
   const markerLines = titleSegmentMarkup(markers, sx, pad, ph);
@@ -3260,7 +3260,7 @@ function buildSparklineFrame(fullLabels, fullData, xs, opacities, padL = 54, mar
   const yTicks = [0, .33, .67, 1].map(f => {
     const v = minV + vRange * f, y = sy(v);
     return `<line x1="${pad.l}" x2="${W - pad.r}" y1="${y.toFixed(1)}" y2="${y.toFixed(1)}" stroke="#eeece8" stroke-width="1"/>
-            <text x="${pad.l - 7}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
+            <text class="money" x="${pad.l - 7}" y="${(y + 4).toFixed(1)}" text-anchor="end" font-size="12" fill="#888">$${(v/1000).toFixed(0)}k</text>`;
   }).join("");
 
   const markerLines = titleSegmentMarkup(markers, sx, pad, ph);
@@ -3592,9 +3592,9 @@ function renderOfficeDetail(officeName, el) {
     el.innerHTML = `
       ${memberPhotoHeaderHtml(staff[0]?.party, officeName)}
       <div class="office-detail-stats">
-        <div class="office-detail-stat"><div class="office-detail-val">${fmtK(p25)}</div><div class="office-detail-key">25th pct.</div></div>
-        <div class="office-detail-stat"><div class="office-detail-val">${fmtK(median)}</div><div class="office-detail-key">Median</div></div>
-        <div class="office-detail-stat"><div class="office-detail-val">${fmtK(p75)}</div><div class="office-detail-key">75th pct.</div></div>
+        <div class="office-detail-stat"><div class="office-detail-val money">${fmtK(p25)}</div><div class="office-detail-key">25th pct.</div></div>
+        <div class="office-detail-stat"><div class="office-detail-val money">${fmtK(median)}</div><div class="office-detail-key">Median</div></div>
+        <div class="office-detail-stat"><div class="office-detail-val money">${fmtK(p75)}</div><div class="office-detail-key">75th pct.</div></div>
       </div>
       <div class="office-total-payroll">Est. annual payroll: <strong>${fmt(staff.reduce((s,e)=>s+e.annual_equiv,0))}</strong> across ${staff.length} staff</div>
       ${hasTrend ? miniTrendHtml(trendWrapId, "Salary trend") : ""}
@@ -3603,7 +3603,7 @@ function renderOfficeDetail(officeName, el) {
         return `<div class="office-staff-row">
           <span class="office-staff-name person-link" data-name="${esc(e.name)}" data-office="${esc(officeName)}">${esc(e.name)}</span>
           <span class="office-staff-title">${esc(e.title)}</span>
-          <span class="office-staff-amt">${over?`<span class="cap-warn" title="May include bonus/lump sum">⚠</span> `:""}${fmt(e.annual_equiv)}</span>
+          <span class="office-staff-amt">${over?`<span class="cap-warn" title="May include bonus/lump sum">⚠</span> `:""}<span class="money">${fmt(e.annual_equiv)}</span></span>
         </div>`;
       }).join("")}</div>`;
   } else {
@@ -3614,9 +3614,9 @@ function renderOfficeDetail(officeName, el) {
     el.innerHTML = `
       ${memberPhotoHeaderHtml(o.party, officeName)}
       <div class="office-detail-stats">
-        <div class="office-detail-stat"><div class="office-detail-val">${fmtK(o.p25)}</div><div class="office-detail-key">25th pct.</div></div>
-        <div class="office-detail-stat"><div class="office-detail-val">${fmtK(o.median)}</div><div class="office-detail-key">Median</div></div>
-        <div class="office-detail-stat"><div class="office-detail-val">${fmtK(o.p75)}</div><div class="office-detail-key">75th pct.</div></div>
+        <div class="office-detail-stat"><div class="office-detail-val money">${fmtK(o.p25)}</div><div class="office-detail-key">25th pct.</div></div>
+        <div class="office-detail-stat"><div class="office-detail-val money">${fmtK(o.median)}</div><div class="office-detail-key">Median</div></div>
+        <div class="office-detail-stat"><div class="office-detail-val money">${fmtK(o.p75)}</div><div class="office-detail-key">75th pct.</div></div>
       </div>
       ${o.total_quarterly_pay ? `<div class="office-total-payroll">Est. annual payroll: <strong>${fmt(o.total_quarterly_pay * 4)}</strong> across ${o.count} staff</div>` : ""}
       ${hasTrend ? miniTrendHtml(trendWrapId, "Salary trend") : ""}
@@ -3689,7 +3689,7 @@ function renderOfficeList() {
         <div class="office-name"><span class="office-name-text">${esc(o.name)}</span>${officePartyBadge(o)}</div>
         <span class="badge badge-${o.type}">${TYPE_LABELS[o.type]||o.type}</span>
         <span class="office-count"><span class="office-count-num">${o.count}</span><span class="office-count-label">&nbsp;staff</span></span>
-        <span class="office-range">${officeRangeHtml(o, officeSortKey)}</span>
+        <span class="office-range${officeSortKey === "tenure" ? "" : " money"}">${officeRangeHtml(o, officeSortKey)}</span>
         <span class="office-chevron">›</span>
       </div>
       <div class="office-detail" style="display:none"></div>`;
@@ -3809,7 +3809,7 @@ function renderTable() {
       <td class="td-office" title="${esc(e.office)}"><span class="office-link with-party-badge" data-office="${esc(cleanOrg(e.office))}">${esc(cleanOrg(e.office))}${officePartyBadge(e)}</span></td>
       <td class="td-title">${esc(e.title)}</td>
       <td><span class="badge badge-${e.intern?"intern":e.shared?"shared":e.type}">${e.intern?"Intern":e.shared?"Shared":(TYPE_LABELS[e.type]||e.type)}</span></td>
-      <td class="td-amt">${overCap ? `<span class="cap-warn" title="Exceeds $228k staff salary cap — may include a bonus or lump-sum payment">⚠</span> ` : ""}${fmt(e.annual_equiv)}</td>
+      <td class="td-amt">${overCap ? `<span class="cap-warn" title="Exceeds $228k staff salary cap — may include a bonus or lump-sum payment">⚠</span> ` : ""}<span class="money">${fmt(e.annual_equiv)}</span></td>
       <td class="td-chevron"><span class="emp-row-chevron">›</span></td>
     </tr>
     <tr class="emp-detail-row" style="display:none">
