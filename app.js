@@ -1469,14 +1469,14 @@ function selectTitle(t, el, forcedTrendUI) {
         <div class="range-bar-fill" style="left:${pct(hs.p10)}%;width:${pct(hs.p90)-pct(hs.p10)}%"></div>
         <div class="range-bar-needle" style="left:${pct(hs.median)}%"></div>
       </div>
-      <div class="range-bar-labels"><span><span class="range-bar-label-val">${fmtSh(hs.p10)}</span> (P10)</span><span><span class="range-bar-label-val">${fmtSh(hs.p90)}</span> (P90)</span></div>
+      <div class="range-bar-labels"><span><span class="range-bar-label-val money">${fmtSh(hs.p10)}</span> (P10)</span><span><span class="range-bar-label-val money">${fmtSh(hs.p90)}</span> (P90)</span></div>
     </div>
     <div class="range-trio">
       <div class="range-trio-cell"><div class="range-trio-val money">${fmtSh(hs.p25)}</div><div class="range-trio-key">25th pct.</div></div>
       <div class="range-trio-cell"><div class="range-trio-val money">${fmtSh(hs.median)}</div><div class="range-trio-key">Median</div></div>
       <div class="range-trio-cell"><div class="range-trio-val money">${fmtSh(hs.p75)}</div><div class="range-trio-key">75th pct.</div></div>
     </div>
-    <div class="range-min-max"><span>Min: ${fmtSh(hs.min)}</span><span>Max: ${fmtSh(hs.max)}</span></div>
+    <div class="range-min-max"><span>Min: <span class="range-min-max-val money">${fmtSh(hs.min)}</span></span><span>Max: <span class="range-min-max-val money">${fmtSh(hs.max)}</span></span></div>
     ${hasTrend ? miniTrendHtml("mini-pos-trend-wrap", "Salary trend", priorTrendUI) : ""}
     ${staffHtml}
     </div>`;
@@ -1508,9 +1508,9 @@ function selectTitle(t, el, forcedTrendUI) {
     animatePositionNumberText(trioEls[0], priorNums.p25, hs.p25, fmtSh);
     animatePositionNumberText(trioEls[1], priorNums.median, hs.median, fmtSh);
     animatePositionNumberText(trioEls[2], priorNums.p75, hs.p75, fmtSh);
-    const minMaxEls = posView.querySelectorAll(".range-min-max span");
-    animatePositionNumberText(minMaxEls[0], priorNums.min, hs.min, v => `Min: ${fmtSh(v)}`);
-    animatePositionNumberText(minMaxEls[1], priorNums.max, hs.max, v => `Max: ${fmtSh(v)}`);
+    const minMaxEls = posView.querySelectorAll(".range-min-max-val");
+    animatePositionNumberText(minMaxEls[0], priorNums.min, hs.min, fmtSh);
+    animatePositionNumberText(minMaxEls[1], priorNums.max, hs.max, fmtSh);
     animatePositionNumberText(posView.querySelector(".range-card-count"), priorNums.count, hs.count, v => Math.round(v).toLocaleString());
     const labelValEls = posView.querySelectorAll(".range-bar-label-val");
     animatePositionNumberText(labelValEls[0], priorNums.p10, hs.p10, fmtSh);
@@ -1656,7 +1656,7 @@ async function showPersonInline(name, officeName) {
       const sign = diff >= 0 ? "+" : "−";
       const color = diff >= 0 ? "#059669" : "#dc2626";
       yoyHtml = `<div class="emp-detail-yoy">
-        <span style="color:${color};font-weight:700">${sign}${fmtK(Math.abs(diff))} (${sign}${Math.abs(pct)}%)</span>
+        <span style="color:${color};font-weight:700"><span class="money" style="color:inherit">${sign}${fmtK(Math.abs(diff))}</span> (${sign}${Math.abs(pct)}%)</span>
         <span class="emp-detail-yoy-label">vs. ${labelMap[priorId] || priorId} · same quarter last year</span>
       </div>`;
     }
@@ -1746,7 +1746,7 @@ async function showPersonInline(name, officeName) {
     </div>
     <div class="ed-comp-wrap" id="ed-comp-wrap" style="display:none">
       <div class="ed-comp-allstaff" id="ed-comp-allstaff" data-title="${ALL_STAFF_KEY}">
-        <span class="ed-comp-result-title">All staff</span><span class="ed-comp-result-med">${fmtK(overallStats.median)}</span>
+        <span class="ed-comp-result-title">All staff</span><span class="ed-comp-result-med money">${fmtK(overallStats.median)}</span>
       </div>
       <input id="ed-comp-search" class="ed-comp-input" placeholder="Search a title…" autocomplete="off" />
       <div id="ed-comp-results" class="ed-comp-results"></div>
@@ -1757,7 +1757,7 @@ async function showPersonInline(name, officeName) {
 
   const salaryBlockHtml = latestEmp ? `
     <div class="emp-detail-salary-row">
-      <button class="emp-detail-salary" id="ed-salary-val" type="button" title="Click to try a different salary">${over ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(latestEmp.annual_equiv)}<span class="ed-salary-pencil">✎</span></button>
+      <button class="emp-detail-salary" id="ed-salary-val" type="button" title="Click to try a different salary">${over ? `<span class="cap-warn">⚠</span> ` : ""}<span class="money">${fmt(latestEmp.annual_equiv)}</span><span class="ed-salary-pencil">✎</span></button>
       <span class="emp-detail-salary ed-salary-input-wrap" id="ed-salary-input-wrap" style="display:none">
         <span class="ed-salary-prefix">$</span><input type="text" inputmode="numeric" name="ed-salary-test-${Date.now()}" autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other" class="ed-salary-input" id="ed-salary-input" />
       </span>
@@ -1872,10 +1872,10 @@ async function showPersonInline(name, officeName) {
       const pctileNum = estimatePercentile(you, ts);
       const pctile = pctileNum != null ? `${ordinal(pctileNum)} percentile` : "";
       const whoLabel = salaryOverride != null ? "Hypothetical" : esc(name);
-      const youRow = `<div class="emp-detail-comp-row emp-detail-comp-you${salaryOverride != null ? " emp-detail-comp-you-hypo" : ""}"><span>${whoLabel} ${pctile ? `<span style="font-weight:400;font-size:.72rem;opacity:.7">${pctile}</span>` : ""}</span><span>${fmtK(you)}</span></div>`;
-      const r25 = `<div class="emp-detail-comp-row"><span>25th pct.</span><span>${fmtK(ts.p25)}</span></div>`;
-      const rMed = `<div class="emp-detail-comp-row"><span>Median</span><span>${fmtK(ts.median)}</span></div>`;
-      const r75 = `<div class="emp-detail-comp-row"><span>75th pct.</span><span>${fmtK(ts.p75)}</span></div>`;
+      const youRow = `<div class="emp-detail-comp-row emp-detail-comp-you${salaryOverride != null ? " emp-detail-comp-you-hypo" : ""}"><span>${whoLabel} ${pctile ? `<span style="font-weight:400;font-size:.72rem;opacity:.7">${pctile}</span>` : ""}</span><span class="money">${fmtK(you)}</span></div>`;
+      const r25 = `<div class="emp-detail-comp-row"><span>25th pct.</span><span class="money">${fmtK(ts.p25)}</span></div>`;
+      const rMed = `<div class="emp-detail-comp-row"><span>Median</span><span class="money">${fmtK(ts.median)}</span></div>`;
+      const r75 = `<div class="emp-detail-comp-row"><span>75th pct.</span><span class="money">${fmtK(ts.p75)}</span></div>`;
       const rows = you < ts.p25
         ? [youRow, r25, rMed, r75]
         : you < ts.median
@@ -2013,7 +2013,7 @@ async function showPersonInline(name, officeName) {
       salaryPillEl.style.display = salaryOverride != null ? "" : "none";
       const v = salaryOverride != null ? salaryOverride : latestEmp.annual_equiv;
       const overNow = v > SALARY_CAP;
-      salaryValBtn.innerHTML = `${overNow ? `<span class="cap-warn">⚠</span> ` : ""}${fmt(v)}<span class="ed-salary-pencil">✎</span>`;
+      salaryValBtn.innerHTML = `${overNow ? `<span class="cap-warn">⚠</span> ` : ""}<span class="money">${fmt(v)}</span><span class="ed-salary-pencil">✎</span>`;
       salaryValBtn.style.display = "";
       salaryInputWrap.style.display = "none";
     }
@@ -2093,7 +2093,7 @@ async function showPersonInline(name, officeName) {
         const q = searchEl.value.toLowerCase().trim();
         if (!q) { resultsEl.style.display = "none"; return; }
         const hits = allTitles.filter(t => t.title.toLowerCase().includes(q)).slice(0, 10);
-        resultsEl.innerHTML = hits.map(t => `<div class="ed-comp-result" data-title="${esc(t.title)}"><span class="ed-comp-result-title">${esc(t.title)}</span><span class="ed-comp-result-med">${fmtK(t.median)}</span></div>`).join("");
+        resultsEl.innerHTML = hits.map(t => `<div class="ed-comp-result" data-title="${esc(t.title)}"><span class="ed-comp-result-title">${esc(t.title)}</span><span class="ed-comp-result-med money">${fmtK(t.median)}</span></div>`).join("");
         resultsEl.style.display = hits.length ? "block" : "none";
         resultsEl.querySelectorAll(".ed-comp-result").forEach(row => {
           row.addEventListener("click", () => selectCompTitle(row.dataset.title));
@@ -2390,7 +2390,7 @@ function setupSparklineTooltips() {
     const hit = e.target.closest?.(".spark-hit");
     if (!hit) return;
     const tt = $("chart-tooltip");
-    tt.innerHTML = `<strong>${hit.dataset.label}</strong><br>${hit.dataset.value}`;
+    tt.innerHTML = `<strong>${hit.dataset.label}</strong><br><span class="money">${hit.dataset.value}</span>`;
     tt.style.display = "block";
     const dot = hit.previousElementSibling;
     dot?.classList.add("spark-dot-active");
@@ -2542,7 +2542,7 @@ function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel, xs = 
       const annualSlope = slope * annualMultiplier;
       const sign = annualSlope >= 0 ? "+" : "−";
       const abs = Math.abs(annualSlope);
-      const label = `${sign}$${abs >= 1000 ? (abs/1000).toFixed(1)+"k" : Math.round(abs)} / yr trend`;
+      const label = `<tspan class="money">${sign}$${abs >= 1000 ? (abs/1000).toFixed(1)+"k" : Math.round(abs)}</tspan> / yr trend`;
       soloAnnot = `<text x="${(W - pad.r).toFixed(1)}" y="14" text-anchor="end" font-size="11" fill="#6b7280">${label}</text>`;
     }
     return `<line x1="${sx(x0).toFixed(1)}" y1="${y0.toFixed(1)}" x2="${sx(x1).toFixed(1)}" y2="${y1.toFixed(1)}"
@@ -2624,7 +2624,7 @@ function drawSvgLineChart(containerEl, fullLabels, fullDatasets, opts = {}) {
         const lines = datasets.map(ds => {
           const v = ds.data[+i];
           const prefix = ds.label ? `${ds.label}: ` : "";
-          return `${prefix}${v != null ? fmt(v) : "—"}`;
+          return `${prefix}<span class="money">${v != null ? fmt(v) : "—"}</span>`;
         });
         tt.innerHTML = `<strong>${lbl}</strong><br>${lines.join("<br>")}`;
         tt.style.display = "block";
@@ -3224,7 +3224,7 @@ function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend 
     const annualSlope = slope * annualMultiplier;
     const sign = annualSlope >= 0 ? "+" : "−";
     const abs = Math.abs(annualSlope);
-    const label = `${sign}$${abs >= 1000 ? (abs/1000).toFixed(1)+"k" : Math.round(abs)} / yr trend`;
+    const label = `<tspan class="money">${sign}$${abs >= 1000 ? (abs/1000).toFixed(1)+"k" : Math.round(abs)}</tspan> / yr trend`;
     annotEl = `<text x="${(W - pad.r).toFixed(1)}" y="14" text-anchor="end" font-size="11" fill="#6b7280">${label}</text>`;
   }
 
@@ -3596,7 +3596,7 @@ function renderOfficeDetail(officeName, el) {
         <div class="office-detail-stat"><div class="office-detail-val money">${fmtK(median)}</div><div class="office-detail-key">Median</div></div>
         <div class="office-detail-stat"><div class="office-detail-val money">${fmtK(p75)}</div><div class="office-detail-key">75th pct.</div></div>
       </div>
-      <div class="office-total-payroll">Est. annual payroll: <strong>${fmt(staff.reduce((s,e)=>s+e.annual_equiv,0))}</strong> across ${staff.length} staff</div>
+      <div class="office-total-payroll">Est. annual payroll: <strong class="money">${fmt(staff.reduce((s,e)=>s+e.annual_equiv,0))}</strong> across ${staff.length} staff</div>
       ${hasTrend ? miniTrendHtml(trendWrapId, "Salary trend") : ""}
       <div class="office-staff-list">${staff.map(e => {
         const over = e.annual_equiv > SALARY_CAP;
@@ -3618,7 +3618,7 @@ function renderOfficeDetail(officeName, el) {
         <div class="office-detail-stat"><div class="office-detail-val money">${fmtK(o.median)}</div><div class="office-detail-key">Median</div></div>
         <div class="office-detail-stat"><div class="office-detail-val money">${fmtK(o.p75)}</div><div class="office-detail-key">75th pct.</div></div>
       </div>
-      ${o.total_quarterly_pay ? `<div class="office-total-payroll">Est. annual payroll: <strong>${fmt(o.total_quarterly_pay * 4)}</strong> across ${o.count} staff</div>` : ""}
+      ${o.total_quarterly_pay ? `<div class="office-total-payroll">Est. annual payroll: <strong class="money">${fmt(o.total_quarterly_pay * 4)}</strong> across ${o.count} staff</div>` : ""}
       ${hasTrend ? miniTrendHtml(trendWrapId, "Salary trend") : ""}
       <div class="office-detail-empty" style="font-size:.75rem;margin-top:8px">Individual staff data only available for the latest quarter.</div>`;
   }

@@ -719,6 +719,10 @@ tr:hover td { background: var(--bg2); }
   font-size-adjust: 0.546;
   letter-spacing: normal;
 }
+/* Chart labels are small, grey and set no weight of their own, so they were
+   rendering at 400 before this. .money's 700 made them shout over the plot
+   they annotate. Currency in SVG keeps the face and goes back to regular. */
+text.money, tspan.money { font-weight: 400; }
 /* The tag is a label, so it stays in Grotesk even inside a .money cell. */
 .office-range-tag { font-family: var(--font-sans); }
 .office-staff-more { font-size: .75rem; color: var(--ink3); padding-top: 8px; }
