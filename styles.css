@@ -631,7 +631,7 @@ tr:hover td { background: var(--bg2); }
 .office-list { display: flex; flex-direction: column; }
 .office-row {
   display: grid;
-  grid-template-columns: 1fr 96px 72px 116px 16px;
+  grid-template-columns: 1fr 96px 72px minmax(116px, max-content) 16px;
   align-items: center;
   gap: 12px;
   padding: 11px 0;
@@ -650,7 +650,13 @@ tr:hover td { background: var(--bg2); }
 .office-count { font-size: .75rem; color: var(--ink3); white-space: nowrap; display: flex; justify-content: flex-end; }
 .office-count-num { text-align: right; min-width: 2.2ch; }
 .office-count-label { flex-shrink: 0; }
-/* range: fixed width, right-aligned */
+/* range: right-aligned, on a track that grows past its 116px floor rather
+   than letting the cell overflow. Sorting by tenure puts "3.5 yrs MEDIAN
+   TENURE" in here, roughly 165px of nowrap text, and a grid item never
+   shrinks below its own min-content width. So a fixed 116px track did not
+   contain it: the cell spilled rightward across the gap and printed on top
+   of the chevron. minmax() sizes the track to the widest cell instead, and
+   every row still shares one right edge. */
 .office-range { font-size: .88rem; font-weight: 700; color: var(--ink); white-space: nowrap; text-align: right; }
 .office-range-sep { color: var(--ink3); font-weight: 400; margin: 0 2px; }
 .office-range-tag { color: var(--ink3); font-weight: 400; font-size: .72rem; margin-left: 5px; text-transform: uppercase; letter-spacing: .02em; }
