@@ -4043,5 +4043,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // Warm EMH Mono before the data lands. A browser only requests a face when
+  // something on screen actually needs it, and there is no .money element in
+  // the static HTML at all, so the fetch would otherwise not start until the
+  // first figures render at the end of loadData(). font-display: swap then
+  // paints those amounts in the fallback monospace and visibly reflows them
+  // into Mono a moment later. Firing it here races the font against the JSON,
+  // which it wins comfortably at 19 KB. Not a preload link on purpose:
+  // TYPOGRAPHY.md reserves those for the face that paints first, which is
+  // Grotesk.
+  document.fonts?.load('700 1rem "EMH Mono"').catch(() => {});
+
   loadData();
 });
