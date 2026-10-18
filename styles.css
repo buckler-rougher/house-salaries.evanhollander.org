@@ -71,23 +71,47 @@ body { -webkit-user-select: none; user-select: none; }
 .range-bar-label-val, .range-min-max-val,
 .range-staff-name, .range-staff-office, .range-staff-amt,
 .pos-row-name, .pos-row-count, .pos-row-median,
-.type-val, .ed-tenure-val,
+.type-val, .ed-tenure-val, .type-label-sub,
+#table-info, .site-footer,
 .hero-stat-num:not(.quarter-nav),
 .money,
 /* legal.html shares this stylesheet, and a privacy policy nobody can copy
    is not a privacy policy. */
-.legal-content,
-input, textarea {
+.legal-content {
   -webkit-user-select: text; user-select: text;
 }
+
+/* A search field should not highlight when someone drags across the page,
+   but its own text has to stay selectable once they are actually in it.
+   Clicking an input focuses it before any drag begins, so keying the rule
+   to :focus gives both. */
+input, textarea { -webkit-user-select: none; user-select: none; }
+input:focus, textarea:focus { -webkit-user-select: text; user-select: text; }
 
 /* Chips and glyphs sit inside those selectable cells but are not part of the
    value. Excluding them keeps a copied salary as the amount alone, without
    the over-cap warning, the edit pencil, or a row chevron riding along. */
-.badge, .cap-warn, .ed-salary-pencil, .emp-row-chevron, .office-chevron,
-.sort-icon, .office-range-sep {
+.badge, .party-badge, .cap-warn, .ed-salary-pencil,
+.emp-row-chevron, .office-chevron, .sort-icon,
+.footer-profile-link, img {
   -webkit-user-select: none; user-select: none;
 }
+
+/* Chart furniture is chrome: axis ticks, series labels, and the value above
+   a bar all describe the drawing rather than being data to lift out of it.
+   The .money ticks need the extra specificity to lose to this.
+   The slope annotation is the exception. "+$1.4k / yr trend" is a finding,
+   and it reads as one only with its unit, so the whole string selects. */
+svg text, svg tspan, svg text.money, svg tspan.money {
+  -webkit-user-select: none; user-select: none;
+}
+svg text.chart-annot, svg text.chart-annot tspan {
+  -webkit-user-select: text; user-select: text;
+}
+
+/* Green, to match the accent rather than the browser default blue. */
+::selection { background: var(--accent); color: #fff; }
+::-moz-selection { background: var(--accent); color: #fff; }
 
 /* ── Loading screen ── */
 .loading-screen {
@@ -614,7 +638,12 @@ tr:hover td { background: var(--bg2); }
 .emp-detail-row:hover td { background: none; }
 .td-office { font-size: .75rem; color: var(--ink3); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .td-title { font-size: .78rem; color: var(--ink2); }
-.td-amt { font-weight: 800; color: var(--ink); }
+/* Right-aligned so the figures line up on their own edge. Left-aligned, a
+   row carrying the over-cap warning pushed its amount sideways and broke
+   the column. tabular-nums is already on globally and only pays off here. */
+.td-amt { font-weight: 800; color: var(--ink); text-align: right; }
+/* Header follows the column, but keeps its own weight and colour. */
+th[data-sort="annual_equiv"] { text-align: right; }
 
 .badge {
   display: inline-block;

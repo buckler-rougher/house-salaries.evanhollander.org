@@ -2554,7 +2554,7 @@ function buildTrendChartBody(labels, datasets, yMin, yMax, highlightLabel, xs = 
       const sign = annualSlope >= 0 ? "+" : "−";
       const abs = Math.abs(annualSlope);
       const label = `<tspan class="money">${sign}$${abs >= 1000 ? (abs/1000).toFixed(1)+"k" : Math.round(abs)}</tspan> / yr trend`;
-      soloAnnot = `<text x="${(W - pad.r).toFixed(1)}" y="14" text-anchor="end" font-size="11" fill="#6b7280">${label}</text>`;
+      soloAnnot = `<text class="chart-annot" x="${(W - pad.r).toFixed(1)}" y="14" text-anchor="end" font-size="11" fill="#6b7280">${label}</text>`;
     }
     return `<line x1="${sx(x0).toFixed(1)}" y1="${y0.toFixed(1)}" x2="${sx(x1).toFixed(1)}" y2="${y1.toFixed(1)}"
       stroke="${ds.color}" stroke-width="1.2" stroke-dasharray="4 3" opacity=".55" class="trend-regression-line"/>`;
@@ -3236,7 +3236,7 @@ function svgSparkline(data, labels, annualMultiplier = 4, excludeIndexFromTrend 
     const sign = annualSlope >= 0 ? "+" : "−";
     const abs = Math.abs(annualSlope);
     const label = `<tspan class="money">${sign}$${abs >= 1000 ? (abs/1000).toFixed(1)+"k" : Math.round(abs)}</tspan> / yr trend`;
-    annotEl = `<text x="${(W - pad.r).toFixed(1)}" y="14" text-anchor="end" font-size="11" fill="#6b7280">${label}</text>`;
+    annotEl = `<text class="chart-annot" x="${(W - pad.r).toFixed(1)}" y="14" text-anchor="end" font-size="11" fill="#6b7280">${label}</text>`;
   }
 
   return `<svg viewBox="0 0 ${W} ${H}" xmlns="http://www.w3.org/2000/svg" style="width:100%;height:100%"><defs>${fillGrad.defs}</defs>${yTicks}${markerLines}${fills}${lines}${trendEl}${dots}${xLabels}${annotEl}</svg>`;
