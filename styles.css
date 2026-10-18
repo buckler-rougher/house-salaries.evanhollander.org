@@ -206,6 +206,10 @@ svg text.chart-annot, svg text.chart-annot tspan {
   margin-right: .35em;
 }
 .logo-mark-img {
+  /* The mark is chrome, not a picture to take away. draggable="false" on the
+     element covers every browser; -webkit-user-drag is the matching CSS for
+     WebKit, which honours it independently of the attribute. */
+  -webkit-user-drag: none;
   position: absolute;
   width: 1.34em;
   height: 2.476em;
