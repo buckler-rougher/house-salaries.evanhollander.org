@@ -1883,7 +1883,7 @@ async function showPersonInline(name, officeName) {
       const pctileNum = estimatePercentile(you, ts);
       const pctile = pctileNum != null ? `${ordinal(pctileNum)} percentile` : "";
       const whoLabel = salaryOverride != null ? "Hypothetical" : esc(name);
-      const youRow = `<div class="emp-detail-comp-row emp-detail-comp-you${salaryOverride != null ? " emp-detail-comp-you-hypo" : ""}"><span>${whoLabel} ${pctile ? `<span style="font-weight:400;font-size:.72rem;opacity:.7">${pctile}</span>` : ""}</span><span class="money">${fmtK(you)}</span></div>`;
+      const youRow = `<div class="emp-detail-comp-row emp-detail-comp-you${salaryOverride != null ? " emp-detail-comp-you-hypo" : ""}"><span class="emp-detail-comp-who">${whoLabel} ${pctile ? `<span style="font-weight:400;font-size:.72rem;opacity:.7">${pctile}</span>` : ""}</span><span class="money">${fmtK(you)}</span></div>`;
       const r25 = `<div class="emp-detail-comp-row"><span>25th pct.</span><span class="money">${fmtK(ts.p25)}</span></div>`;
       const rMed = `<div class="emp-detail-comp-row"><span>Median</span><span class="money">${fmtK(ts.median)}</span></div>`;
       const r75 = `<div class="emp-detail-comp-row"><span>75th pct.</span><span class="money">${fmtK(ts.p75)}</span></div>`;

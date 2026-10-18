@@ -20,6 +20,10 @@
 button, input, select, textarea { font-family: inherit; font-size: inherit; }
 
 :root {
+  /* A wash of the accent, not a slab of it. Mixed from --accent itself so it
+     cannot drift from the brand green. */
+  --selection: color-mix(in srgb, var(--accent) 25%, transparent);
+
   --font-sans: "EMH Grotesk", -apple-system, BlinkMacSystemFont, sans-serif;
   --font-mono: "EMH Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 
@@ -62,7 +66,7 @@ body { -webkit-user-select: none; user-select: none; }
 .td-name, .td-office, .td-title,
 .person-link, .office-link, .title-link,
 .emp-comp-title-link, .ed-comp-result-title,
-.emp-detail-name, .emp-detail-meta,
+.emp-detail-name, .emp-detail-meta, .emp-detail-comp-who,
 .office-name-text, .office-count, .office-range,
 .office-detail-member-name, .office-detail-member-meta,
 .office-detail-val, .office-total-payroll,
@@ -109,9 +113,14 @@ svg text.chart-annot, svg text.chart-annot tspan {
   -webkit-user-select: text; user-select: text;
 }
 
-/* Green, to match the accent rather than the browser default blue. */
-::selection { background: var(--accent); color: #fff; }
-::-moz-selection { background: var(--accent); color: #fff; }
+/* background-color, not the background shorthand: ::selection only honours a
+   short list of properties, and the shorthand is not on it, so engines are
+   free to drop it and paint their own highlight instead. That is what made
+   the first attempt come out a colour that was not the accent at all.
+   No colour override either. A translucent wash lets each thing underneath
+   keep its own ink, the way a native highlight does. */
+::selection { background-color: var(--selection); }
+::-moz-selection { background-color: var(--selection); }
 
 /* ── Loading screen ── */
 .loading-screen {
