@@ -3817,7 +3817,7 @@ function renderTable() {
     const overCap = e.annual_equiv > SALARY_CAP;
     return `<tr class="emp-row" data-name="${esc(e.name)}" data-office="${esc(cleanOrg(e.office))}">
       <td class="td-name"><span class="person-link" data-name="${esc(e.name)}" data-office="${esc(cleanOrg(e.office))}">${esc(e.name)}</span></td>
-      <td class="td-office" title="${esc(e.office)}"><span class="office-link with-party-badge" data-office="${esc(cleanOrg(e.office))}">${esc(cleanOrg(e.office))}${officePartyBadge(e)}</span></td>
+      <td class="td-office" title="${esc(e.office)}"><span class="office-link with-party-badge" data-office="${esc(cleanOrg(e.office))}"><span class="td-office-text">${esc(cleanOrg(e.office))}</span>${officePartyBadge(e)}</span></td>
       <td class="td-title">${esc(e.title)}</td>
       <td><span class="badge badge-${e.intern?"intern":e.shared?"shared":e.type}">${e.intern?"Intern":e.shared?"Shared":(TYPE_LABELS[e.type]||e.type)}</span></td>
       <td class="td-amt">${overCap ? `<span class="cap-warn" title="Exceeds $228k staff salary cap — may include a bonus or lump-sum payment">${ICON_WARN}</span> ` : ""}<span class="money">${fmt(e.annual_equiv)}</span></td>

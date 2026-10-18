@@ -645,7 +645,15 @@ tr:hover td { background: var(--bg2); }
 .emp-row-chevron.open { transform: rotate(90deg); }
 .emp-detail-row { cursor: default; }
 .emp-detail-row:hover td { background: none; }
-.td-office { font-size: .75rem; color: var(--ink3); max-width: 200px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.td-office { font-size: .75rem; color: var(--ink3); max-width: 200px; overflow: hidden; white-space: nowrap; }
+/* The ellipsis has to live on the name, not on the cell. .with-party-badge is
+   inline-flex, which makes it an atomic inline, so the cell's own
+   text-overflow could never reach inside it: the whole box simply overran the
+   200px cap and overflow: hidden sliced it, taking a bite out of the trailing
+   party badge. Same split the office list already uses, where the name
+   ellipsises and the badge keeps its full width beside it. */
+.td-office .with-party-badge { max-width: 100%; }
+.td-office-text { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
 .td-title { font-size: .78rem; color: var(--ink2); }
 /* Right-aligned so the figures line up on their own edge. Left-aligned, a
    row carrying the over-cap warning pushed its amount sideways and broke
