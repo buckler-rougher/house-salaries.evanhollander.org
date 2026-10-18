@@ -5,6 +5,17 @@ const fmt   = n => n == null ? "—" : "$" + Math.round(n).toLocaleString();
 const fmtK  = n => n == null ? "—" : "$" + Math.round(n / 1000) + "k";
 const fmtSh = n => { if (n == null) return "—"; return n >= 1000 ? "$" + Math.round(n/1000) + "k" : "$" + Math.round(n); };
 
+// Drawn rather than typed. The glyphs these replace, ⚠ and ✎, are font
+// characters: they came from whatever fallback face the browser had, so they
+// changed shape across platforms, ignored the stroke weight of everything
+// around them, and in the pencil's case had to be mirrored in CSS to face the
+// right way. These are paths on the same 24-unit grid, no fill and a
+// currentColor stroke, matching the profile mark already in index.html, so
+// they inherit colour from the text and scale with its font-size.
+const SVG_ATTRS = 'viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"';
+const ICON_WARN = `<svg class="icon icon-warn" ${SVG_ATTRS}><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>`;
+const ICON_PENCIL = `<svg class="icon icon-pencil" ${SVG_ATTRS}><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`;
+
 // A plain substring search on a full name misses "john smith" against
 // "John A. Smith" — a middle name/initial (with or without a period, which
 // people also aren't consistent about) sits right where the search expects
@@ -1449,7 +1460,7 @@ function selectTitle(t, el, forcedTrendUI) {
         return `<div class="range-staff-row range-staff-row-in" style="--i:${i}" data-key="${key}">
           <span class="range-staff-name person-link" data-name="${esc(e.name)}" data-office="${esc(cleanOrg(e.office))}">${esc(e.name)}</span>
           <span class="range-staff-office office-link" data-office="${esc(cleanOrg(e.office))}">${esc(cleanOrg(e.office))}</span>
-          <span class="range-staff-amt">${over?`<span class="cap-warn" title="May include bonus/lump sum">⚠</span> `:""}<span class="range-staff-amt-val money">${fmt(e.annual_equiv)}</span></span>
+          <span class="range-staff-amt">${over?`<span class="cap-warn" title="May include bonus/lump sum">${ICON_WARN}</span> `:""}<span class="range-staff-amt-val money">${fmt(e.annual_equiv)}</span></span>
         </div>`;
       }).join("")}
       ${staff.length>30?`<div class="range-staff-more">+${staff.length-30} more</div>`:""}
@@ -1757,7 +1768,7 @@ async function showPersonInline(name, officeName) {
 
   const salaryBlockHtml = latestEmp ? `
     <div class="emp-detail-salary-row">
-      <button class="emp-detail-salary" id="ed-salary-val" type="button" title="Click to try a different salary">${over ? `<span class="cap-warn">⚠</span> ` : ""}<span class="money">${fmt(latestEmp.annual_equiv)}</span><span class="ed-salary-pencil">✎</span></button>
+      <button class="emp-detail-salary" id="ed-salary-val" type="button" title="Click to try a different salary">${over ? `<span class="cap-warn">${ICON_WARN}</span> ` : ""}<span class="money">${fmt(latestEmp.annual_equiv)}</span><span class="ed-salary-pencil">${ICON_PENCIL}</span></button>
       <span class="emp-detail-salary ed-salary-input-wrap" id="ed-salary-input-wrap" style="display:none">
         <span class="ed-salary-prefix">$</span><input type="text" inputmode="numeric" name="ed-salary-test-${Date.now()}" autocomplete="off" spellcheck="false" autocorrect="off" autocapitalize="off" data-lpignore="true" data-1p-ignore="true" data-bwignore="true" data-form-type="other" class="ed-salary-input" id="ed-salary-input" />
       </span>
@@ -2013,7 +2024,7 @@ async function showPersonInline(name, officeName) {
       salaryPillEl.style.display = salaryOverride != null ? "" : "none";
       const v = salaryOverride != null ? salaryOverride : latestEmp.annual_equiv;
       const overNow = v > SALARY_CAP;
-      salaryValBtn.innerHTML = `${overNow ? `<span class="cap-warn">⚠</span> ` : ""}<span class="money">${fmt(v)}</span><span class="ed-salary-pencil">✎</span>`;
+      salaryValBtn.innerHTML = `${overNow ? `<span class="cap-warn">${ICON_WARN}</span> ` : ""}<span class="money">${fmt(v)}</span><span class="ed-salary-pencil">${ICON_PENCIL}</span>`;
       salaryValBtn.style.display = "";
       salaryInputWrap.style.display = "none";
     }
@@ -3603,7 +3614,7 @@ function renderOfficeDetail(officeName, el) {
         return `<div class="office-staff-row">
           <span class="office-staff-name person-link" data-name="${esc(e.name)}" data-office="${esc(officeName)}">${esc(e.name)}</span>
           <span class="office-staff-title">${esc(e.title)}</span>
-          <span class="office-staff-amt">${over?`<span class="cap-warn" title="May include bonus/lump sum">⚠</span> `:""}<span class="money">${fmt(e.annual_equiv)}</span></span>
+          <span class="office-staff-amt">${over?`<span class="cap-warn" title="May include bonus/lump sum">${ICON_WARN}</span> `:""}<span class="money">${fmt(e.annual_equiv)}</span></span>
         </div>`;
       }).join("")}</div>`;
   } else {
@@ -3809,7 +3820,7 @@ function renderTable() {
       <td class="td-office" title="${esc(e.office)}"><span class="office-link with-party-badge" data-office="${esc(cleanOrg(e.office))}">${esc(cleanOrg(e.office))}${officePartyBadge(e)}</span></td>
       <td class="td-title">${esc(e.title)}</td>
       <td><span class="badge badge-${e.intern?"intern":e.shared?"shared":e.type}">${e.intern?"Intern":e.shared?"Shared":(TYPE_LABELS[e.type]||e.type)}</span></td>
-      <td class="td-amt">${overCap ? `<span class="cap-warn" title="Exceeds $228k staff salary cap — may include a bonus or lump-sum payment">⚠</span> ` : ""}<span class="money">${fmt(e.annual_equiv)}</span></td>
+      <td class="td-amt">${overCap ? `<span class="cap-warn" title="Exceeds $228k staff salary cap — may include a bonus or lump-sum payment">${ICON_WARN}</span> ` : ""}<span class="money">${fmt(e.annual_equiv)}</span></td>
       <td class="td-chevron"><span class="emp-row-chevron">›</span></td>
     </tr>
     <tr class="emp-detail-row" style="display:none">
