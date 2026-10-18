@@ -97,7 +97,7 @@ input:focus, textarea:focus { -webkit-user-select: text; user-select: text; }
    the over-cap warning, the edit pencil, or a row chevron riding along. */
 .badge, .party-badge, .cap-warn, .ed-salary-pencil,
 .emp-row-chevron, .office-chevron, .sort-icon,
-.footer-profile-link, img {
+.wordmark, .site-footer-sep, .footer-profile-wrap, img {
   -webkit-user-select: none; user-select: none;
 }
 
@@ -174,7 +174,12 @@ svg text.chart-annot, svg text.chart-annot tspan {
   color: var(--ink);
   margin-bottom: 12px;
 }
-.hero-title span { color: var(--accent); }
+/* The wordmark, worn at two sizes: full in the header, shrunk into the
+   footer. Only the type scale differs. .logo-mark and .logo-mark-img are
+   measured entirely in em, so the mark follows the type down on its own and
+   needs no second set of numbers. */
+.wordmark { font-weight: 800; letter-spacing: -.03em; color: var(--ink); }
+.wordmark .wordmark-accent { color: var(--accent); }
 
 /* Logo mark: logo-mark.svg is favicon.svg with its viewBox extended way
    down (0 0 210 400 instead of 0 0 210 210) so the image itself contains
@@ -1146,7 +1151,10 @@ text.money, tspan.money { font-weight: 400; }
   display: flex; align-items: center; flex-wrap: wrap; gap: 6px 0;
   font-size: .72rem; color: var(--ink3);
 }
-.site-footer-brand { font-weight: 700; color: var(--ink2); }
+.site-footer-brand { font-size: .82rem; }
+/* The reveal is a header moment. A second copy of it playing in the footer,
+   usually below the fold, is animation nobody asked to watch. */
+.site-footer-brand .logo-mark-img { animation: none; }
 .site-footer-sep { margin: 0 8px; }
 .site-footer-copy { color: var(--ink3); }
 .site-footer-link { color: var(--ink3); text-decoration: none; }
