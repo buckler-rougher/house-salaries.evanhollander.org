@@ -44,6 +44,51 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+/* ── Selection ────────────────────────────────────────────────────────────
+   Chrome is not content. Dragging across the hero, a filter bar, or a button
+   only ever leaves half the page highlighted, so selection is off by default
+   and the data opt back in: names, offices, titles, and every figure, which
+   are the things people actually copy out of this site.
+
+   user-select inherits, so each rule below covers its whole subtree and no
+   specificity contest arises. Both the prefixed and unprefixed properties are
+   set because Safari only dropped the prefix in 17.
+
+   Form fields are listed explicitly: inheriting none from an ancestor stops
+   selection inside an <input> in Safari, which would break the salary what-if
+   field and both search boxes. */
+body { -webkit-user-select: none; user-select: none; }
+
+.td-name, .td-office, .td-title,
+.person-link, .office-link, .title-link,
+.emp-comp-title-link, .ed-comp-result-title,
+.emp-detail-name, .emp-detail-meta,
+.office-name-text, .office-count, .office-range,
+.office-detail-member-name, .office-detail-member-meta,
+.office-detail-val, .office-total-payroll,
+.office-staff-name, .office-staff-title, .office-staff-amt,
+.range-card-title, .range-card-count, .range-trio-val,
+.range-bar-label-val, .range-min-max-val,
+.range-staff-name, .range-staff-office, .range-staff-amt,
+.pos-row-name, .pos-row-count, .pos-row-median,
+.type-val, .ed-tenure-val,
+.hero-stat-num:not(.quarter-nav),
+.money,
+/* legal.html shares this stylesheet, and a privacy policy nobody can copy
+   is not a privacy policy. */
+.legal-content,
+input, textarea {
+  -webkit-user-select: text; user-select: text;
+}
+
+/* Chips and glyphs sit inside those selectable cells but are not part of the
+   value. Excluding them keeps a copied salary as the amount alone, without
+   the over-cap warning, the edit pencil, or a row chevron riding along. */
+.badge, .cap-warn, .ed-salary-pencil, .emp-row-chevron, .office-chevron,
+.sort-icon, .office-range-sep {
+  -webkit-user-select: none; user-select: none;
+}
+
 /* ── Loading screen ── */
 .loading-screen {
   position: fixed; inset: 0;
