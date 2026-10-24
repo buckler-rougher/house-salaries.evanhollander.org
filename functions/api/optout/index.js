@@ -6,7 +6,7 @@
 // exists, and nothing is recorded here — only clicking the link, which
 // requires reading that mailbox, does anything. Nothing is stored between the
 // two steps either: the request travels inside the signed token.
-import { SMTP, HOUSE_DOMAIN, LINK_TTL_SECONDS, emailMatchesName, signToken, json, claimSource, claimRecipient } from '../_lib.js';
+import { HOUSE_DOMAIN, LINK_TTL_SECONDS, emailMatchesName, signToken, json, claimSource, claimRecipient } from '../_lib.js';
 import { sendMail } from '../_smtp.js';
 import { verificationText, verificationHtml } from '../_email.js';
 
@@ -79,9 +79,9 @@ export async function onRequestPost({ env, request }) {
     const mail = { name: name.trim(), office: office.trim(), link, origin };
 
     await sendMail({
-      server: SMTP.server,
-      port: SMTP.port,
-      username: SMTP.username,
+      server: env.SMTP_SERVER,
+      port: parseInt(env.SMTP_PORT, 10),
+      username: env.SMTP_USERNAME,
       token: env.smtp,
       to: email.trim(),
       fromLabel: 'House Staff Salaries',

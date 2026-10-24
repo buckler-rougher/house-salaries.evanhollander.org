@@ -10,7 +10,7 @@
 // re-runs and filters them out — which is why update-data.yml also triggers
 // on pushes to data/suppressed.json. The chain is:
 //     confirm -> commit -> workflow -> regenerated data -> deploy
-import { verifyToken, suppressionDigest, SMTP } from '../_lib.js';
+import { verifyToken, suppressionDigest } from '../_lib.js';
 import { sendMail } from '../_smtp.js';
 import { removedText, removedHtml } from '../_email.js';
 
@@ -121,7 +121,7 @@ export async function onRequestGet({ env, request }) {
         try {
           const mail = { name: payload.n, office: payload.o, origin: new URL(request.url).origin };
           await sendMail({
-            server: SMTP.server, port: SMTP.port, username: SMTP.username, token: env.smtp,
+            server: env.SMTP_SERVER, port: parseInt(env.SMTP_PORT, 10), username: env.SMTP_USERNAME, token: env.smtp,
             to: payload.e,
             fromLabel: 'House Staff Salaries',
             subject: 'Your listing has been removed',

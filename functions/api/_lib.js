@@ -1,16 +1,6 @@
 // Shared helpers for the opt-out endpoints. Underscore-prefixed, so Pages
 // doesn't route it.
 
-// SMTP settings are not secrets, so they're here rather than in the Pages
-// environment — only the token is configured there (as `smtp`). Port 587 with
-// STARTTLS, matching what contact.evanhollander.org already runs in
-// production against this same Proton account.
-export const SMTP = {
-  server: 'smtp.protonmail.ch',
-  port: 587,
-  username: 'support@evanhollander.org',
-};
-
 export const SITE = 'https://house-salaries.evanhollander.org';
 export const HOUSE_DOMAIN = 'mail.house.gov';
 
