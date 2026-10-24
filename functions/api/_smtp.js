@@ -122,7 +122,8 @@ export async function sendMail({ server, port, username, token, to, subject, bod
     const part = buildBody(body, html);
 
     // Dot-stuffing: a line starting with "." would otherwise end the message.
-    const safeBody = part.body.split('\r\n').map((l) => (l.startsWith('.') ? '.' + l : l)).join('\r\n');
+    // Bare CR and LF are line breaks too, so every line is dot-stuffed and nothing in the body can end the message early.
+    const safeBody = part.body.replace(/\r\n|\r|\n/g, '\r\n').split('\r\n').map((l) => (l.startsWith('.') ? '.' + l : l)).join('\r\n');
 
     const msg = [
       `From: "${fromLabel}" <${username}>`,
