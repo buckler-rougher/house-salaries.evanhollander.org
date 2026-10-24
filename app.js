@@ -3989,11 +3989,39 @@ document.addEventListener("DOMContentLoaded", () => {
   // Suggestion drawer
   const drawer = $("suggest-drawer");
   const overlay = $("suggest-overlay");
+  // Turnstile: a check that stays out of sight unless it has to show itself, and rides along with the
+  // form as the field cf-turnstile-response. If it cannot load or run, the form still sends and the
+  // server decides what to do about a missing token.
+  const TS_KEY = '0x4AAAAAADXezVdye4e6zE_p';
+  let tsId = null, tsLoading = null;
+  const loadTurnstile = () => tsLoading ??= new Promise((resolve) => {
+      if (window.turnstile) return resolve(true);
+      const s = document.createElement('script');
+      s.src = 'https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit';
+      s.async = true;
+      s.onload = () => resolve(true);
+      s.onerror = () => resolve(false);
+      document.head.appendChild(s);
+  });
+  const startTurnstile = async () => {
+      if (tsId !== null || !(await loadTurnstile()) || !window.turnstile) return;
+      const box = document.createElement('div');
+      box.id = 'suggest-turnstile';
+      $("suggest-form").appendChild(box);
+      try { tsId = window.turnstile.render(box, { sitekey: TS_KEY, appearance: 'interaction-only' }); } catch { box.remove(); }
+  };
+  // Up to four seconds for a token that is still being made; then send without one.
+  const tokenReady = async () => {
+      for (let i = 0; tsId !== null && i < 27 && !window.turnstile.getResponse(tsId); i++) await new Promise((r) => setTimeout(r, 150));
+  };
+  const resetTurnstile = () => { try { if (tsId !== null) window.turnstile.reset(tsId); } catch { /* the form still works */ } };
+
   const openDrawer = () => {
     overlay.style.display = "";
     drawer.removeAttribute("aria-hidden");
     drawer.classList.add("open");
     $("suggest-message")?.focus();
+    startTurnstile();
   };
   const closeDrawer = () => {
     drawer.classList.remove("open");
@@ -4038,6 +4066,7 @@ document.addEventListener("DOMContentLoaded", () => {
     btn.disabled = true;
     btn.textContent = "Sending…";
     try {
+      await tokenReady();
       const fd = new FormData(e.target);
       const res = await fetch("https://contact.evanhollander.org/api/submit", {
         method: "POST", body: fd,
@@ -4051,6 +4080,7 @@ document.addEventListener("DOMContentLoaded", () => {
       errEl.style.display = "";
       btn.disabled = false;
       btn.textContent = "Send";
+      resetTurnstile();
     }
   });
 
