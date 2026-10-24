@@ -7,3 +7,11 @@ serve.sh
 # served publicly — house-floor was exposing its deploy rules at /CLAUDE.md.
 CLAUDE.md
 AGENTS.md
+
+# Local secrets, never committed
+.dev.vars
+.dev.vars.*
+.env
+.env.*
+!.env.example
+!.dev.vars.example
