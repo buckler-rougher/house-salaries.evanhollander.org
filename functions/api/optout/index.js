@@ -83,6 +83,7 @@ export async function onRequestPost({ env, request }) {
       port: parseInt(env.SMTP_PORT, 10),
       username: env.SMTP_USERNAME,
       token: env.smtp,
+      from: env.SMTP_FROM || undefined,
       to: email.trim(),
       fromLabel: 'House Staff Salaries',
       subject: 'Confirm removing your listing',

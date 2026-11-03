@@ -121,7 +121,7 @@ export async function onRequestGet({ env, request }) {
         try {
           const mail = { name: payload.n, office: payload.o, origin: new URL(request.url).origin };
           await sendMail({
-            server: env.SMTP_SERVER, port: parseInt(env.SMTP_PORT, 10), username: env.SMTP_USERNAME, token: env.smtp,
+            server: env.SMTP_SERVER, port: parseInt(env.SMTP_PORT, 10), username: env.SMTP_USERNAME, token: env.smtp, from: env.SMTP_FROM || undefined,
             to: payload.e,
             fromLabel: 'House Staff Salaries',
             subject: 'Your listing has been removed',

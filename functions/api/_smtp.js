@@ -1,7 +1,7 @@
 // SMTP-over-TCP client for Cloudflare Pages Functions.
 //
 // Lifted from buckler-rougher/contact's functions/api/submit.js rather than
-// written fresh: that one has been sending through this same Proton account
+// written fresh: that one has been sending through this same mail account
 // in production, so its STARTTLS handshake and multi-line response parsing
 // are known-good. Divergence here would mean debugging a second SMTP
 // implementation against a mail server we can't test locally.
@@ -49,7 +49,8 @@ function buildBody(text, html) {
   };
 }
 
-export async function sendMail({ server, port, username, token, to, subject, body, html, fromLabel }) {
+// `from` is the address mail comes from; it is the login unless given (iCloud logs in with the Apple ID).
+export async function sendMail({ server, port, username, token, to, subject, body, html, fromLabel, from = username }) {
   const directTLS = port === 465;
   let socket = connect({ hostname: server, port }, { secureTransport: directTLS ? 'on' : 'starttls' });
 
@@ -112,7 +113,7 @@ export async function sendMail({ server, port, username, token, to, subject, bod
     await send(btoa(token));
     await readResp(); // 235
 
-    await send(`MAIL FROM:<${username}>`);
+    await send(`MAIL FROM:<${from}>`);
     await readResp();
     await send(`RCPT TO:<${to}>`);
     await readResp();
@@ -126,7 +127,7 @@ export async function sendMail({ server, port, username, token, to, subject, bod
     const safeBody = part.body.replace(/\r\n|\r|\n/g, '\r\n').split('\r\n').map((l) => (l.startsWith('.') ? '.' + l : l)).join('\r\n');
 
     const msg = [
-      `From: "${fromLabel}" <${username}>`,
+      `From: "${fromLabel}" <${from}>`,
       `To: <${to}>`,
       `Subject: ${mimeWord(subject)}`,
       'MIME-Version: 1.0',

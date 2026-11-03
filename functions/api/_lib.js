@@ -118,7 +118,7 @@ export function emailMatchesName(email, name) {
 // claimed; it does nothing about volume. Every name on the site is public, so
 // a script can derive first.last@mail.house.gov for all ~8,600 staff and
 // submit every one — each passes the gate, because each really is that
-// person's address. That's thousands of unrequested emails from one Proton
+// person's address. That's thousands of unrequested emails from one mail
 // account, which is both a spam incident and a good way to lose the account.
 //
 // Cache API rather than KV because it needs no namespace, binding or extra
